@@ -1,0 +1,33 @@
+name: run_coach_app
+description: "Run Coach - app Android per la corsa: GPS, allenamenti a intervalli, coach vocale, storico e gestione scarpe."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+  flutter: ">=3.22.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State management semplice e stabile
+  provider: ">=6.1.0 <7.0.0"
+
+  # GPS / posizione
+  geolocator: ">=13.0.0 <15.0.0"
+
+  # Coach vocale (Text To Speech)
+  flutter_tts: ">=4.0.0 <5.0.0"
+
+  # Percorso della cartella documenti dell'app (storage locale JSON)
+  path_provider: ">=2.1.0 <3.0.0"
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ">=4.0.0 <7.0.0"
+
+flutter:
+  uses-material-design: true
