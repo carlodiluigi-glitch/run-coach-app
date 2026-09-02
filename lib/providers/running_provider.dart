@@ -68,9 +68,21 @@ class RunningProvider extends ChangeNotifier {
   final List<RoutePoint> _route = <RoutePoint>[];
   int _lastRoutePointSecond = -10;
 
-  /// Finestra scorrevole usata per il passo attuale (ultimi ~20 secondi).
+  /// Finestra scorrevole usata per il passo attuale (ultimi ~30 secondi).
   final Queue<_PaceSample> _paceWindow = Queue<_PaceSample>();
-  static const double _paceWindowSeconds = 20.0;
+  static const double _paceWindowSeconds = 30.0;
+
+  /// Durata minima della finestra: sotto, il passo non e' affidabile.
+  static const double _paceMinimumSeconds = 10.0;
+
+  /// Velocita' sotto la quale si considera di essere fermi (m/s).
+  static const double _paceStandingSpeed = 0.3;
+
+  /// Peso del valore nuovo nel lisciamento esponenziale.
+  static const double _paceSmoothing = 0.3;
+
+  /// Passo mostrato, gia' smorzato.
+  double? _smoothedPaceSecPerKm;
 
   // Impostazioni correnti (aggiornate dal SettingsProvider).
   UserSettings _settings = const UserSettings();
@@ -138,17 +150,7 @@ class RunningProvider extends ChangeNotifier {
   ///
   /// Usare la finestra invece dell'ultimo singolo punto rende il valore molto
   /// piu' stabile e leggibile mentre si corre.
-  double? get currentPaceSecPerKm {
-    if (_paceWindow.length < 2) return null;
-    final _PaceSample first = _paceWindow.first;
-    final _PaceSample last = _paceWindow.last;
-    final double deltaTime = last.elapsedSeconds - first.elapsedSeconds;
-    final double deltaDistance = last.distanceMeters - first.distanceMeters;
-    if (deltaTime < 5.0 || deltaDistance < 10.0) return null;
-    final double pace = deltaTime / (deltaDistance / 1000.0);
-    if (pace <= 0 || pace > 3599) return null;
-    return pace;
-  }
+  double? get currentPaceSecPerKm => _smoothedPaceSecPerKm;
 
   /// Velocita' attuale in m/s (dal passo calcolato, con fallback sul GPS).
   double? get currentSpeedMps {
@@ -262,6 +264,7 @@ class RunningProvider extends ChangeNotifier {
     // Durante la pausa non si somma distanza: si "dimentica" il riferimento.
     _filter.dropReference();
     _paceWindow.clear();
+    _smoothedPaceSecPerKm = null;
     await _coach.speak(_coach.phrases.paused(), priority: SpeechPriority.high);
     notifyListeners();
   }
@@ -356,6 +359,7 @@ class RunningProvider extends ChangeNotifier {
     _route.clear();
     _lastRoutePointSecond = -10;
     _paceWindow.clear();
+    _smoothedPaceSecPerKm = null;
     _paceStatus = PaceStatus.unknown;
     _lastPaceCheck = null;
     _startTime = null;
@@ -444,6 +448,62 @@ class RunningProvider extends ChangeNotifier {
         now - _paceWindow.first.elapsedSeconds > _paceWindowSeconds) {
       _paceWindow.removeFirst();
     }
+    _updateSmoothedPace();
+  }
+
+  /// Aggiorna il passo mostrato a partire dalla finestra corrente.
+  ///
+  /// A ritmo di corsa si percorrono circa 3 metri al secondo, mentre
+  /// l'incertezza del GPS e' di 3-5 metri: calcolare il passo sulla
+  /// differenza fra due soli punti significa leggere un errore grande
+  /// quanto il dato. Qui si usano invece tutti i campioni della finestra,
+  /// stimando la velocita' con una regressione lineare della distanza sul
+  /// tempo, cosi' gli errori dei singoli punti si compensano fra loro.
+  void _updateSmoothedPace() {
+    final double? raw = _regressionPaceSecPerKm();
+    if (raw == null) {
+      _smoothedPaceSecPerKm = null;
+      return;
+    }
+    final double? previous = _smoothedPaceSecPerKm;
+    _smoothedPaceSecPerKm = previous == null
+        ? raw
+        : previous + _paceSmoothing * (raw - previous);
+  }
+
+  /// Passo grezzo della finestra, senza lisciamento.
+  double? _regressionPaceSecPerKm() {
+    if (_paceWindow.length < 2) return null;
+
+    final double span =
+        _paceWindow.last.elapsedSeconds - _paceWindow.first.elapsedSeconds;
+    if (span < _paceMinimumSeconds) return null;
+
+    final int n = _paceWindow.length;
+    double sumT = 0;
+    double sumD = 0;
+    for (final _PaceSample sample in _paceWindow) {
+      sumT += sample.elapsedSeconds;
+      sumD += sample.distanceMeters;
+    }
+    final double meanT = sumT / n;
+    final double meanD = sumD / n;
+
+    double numerator = 0;
+    double denominator = 0;
+    for (final _PaceSample sample in _paceWindow) {
+      final double dt = sample.elapsedSeconds - meanT;
+      numerator += dt * (sample.distanceMeters - meanD);
+      denominator += dt * dt;
+    }
+    if (denominator == 0) return null;
+
+    final double speed = numerator / denominator;
+    if (speed < _paceStandingSpeed) return null;
+
+    final double pace = 1000.0 / speed;
+    if (pace <= 0 || pace > 3599) return null;
+    return pace;
   }
 
   void _onTick() {
