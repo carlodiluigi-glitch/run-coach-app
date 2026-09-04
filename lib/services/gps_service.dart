@@ -89,6 +89,34 @@ class GpsService {
   /// [distanceFilterMeters] a 0 significa "notificami ogni aggiornamento":
   /// il filtro sui punti lo applichiamo noi in `GpsFilter`, cosi' possiamo
   /// controllare accuratezza, salti e velocita' impossibili.
+  /// Recupera subito l'ultima posizione nota del telefono.
+  ///
+  /// `getPositionStream` consegna solo agganci nuovi: finche' il GPS non ne
+  /// produce uno, l'app resta senza dati e sembra bloccata. Le mappe danno
+  /// l'impressione di essere istantanee proprio perche' partono dalla
+  /// posizione gia' in memoria nel sistema. Qui si fa lo stesso: si mostra
+  /// subito quella nota e la si sostituisce appena arriva la prima vera.
+  ///
+  /// Il valore puo' essere vecchio, quindi non va usato per misurare: serve
+  /// solo a mostrare che il segnale c'e'.
+  Future<GpsSample?> lastKnown() async {
+    try {
+      final Position? position = await Geolocator.getLastKnownPosition();
+      if (position == null) return null;
+      return GpsSample(
+        latitude: position.latitude,
+        longitude: position.longitude,
+        accuracy: position.accuracy,
+        timestamp: position.timestamp,
+        altitude: position.altitude,
+        speed: position.speed,
+        heading: position.heading,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<void> start({
     int distanceFilterMeters = 0,
     bool backgroundTracking = true,
