@@ -119,7 +119,16 @@ class GpsService {
 
   Future<void> start({
     int distanceFilterMeters = 0,
-    bool backgroundTracking = true,
+    // TEMPORANEAMENTE DISATTIVATO.
+    //
+    // Con il servizio in primo piano attivo, su questo telefono (Honor,
+    // MagicOS) `getPositionStream` non consegna mai una posizione, pur
+    // partendo senza errori e mostrando la notifica. La posizione nota
+    // invece si ottiene senza problemi, quindi il GPS del telefono
+    // funziona: il punto sospetto e' il servizio.
+    //
+    // Rimesso a `true` quando avremo capito la causa.
+    bool backgroundTracking = false,
   }) async {
     if (_running) return;
 
