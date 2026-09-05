@@ -9,22 +9,12 @@
                                    (l'utente puo' concedere solo la precisione
                                    approssimativa).
 
-         - FOREGROUND_SERVICE e FOREGROUND_SERVICE_LOCATION: permettono di
-                                   continuare a registrare la corsa a schermo
-                                   spento, tramite un servizio in primo piano
-                                   con notifica visibile.
-         - POST_NOTIFICATIONS    : da Android 13 serve per mostrare quella
-                                   notifica.
-
-         NON e' richiesto ACCESS_BACKGROUND_LOCATION: con il servizio in primo
-         piano non serve, e chiederlo comporterebbe una revisione aggiuntiva
-         sul Play Store. Bluetooth e storage restano fuori.
+         NON sono richiesti permessi di background, Bluetooth o storage:
+         in questa versione la corsa si registra con l'app in primo piano e i
+         dati restano nella cartella privata dell'app.
     -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- Il GPS e' fortemente consigliato ma non obbligatorio per installare. -->
     <uses-feature
