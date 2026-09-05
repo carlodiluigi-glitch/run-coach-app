@@ -27,6 +27,8 @@ class WorkoutEvent {
     this.previousStep,
     this.countdownSeconds,
     this.remainingMeters,
+    this.completedDistanceMeters,
+    this.completedSeconds,
   });
 
   final WorkoutEventType type;
@@ -35,11 +37,29 @@ class WorkoutEvent {
   /// altri eventi).
   final ResolvedStep? step;
 
-  /// Step appena concluso (solo per `stepStarted`).
+  /// Step appena concluso (solo per `stepStarted` e `finished`).
   final ResolvedStep? previousStep;
 
   final int? countdownSeconds;
   final double? remainingMeters;
+
+  /// Distanza percorsa nello step appena concluso, in metri.
+  ///
+  /// PERCHE' LA FORNISCE IL MOTORE: chi riceve l'evento non puo' ricavarla
+  /// da solo in modo esatto. Su uno step a distanza il motore chiude il
+  /// confine sull'obiettivo (es. esattamente 400 m) e non sulla distanza
+  /// letta al momento del controllo, che e' quasi sempre qualche metro oltre.
+  /// Ricalcolarla fuori significherebbe far slittare i lap rispetto agli
+  /// step, un po' di piu' ad ogni ripetuta.
+  ///
+  /// Valorizzata solo per `stepStarted` e `finished`.
+  final double? completedDistanceMeters;
+
+  /// Tempo attivo trascorso nello step appena concluso, in secondi.
+  ///
+  /// Speculare a [completedDistanceMeters]: su uno step a tempo il confine
+  /// cade esattamente sull'obiettivo.
+  final int? completedSeconds;
 }
 
 /// Motore che esegue automaticamente la sequenza di step di un allenamento.
@@ -198,6 +218,12 @@ class WorkoutEngine {
         // Il nuovo step parte esattamente dall'obiettivo del precedente, non
         // dai valori attuali: cosi' non si perde l'eventuale "extra" percorso.
         final WorkoutStep done = completed!.step;
+
+        // Confine dello step prima dell'avanzamento: la differenza con il
+        // confine nuovo e' la misura esatta dello step concluso.
+        final double boundaryDistance = _stepStartDistance;
+        final int boundarySeconds = _stepStartSeconds;
+
         if (done.isDistanceBased) {
           _stepStartDistance += done.goalDistanceMeters;
           _stepStartSeconds = _totalSeconds;
@@ -206,11 +232,16 @@ class WorkoutEngine {
           _stepStartDistance = _totalDistance;
         }
 
+        final double completedDistance = _stepStartDistance - boundaryDistance;
+        final int completedSecs = _stepStartSeconds - boundarySeconds;
+
         if (_currentIndex + 1 >= _steps.length) {
           _finished = true;
           events.add(WorkoutEvent(
             type: WorkoutEventType.finished,
             previousStep: completed,
+            completedDistanceMeters: completedDistance,
+            completedSeconds: completedSecs,
           ));
         } else {
           _currentIndex++;
@@ -220,6 +251,8 @@ class WorkoutEngine {
             type: WorkoutEventType.stepStarted,
             step: currentStep,
             previousStep: completed,
+            completedDistanceMeters: completedDistance,
+            completedSeconds: completedSecs,
           ));
           advanced = true;
         }
@@ -270,6 +303,12 @@ class WorkoutEngine {
       return const <WorkoutEvent>[];
     }
     final ResolvedStep? completed = currentStep;
+
+    // Saltando la fase il confine cade dove siamo adesso, non sull'obiettivo:
+    // lo step concluso vale esattamente quanto e' stato percorso.
+    final double completedDistance = _totalDistance - _stepStartDistance;
+    final int completedSecs = _totalSeconds - _stepStartSeconds;
+
     _stepStartDistance = _totalDistance;
     _stepStartSeconds = _totalSeconds;
     _announcedCountdowns.clear();
@@ -278,7 +317,12 @@ class WorkoutEngine {
     if (_currentIndex + 1 >= _steps.length) {
       _finished = true;
       return <WorkoutEvent>[
-        WorkoutEvent(type: WorkoutEventType.finished, previousStep: completed),
+        WorkoutEvent(
+          type: WorkoutEventType.finished,
+          previousStep: completed,
+          completedDistanceMeters: completedDistance < 0 ? 0 : completedDistance,
+          completedSeconds: completedSecs < 0 ? 0 : completedSecs,
+        ),
       ];
     }
     _currentIndex++;
@@ -287,6 +331,8 @@ class WorkoutEngine {
         type: WorkoutEventType.stepStarted,
         step: currentStep,
         previousStep: completed,
+        completedDistanceMeters: completedDistance < 0 ? 0 : completedDistance,
+        completedSeconds: completedSecs < 0 ? 0 : completedSecs,
       ),
     ];
   }
