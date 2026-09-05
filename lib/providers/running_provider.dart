@@ -372,10 +372,6 @@ class RunningProvider extends ChangeNotifier {
     try {
       await _gps.start();
       _gpsSub = _gps.samples.listen(_onGpsSample);
-
-      // Mostra subito l'ultima posizione conosciuta invece di aspettare il
-      // primo aggancio nuovo, che all'aperto puo' richiedere minuti.
-      unawaited(_seedFromLastKnown());
       _gpsErrorSub = _gps.errors.listen((Object error) {
         _gpsError = 'Errore GPS: $error';
         notifyListeners();
@@ -384,19 +380,6 @@ class RunningProvider extends ChangeNotifier {
       _gpsError = 'Impossibile avviare il GPS: $error';
       notifyListeners();
     }
-  }
-
-  /// Usa l'ultima posizione nota per popolare lo stato del segnale.
-  ///
-  /// Non passa dal filtro e non contribuisce alla distanza: serve solo a
-  /// far capire all'utente che il GPS e' vivo.
-  Future<void> _seedFromLastKnown() async {
-    if (_lastFixAt != null) return;
-    final GpsSample? sample = await _gps.lastKnown();
-    if (sample == null || _lastFixAt != null) return;
-    _lastAccuracy = sample.accuracy;
-    _lastFixAt = DateTime.now();
-    notifyListeners();
   }
 
   Future<void> _stopGpsStream() async {
