@@ -111,11 +111,11 @@ class LapTable extends StatelessWidget {
                       ),
                     ],
                   ),
-                  if (showStepColumn && lap.stepLabel != null)
+                  if (showStepColumn && lap.sourceLabel != null)
                     Padding(
                       padding: const EdgeInsets.only(left: 44, top: 2),
                       child: Text(
-                        lap.stepLabel!,
+                        lap.sourceLabel!,
                         style: TextStyle(
                           fontSize: 12,
                           color: scheme.onSurfaceVariant,
