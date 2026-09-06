@@ -65,6 +65,17 @@ class RunningProvider extends ChangeNotifier {
   double _lapStartDistance = 0.0;
   int _lapStartSeconds = 0;
 
+  /// Confine dello step corrente, in valori assoluti dall'inizio attivita'.
+  ///
+  /// PERCHE' SERVE: il motore comunica quanto e' durato lo step appena
+  /// concluso, non dove cade il confine. Se durante una ripetuta l'utente
+  /// preme LAP, parte di quello step e' gia' finita in un lap manuale: usare
+  /// la misura piena dello step conterebbe quei metri due volte. Tenendo qui
+  /// il confine assoluto, il lap di fine step vale sempre e solo il tratto
+  /// non ancora registrato.
+  double _stepBoundaryDistance = 0.0;
+  int _stepBoundarySeconds = 0;
+
   final List<RoutePoint> _route = <RoutePoint>[];
   int _lastRoutePointSecond = -10;
 
@@ -291,8 +302,18 @@ class RunningProvider extends ChangeNotifier {
     await _screen.setKeepScreenOn(false);
 
     // Chiude l'ultimo lap parziale, se ha senso (almeno 10 metri).
+    //
+    // La fase si allega solo se l'allenamento e' ancora in corso: dopo la fine
+    // il motore continua a indicare l'ultimo step, e i metri corsi dopo il
+    // termine finirebbero attribuiti a una fase gia' chiusa.
     if (currentLapDistance >= 10) {
-      _closeLap(manual: false, partial: true);
+      final WorkoutEngine? engine = _engine;
+      final bool workoutRunning = engine != null && !engine.isFinished;
+      _closeLap(
+        manual: false,
+        partial: true,
+        step: workoutRunning ? currentStep : null,
+      );
     }
 
     await _coach.speak(_coach.phrases.stopped(), priority: SpeechPriority.high);
@@ -331,10 +352,14 @@ class RunningProvider extends ChangeNotifier {
   ///
   /// Nota: chiudere un lap manuale azzera anche il conteggio del lap
   /// automatico, cosi' i giri restano consecutivi e senza sovrapposizioni.
+  ///
+  /// Resta disponibile anche durante un allenamento programmato: il lap viene
+  /// marcato come frazione manuale e riporta la fase in cui e' stato chiuso,
+  /// cosi' nello storico si distingue dai lap di fine step.
   void manualLap() {
     if (_state != RunState.running) return;
     if (currentLapDistance < 5) return;
-    _closeLap(manual: true);
+    _closeLap(manual: true, step: currentStep);
     notifyListeners();
   }
 
@@ -356,6 +381,8 @@ class RunningProvider extends ChangeNotifier {
     _laps.clear();
     _lapStartDistance = 0.0;
     _lapStartSeconds = 0;
+    _stepBoundaryDistance = 0.0;
+    _stepBoundarySeconds = 0;
     _route.clear();
     _lastRoutePointSecond = -10;
     _paceWindow.clear();
@@ -517,7 +544,13 @@ class RunningProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Chiusura automatica del lap ogni [UserSettings.autoLapDistanceMeters].
+  ///
+  /// Attiva solo nella corsa libera. Durante un allenamento programmato i lap
+  /// li chiudono le fasi: un chilometro automatico taglierebbe le ripetute a
+  /// meta' e renderebbe la tabella dello storico illeggibile.
   void _checkAutoLap() {
+    if (hasWorkout) return;
     if (!_settings.autoLapEnabled) return;
     final double lapDistance = _settings.autoLapDistanceMeters;
     if (lapDistance < 100) return;
@@ -529,21 +562,59 @@ class RunningProvider extends ChangeNotifier {
     }
   }
 
+  /// Chiude il lap corrispondente allo step appena concluso.
+  ///
+  /// Il lap copre il tratto che va dalla fine del lap precedente al confine
+  /// dello step, quindi si incastra correttamente anche se nel frattempo
+  /// l'utente ha premuto LAP a meta' ripetuta.
+  void _closeLapForCompletedStep(WorkoutEvent event) {
+    final ResolvedStep? completed = event.previousStep;
+    if (completed == null) return;
+
+    _stepBoundaryDistance += event.completedDistanceMeters ?? 0.0;
+    _stepBoundarySeconds += event.completedSeconds ?? 0;
+
+    double lapDistance = _stepBoundaryDistance - _lapStartDistance;
+    int lapSeconds = _stepBoundarySeconds - _lapStartSeconds;
+    if (lapDistance < 0) lapDistance = 0;
+    if (lapSeconds < 0) lapSeconds = 0;
+
+    // Puo' capitare che non resti nulla da registrare, ad esempio se il lap
+    // manuale e' stato premuto un istante prima della fine della fase.
+    if (lapDistance <= 0 && lapSeconds <= 0) return;
+
+    _closeLap(
+      manual: false,
+      exactDistance: lapDistance,
+      exactSeconds: lapSeconds,
+      step: completed,
+    );
+  }
+
   /// Chiude il lap corrente.
   ///
-  /// [exactDistance] permette di chiudere il lap esattamente sulla distanza
-  /// impostata (es. 1000 m) invece che sulla distanza percorsa al momento del
-  /// controllo, evitando che i lap "slittino" progressivamente.
+  /// [exactDistance] ed [exactSeconds] permettono di chiudere il lap su un
+  /// confine preciso (la distanza impostata, oppure la fine di uno step)
+  /// invece che sui valori letti al momento del controllo: senza di questo i
+  /// lap "slitterebbero" progressivamente rispetto al riferimento.
+  ///
+  /// [step] e' la fase a cui il lap appartiene: ne vengono salvati sia
+  /// l'etichetta leggibile sia il tipo.
   void _closeLap({
     required bool manual,
     double? exactDistance,
+    int? exactSeconds,
     bool partial = false,
+    ResolvedStep? step,
   }) {
     final double lapDistance = exactDistance ?? currentLapDistance;
-    if (lapDistance <= 0) return;
+    final int lapSeconds = exactSeconds ?? currentLapSeconds;
+    if (lapDistance <= 0 && lapSeconds <= 0) return;
 
-    final int lapSeconds = currentLapSeconds;
-    final int totalSeconds = elapsedSeconds;
+    // Tempo totale al confine del lap. Coincide con il tempo attuale per i lap
+    // manuali e automatici; per i lap di fine step puo' essere leggermente
+    // indietro, perche' il confine cade sull'obiettivo della fase.
+    final int totalSeconds = _lapStartSeconds + lapSeconds;
 
     _laps.add(Lap(
       number: _laps.length + 1,
@@ -551,11 +622,14 @@ class RunningProvider extends ChangeNotifier {
       durationSeconds: lapSeconds,
       totalTimeSeconds: totalSeconds,
       manual: manual,
-      stepLabel: currentStep?.label,
+      stepLabel: step?.label,
+      stepType: step?.step.type,
     ));
 
+    // L'avanzamento e' additivo su entrambi gli assi: il lap successivo parte
+    // esattamente dove finisce questo, senza recuperare i valori correnti.
     _lapStartDistance += lapDistance;
-    _lapStartSeconds = totalSeconds;
+    _lapStartSeconds += lapSeconds;
 
     if (!partial) {
       final Lap lap = _laps.last;
@@ -584,8 +658,12 @@ class RunningProvider extends ChangeNotifier {
     for (final WorkoutEvent event in events) {
       switch (event.type) {
         case WorkoutEventType.started:
+          // Il confine di partenza e' il punto in cui l'allenamento comincia.
+          _stepBoundaryDistance = _distanceMeters;
+          _stepBoundarySeconds = elapsedSeconds;
           break;
         case WorkoutEventType.stepStarted:
+          _closeLapForCompletedStep(event);
           final ResolvedStep? step = event.step;
           if (step == null) break;
           _coach.resetPaceAlerts();
@@ -612,6 +690,7 @@ class RunningProvider extends ChangeNotifier {
           unawaited(_coach.speak(_coach.phrases.lastMeters(meters.round())));
           break;
         case WorkoutEventType.finished:
+          _closeLapForCompletedStep(event);
           unawaited(_coach.speak(
             _coach.phrases.workoutCompleted(),
             priority: SpeechPriority.high,
