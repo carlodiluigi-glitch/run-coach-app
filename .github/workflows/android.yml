@@ -42,6 +42,25 @@ jobs:
       - name: flutter pub get
         run: flutter pub get
 
+      # Il repository non contiene pubspec.lock, quindi ad ogni build le
+      # dipendenze vengono risolte da zero e possono cambiare versione da sole.
+      # Questi due passi servono a chiudere la questione: il primo stampa le
+      # versioni effettivamente usate, il secondo rende scaricabile il lock
+      # generato, che va poi committato nel repository. Fatto questo, i due
+      # passi restano utili come verifica.
+      - name: Versioni delle dipendenze risolte
+        if: always()
+        run: cat pubspec.lock || true
+
+      - name: Upload pubspec.lock
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: RunCoach-pubspec-lock
+          path: pubspec.lock
+          if-no-files-found: warn
+          retention-days: 30
+
       - name: flutter analyze
         continue-on-error: true
         run: flutter analyze --no-fatal-infos --no-fatal-warnings
