@@ -20,46 +20,58 @@ jobs:
     timeout-minutes: 45
 
     steps:
-      # 1) Codice sorgente
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2) Java 17 (richiesto da Android Gradle Plugin 8.x)
       - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      # 3) Flutter stabile
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: stable
+          flutter-version: '3.35.x'
           cache: true
 
       - name: Versione Flutter usata
         run: flutter --version
 
-      # 4) Dipendenze
       - name: flutter pub get
         run: flutter pub get
 
-      # 5) Analisi statica (non blocca la generazione dell'APK)
+      # Il repository non contiene pubspec.lock, quindi ad ogni build le
+      # dipendenze vengono risolte da zero e possono cambiare versione da sole.
+      # Questi due passi servono a chiudere la questione: il primo stampa le
+      # versioni effettivamente usate, il secondo rende scaricabile il lock
+      # generato, che va poi committato nel repository. Fatto questo, i due
+      # passi restano utili come verifica.
+      - name: Versioni delle dipendenze risolte
+        if: always()
+        run: cat pubspec.lock || true
+
+      - name: Upload pubspec.lock
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: RunCoach-pubspec-lock
+          path: pubspec.lock
+          if-no-files-found: warn
+          retention-days: 30
+
       - name: flutter analyze
         continue-on-error: true
         run: flutter analyze --no-fatal-infos --no-fatal-warnings
 
-      # 6) Test unitari (non bloccanti)
       - name: flutter test
         continue-on-error: true
         run: flutter test
 
-      # 7) APK release (firmata con la chiave di debug: nessun secret richiesto)
       - name: Build APK release
         run: flutter build apk --release
 
-      # 8) APK debug (utile come alternativa se la release dovesse fallire)
       - name: Build APK debug
         if: always()
         run: flutter build apk --debug
@@ -68,7 +80,6 @@ jobs:
         if: always()
         run: ls -lh build/app/outputs/flutter-apk/ || true
 
-      # 9) Pubblicazione dell'artifact scaricabile
       - name: Upload APK
         if: always()
         uses: actions/upload-artifact@v4
