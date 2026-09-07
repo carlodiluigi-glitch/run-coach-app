@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../models/running_activity.dart';
 import '../models/running_shoe.dart';
+import '../models/run_checkpoint.dart';
 import '../models/user_settings.dart';
 import '../models/workout.dart';
 
@@ -28,6 +29,7 @@ class StorageService {
   static const String shoesFileName = 'shoes.json';
   static const String workoutsFileName = 'workouts.json';
   static const String activitiesFileName = 'activities.json';
+  static const String checkpointFileName = 'checkpoint.json';
 
   final Directory? _overrideDirectory;
   Directory? _directory;
@@ -160,6 +162,61 @@ class StorageService {
         jsonEncode(
             activities.map((RunningActivity a) => a.toJson()).toList()),
       );
+
+  // ------------------------------------------------------------- checkpoint
+  //
+  // Il checkpoint e' la corsa ancora aperta, salvata periodicamente per
+  // sopravvivere a una chiusura improvvisa dell'app. Vive separato dalle
+  // attivita' concluse: cosi' un checkpoint corrotto non puo' in nessun caso
+  // danneggiare lo storico.
+
+  /// Legge il checkpoint, se esiste ed e' leggibile.
+  ///
+  /// Non solleva mai: un checkpoint illeggibile equivale a nessun checkpoint,
+  /// perche' non deve mai impedire l'avvio dell'app.
+  Future<RunCheckpoint?> loadCheckpoint() async {
+    final String? raw = await _readRaw(checkpointFileName);
+    if (raw == null) return null;
+    try {
+      final Object? decoded = jsonDecode(raw);
+      if (decoded is Map) {
+        return RunCheckpoint.fromJson(decoded.cast<String, dynamic>());
+      }
+    } catch (error) {
+      lastError = 'Checkpoint non leggibile: $error';
+    }
+    return null;
+  }
+
+  Future<bool> saveCheckpoint(RunCheckpoint checkpoint) =>
+      _writeRaw(checkpointFileName, jsonEncode(checkpoint.toJson()));
+
+  /// Elimina il checkpoint.
+  ///
+  /// Va chiamata quando la corsa viene salvata o scartata: finche' il file
+  /// resta, al riavvio verrebbe riproposta una corsa gia' chiusa.
+  Future<bool> deleteCheckpoint() async {
+    try {
+      final File file = await _file(checkpointFileName);
+      if (await file.exists()) {
+        await file.delete();
+      }
+      return true;
+    } catch (error) {
+      lastError = 'Rimozione del checkpoint non riuscita: $error';
+      return false;
+    }
+  }
+
+  /// `true` se c'e' un checkpoint sul disco, senza leggerne il contenuto.
+  Future<bool> hasCheckpoint() async {
+    try {
+      final File file = await _file(checkpointFileName);
+      return file.exists();
+    } catch (_) {
+      return false;
+    }
+  }
 
   // ------------------------------------------------------------------ helper
   Future<List<Map<String, dynamic>>> _readList(String name) async {
