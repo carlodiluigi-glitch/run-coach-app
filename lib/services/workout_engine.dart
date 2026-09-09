@@ -298,6 +298,39 @@ class WorkoutEngine {
   }
 
   /// Forza il passaggio allo step successivo (pulsante "salta fase").
+  /// Riporta il motore a una posizione salvata in precedenza.
+  ///
+  /// Serve al recupero di una corsa interrotta: ricostruito il motore
+  /// dall'allenamento, questo lo riporta alla fase in cui si era e ai valori
+  /// di partenza di quella fase, altrimenti la ripresa ricomincerebbe dal
+  /// primo riscaldamento.
+  ///
+  /// Gli annunci gia' fatti non vengono ripristinati: al massimo si risente un
+  /// countdown, che e' molto meno grave del contrario.
+  void restoreState({
+    required int stepIndex,
+    required bool started,
+    required bool finished,
+    required double stepStartDistance,
+    required int stepStartSeconds,
+    required double totalDistance,
+    required int totalSeconds,
+  }) {
+    int index = stepIndex;
+    if (index < 0) index = 0;
+    if (index >= _steps.length) index = _steps.isEmpty ? 0 : _steps.length - 1;
+
+    _currentIndex = index;
+    _started = started;
+    _finished = finished;
+    _stepStartDistance = stepStartDistance;
+    _stepStartSeconds = stepStartSeconds;
+    _totalDistance = totalDistance;
+    _totalSeconds = totalSeconds;
+    _announcedCountdowns.clear();
+    _announcedLastMeters = false;
+  }
+
   List<WorkoutEvent> skipToNextStep() {
     if (!_started || _finished || _steps.isEmpty) {
       return const <WorkoutEvent>[];
