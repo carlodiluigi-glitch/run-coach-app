@@ -4,6 +4,7 @@ import 'dart:collection';
 import 'package:flutter/foundation.dart';
 
 import '../models/lap.dart';
+import '../models/run_checkpoint.dart';
 import '../models/running_activity.dart';
 import '../models/user_settings.dart';
 import '../models/workout.dart';
@@ -13,6 +14,7 @@ import '../services/gps_filter.dart';
 import '../services/gps_service.dart';
 import '../services/permission_service.dart';
 import '../services/screen_service.dart';
+import '../services/storage_service.dart';
 import '../services/workout_engine.dart';
 import '../utils/formatters.dart';
 
@@ -34,15 +36,18 @@ class RunningProvider extends ChangeNotifier {
     required PermissionService permissionService,
     required AudioCoachService coach,
     ScreenService? screenService,
+    StorageService? storage,
   })  : _gps = gpsService,
         _permissions = permissionService,
         _coach = coach,
-        _screen = screenService ?? ScreenService();
+        _screen = screenService ?? ScreenService(),
+        _storage = storage ?? StorageService();
 
   final GpsService _gps;
   final PermissionService _permissions;
   final AudioCoachService _coach;
   final ScreenService _screen;
+  final StorageService _storage;
 
   // ------------------------------------------------------------------ stato
   RunState _state = RunState.idle;
@@ -60,6 +65,24 @@ class RunningProvider extends ChangeNotifier {
   double? _lastAccuracy;
   DateTime? _lastFixAt;
   double? _rawGpsSpeed;
+
+  /// Secondi gia' corsi prima di questa sessione del cronometro.
+  ///
+  /// Vale zero in una corsa normale. Dopo il recupero di una corsa interrotta
+  /// contiene il tempo salvato nel checkpoint, cosi' il cronometro riparte da
+  /// li' invece che da zero. Il tempo passato con l'app chiusa non viene
+  /// conteggiato: non sappiamo se stavi correndo o eri fermo, e inventarlo
+  /// sarebbe peggio che perderlo.
+  int _baseSeconds = 0;
+
+  /// Ogni quanti secondi si salva il checkpoint della corsa in corso.
+  ///
+  /// Compromesso fra quanto si perde in un crash e quanto si scrive su disco:
+  /// il file contiene tutta la traccia, che su un'uscita lunga diventa grande.
+  static const int _checkpointIntervalSeconds = 20;
+
+  int _lastCheckpointSecond = -1000;
+  bool _checkpointWriteInFlight = false;
 
   final List<Lap> _laps = <Lap>[];
   double _lapStartDistance = 0.0;
@@ -134,7 +157,7 @@ class RunningProvider extends ChangeNotifier {
 
   double get distanceMeters => _distanceMeters;
   Duration get elapsed => _stopwatch.elapsed;
-  int get elapsedSeconds => _stopwatch.elapsed.inSeconds;
+  int get elapsedSeconds => _baseSeconds + _stopwatch.elapsed.inSeconds;
   DateTime? get startTime => _startTime;
 
   List<Lap> get laps => List<Lap>.unmodifiable(_laps);
@@ -276,6 +299,9 @@ class RunningProvider extends ChangeNotifier {
     _filter.dropReference();
     _paceWindow.clear();
     _smoothedPaceSecPerKm = null;
+    // La pausa e' un buon momento per fotografare: e' un cambio di stato che
+    // vale la pena ritrovare intatto dopo un crash.
+    unawaited(_saveCheckpoint());
     await _coach.speak(_coach.phrases.paused(), priority: SpeechPriority.high);
     notifyListeners();
   }
@@ -285,6 +311,7 @@ class RunningProvider extends ChangeNotifier {
     _state = RunState.running;
     _stopwatch.start();
     _filter.dropReference();
+    unawaited(_saveCheckpoint());
     await _coach.speak(_coach.phrases.resumed(), priority: SpeechPriority.high);
     notifyListeners();
   }
@@ -331,6 +358,16 @@ class RunningProvider extends ChangeNotifier {
     );
 
     _state = RunState.finished;
+
+    // Ultimo checkpoint, marcato come in pausa.
+    //
+    // PERCHE' NON SI CANCELLA QUI: fra lo stop e il salvataggio l'utente sceglie
+    // ancora le scarpe e conferma. Se l'app morisse in quel momento, cancellare
+    // adesso significherebbe perdere una corsa gia' finita. Il file viene
+    // eliminato in reset(), cioe' dopo che l'attivita' e' stata salvata o
+    // scartata davvero.
+    await _saveCheckpoint(asPaused: true);
+
     notifyListeners();
     return activity;
   }
@@ -340,6 +377,9 @@ class RunningProvider extends ChangeNotifier {
     _stopTicker();
     await _stopGpsStream();
     await _screen.setKeepScreenOn(false);
+    // La corsa e' stata salvata o scartata: il checkpoint non serve piu' e
+    // lasciarlo la' farebbe riproporre al prossimo avvio una corsa gia' chiusa.
+    await _storage.deleteCheckpoint();
     _resetInternals();
     _state = RunState.idle;
     _workout = null;
@@ -371,6 +411,169 @@ class RunningProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  // -------------------------------------------------------------- checkpoint
+  //
+  // La corsa in corso viene fotografata su file ogni pochi secondi. Se l'app
+  // muore - crash, batteria, sistema che libera memoria - al riavvio si puo'
+  // riprendere invece di perdere tutto.
+  //
+  // Regola di fondo: il checkpoint non deve MAI disturbare la corsa. Ogni
+  // errore di scrittura viene ignorato in silenzio, perche' fallire un
+  // salvataggio e' un fastidio, mentre interrompere una registrazione in
+  // corso e' un danno.
+
+  void _maybeSaveCheckpoint() {
+    if (!isActive) return;
+    final int now = elapsedSeconds;
+    if (now - _lastCheckpointSecond < _checkpointIntervalSeconds) return;
+    _lastCheckpointSecond = now;
+    unawaited(_saveCheckpoint());
+  }
+
+  Future<void> _saveCheckpoint({bool asPaused = false}) async {
+    // Su una traccia lunga la scrittura non e' istantanea: se ne parte una
+    // mentre la precedente e' ancora in corso si accumulano scritture inutili.
+    if (_checkpointWriteInFlight) return;
+    _checkpointWriteInFlight = true;
+    try {
+      await _storage.saveCheckpoint(_buildCheckpoint(asPaused: asPaused));
+    } catch (_) {
+      // Ignorato di proposito: vedi nota sopra.
+    } finally {
+      _checkpointWriteInFlight = false;
+    }
+  }
+
+  RunCheckpoint _buildCheckpoint({bool asPaused = false}) {
+    final WorkoutEngine? engine = _engine;
+    return RunCheckpoint(
+      savedAt: DateTime.now(),
+      startTime: _startTime ?? DateTime.now(),
+      elapsedSeconds: elapsedSeconds,
+      distanceMeters: _distanceMeters,
+      paused: asPaused || _state == RunState.paused,
+      laps: List<Lap>.from(_laps),
+      lapStartDistance: _lapStartDistance,
+      lapStartSeconds: _lapStartSeconds,
+      stepBoundaryDistance: _stepBoundaryDistance,
+      stepBoundarySeconds: _stepBoundarySeconds,
+      route: List<RoutePoint>.from(_route),
+      workout: _workout,
+      workoutStepIndex: engine?.currentIndex ?? 0,
+      workoutStarted: engine?.isStarted ?? false,
+      workoutFinished: engine?.isFinished ?? false,
+      workoutStepStartDistance: _stepBoundaryDistance,
+      workoutStepStartSeconds: _stepBoundarySeconds,
+    );
+  }
+
+  /// Cerca una corsa interrotta che valga la pena riproporre.
+  ///
+  /// Un checkpoint troppo vecchio o troppo corto viene eliminato al volo:
+  /// meglio non far nemmeno comparire la domanda.
+  Future<RunCheckpoint?> loadRecoverableCheckpoint() async {
+    if (isActive) return null;
+    final RunCheckpoint? checkpoint = await _storage.loadCheckpoint();
+    if (checkpoint == null) return null;
+    if (!checkpoint.isRecoverable) {
+      await _storage.deleteCheckpoint();
+      return null;
+    }
+    return checkpoint;
+  }
+
+  /// Butta via la corsa interrotta.
+  Future<void> discardCheckpoint() => _storage.deleteCheckpoint();
+
+  /// Costruisce l'attivita' da una corsa interrotta, senza riprenderla.
+  ///
+  /// Serve a chi al riavvio sceglie "chiudi e salva": la corsa entra nello
+  /// storico com'era al momento dell'ultimo salvataggio.
+  RunningActivity activityFromCheckpoint(RunCheckpoint checkpoint) {
+    final Workout? workout = checkpoint.workout;
+    final bool isWorkout = workout != null && workout.expand().isNotEmpty;
+    return RunningActivity(
+      startTime: checkpoint.startTime,
+      name: workout?.name ?? 'Corsa libera',
+      type: isWorkout ? ActivityType.workout : ActivityType.free,
+      durationSeconds: checkpoint.elapsedSeconds,
+      distanceMeters: checkpoint.distanceMeters,
+      laps: List<Lap>.from(checkpoint.laps),
+      route: List<RoutePoint>.from(checkpoint.route),
+      workoutId: workout?.id,
+    );
+  }
+
+  /// Riprende una corsa interrotta e ricomincia a registrare.
+  ///
+  /// La corsa riparte nello stato in cui era: se il checkpoint era stato
+  /// scritto in pausa, resta in pausa. Distanza e tempo trascorsi mentre
+  /// l'app era chiusa sono persi e non c'e' modo di recuperarli.
+  Future<bool> resumeFromCheckpoint(RunCheckpoint checkpoint) async {
+    if (isActive) return false;
+
+    final GpsAvailability availability = await _permissions.checkAndRequest();
+    _gpsAvailability = availability;
+    if (!availability.isReady) {
+      notifyListeners();
+      return false;
+    }
+
+    _resetInternals();
+
+    final Workout? workout = checkpoint.workout;
+    _workout = workout;
+    if (workout != null && workout.expand().isNotEmpty) {
+      final WorkoutEngine engine = WorkoutEngine(workout);
+      engine.restoreState(
+        stepIndex: checkpoint.workoutStepIndex,
+        started: checkpoint.workoutStarted,
+        finished: checkpoint.workoutFinished,
+        stepStartDistance: checkpoint.workoutStepStartDistance,
+        stepStartSeconds: checkpoint.workoutStepStartSeconds,
+        totalDistance: checkpoint.distanceMeters,
+        totalSeconds: checkpoint.elapsedSeconds,
+      );
+      _engine = engine;
+    } else {
+      _engine = null;
+    }
+
+    _startTime = checkpoint.startTime;
+    _baseSeconds = checkpoint.elapsedSeconds;
+    _distanceMeters = checkpoint.distanceMeters;
+    _laps.addAll(checkpoint.laps);
+    _lapStartDistance = checkpoint.lapStartDistance;
+    _lapStartSeconds = checkpoint.lapStartSeconds;
+    _stepBoundaryDistance = checkpoint.stepBoundaryDistance;
+    _stepBoundarySeconds = checkpoint.stepBoundarySeconds;
+    _route.addAll(checkpoint.route);
+    _lastRoutePointSecond =
+        _route.isEmpty ? -10 : _route.last.elapsedSeconds;
+
+    _state = checkpoint.paused ? RunState.paused : RunState.running;
+    _stopwatch.reset();
+    if (_state == RunState.running) {
+      _stopwatch.start();
+    }
+
+    await _startGpsStream();
+    _startTicker();
+
+    if (_settings.keepScreenOn) {
+      await _screen.setKeepScreenOn(true);
+    }
+
+    _coach.resetPaceAlerts();
+    await _coach.speak(
+      _coach.phrases.resumed(),
+      priority: SpeechPriority.high,
+    );
+
+    notifyListeners();
+    return true;
+  }
+
   // -------------------------------------------------------------- internals
   void _resetInternals() {
     _filter.reset();
@@ -392,6 +595,8 @@ class RunningProvider extends ChangeNotifier {
     _startTime = null;
     _gpsError = null;
     _rawGpsSpeed = null;
+    _baseSeconds = 0;
+    _lastCheckpointSecond = -1000;
   }
 
   Future<void> _startGpsStream() async {
@@ -540,6 +745,7 @@ class RunningProvider extends ChangeNotifier {
     _checkAutoLap();
     _updateWorkout();
     _checkPaceAlerts();
+    _maybeSaveCheckpoint();
 
     notifyListeners();
   }
