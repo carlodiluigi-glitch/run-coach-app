@@ -200,8 +200,12 @@ class GpsFilter {
     }
 
     // 3) Velocita' impossibile per una corsa a piedi.
-    final double speed = distance / (deltaMs / 1000.0);
-    if (speed > maxSpeedMetersPerSecond) {
+    //
+    // Attenzione a non confondere le due velocita': [speed] e' quella
+    // riportata dal chip, questa e' quella che ricaviamo dalla differenza fra
+    // due posizioni. Servono a cose diverse e vanno tenute distinte.
+    final double computedSpeed = distance / (deltaMs / 1000.0);
+    if (computedSpeed > maxSpeedMetersPerSecond) {
       _lastLat = latitude;
       _lastLon = longitude;
       _lastTime = timestamp;
@@ -226,7 +230,7 @@ class GpsFilter {
     _lastLon = longitude;
     _lastTime = timestamp;
     _totalMeters += distance;
-    return GpsFilterResult.accepted(distance, instantSpeed: speed);
+    return GpsFilterResult.accepted(distance, instantSpeed: computedSpeed);
   }
 }
 
