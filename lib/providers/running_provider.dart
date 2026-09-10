@@ -651,6 +651,9 @@ class RunningProvider extends ChangeNotifier {
       longitude: sample.longitude,
       accuracy: sample.accuracy,
       timestamp: sample.timestamp,
+      // La velocita' riportata dal chip serve al filtro per capire se si e'
+      // fermi: da fermo la posizione balla, la velocita' Doppler no.
+      speed: sample.speed,
     );
 
     if (!result.accepted) return;
