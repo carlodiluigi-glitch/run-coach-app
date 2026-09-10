@@ -13,8 +13,9 @@ import 'dart:math' as math;
 /// -------------------
 /// 1. **Accuratezza**: se `accuracy` (raggio di incertezza in metri) e' peggiore
 ///    di [maxAccuracyMeters] il punto viene ignorato.
-/// 2. **Distanza minima**: spostamenti sotto [minDistanceMeters] sono rumore e
-///    non vengono sommati (il punto resta pero' come riferimento temporale).
+/// 2. **Distanza minima**: spostamenti troppo piccoli per essere credibili
+///    sono rumore e non vengono sommati. La soglia non e' fissa ma cresce con
+///    l'incertezza della misura: vedi [minDistanceFor].
 /// 3. **Velocita' impossibile**: se il punto implica una velocita' superiore a
 ///    [maxSpeedMetersPerSecond] (velocita' non umana di corsa) viene ignorato.
 /// 4. **Salto GPS**: uno spostamento singolo superiore a [maxJumpMeters] e'
@@ -27,16 +28,76 @@ class GpsFilter {
   GpsFilter({
     this.maxAccuracyMeters = 25.0,
     this.minDistanceMeters = 3.0,
+    this.accuracyFactor = 1.8,
+    this.maxMinDistanceMeters = 15.0,
+    this.stationarySpeed = 0.5,
+    this.trustSpeedAbove = 1.5,
     this.maxSpeedMetersPerSecond = 8.0, // ~2:05 min/km: oltre non e' umano
     this.maxJumpMeters = 80.0,
     this.minTimeDeltaMs = 500,
   });
 
   final double maxAccuracyMeters;
+
+  /// Soglia minima assoluta, usata quando il segnale e' ottimo.
   final double minDistanceMeters;
+
+  /// Quanto la soglia minima segue l'incertezza della misura.
+  ///
+  /// Il rumore fra due letture consecutive ha ampiezza paragonabile
+  /// all'accuratezza dichiarata, non molto minore: una soglia pari
+  /// all'accuratezza ne taglierebbe solo circa la meta'. Da qui un fattore
+  /// nettamente sopra 1.
+  final double accuracyFactor;
+
+  /// Tetto della soglia minima.
+  ///
+  /// Senza, con segnale pessimo la soglia diventerebbe cosi' alta da non
+  /// registrare piu' nulla.
+  final double maxMinDistanceMeters;
+
+  /// Sotto questa velocita' riportata dal chip si considera di essere fermi.
+  ///
+  /// 0.5 m/s sono 1.8 km/h: piu' lento di qualsiasi camminata.
+  final double stationarySpeed;
+
+  /// Velocita' oltre la quale si conclude che il chip riporta davvero la
+  /// velocita'. Vedi [_speedIsTrustworthy].
+  final double trustSpeedAbove;
+
   final double maxSpeedMetersPerSecond;
   final double maxJumpMeters;
   final int minTimeDeltaMs;
+
+  /// Diventa vero quando il dispositivo ha riportato almeno una velocita'
+  /// chiaramente in movimento.
+  ///
+  /// PERCHE' QUESTA CAUTELA: la velocita' del chip, ricavata dall'effetto
+  /// Doppler, e' molto piu' affidabile della differenza fra due posizioni per
+  /// capire se si e' fermi. Ma non tutti i dispositivi la forniscono, e uno
+  /// che riportasse sempre zero farebbe scartare ogni punto, cioe' una corsa
+  /// che non registra nulla. Quindi il controllo si accende solo dopo aver
+  /// visto una prova che quel dato funziona. Nel caso tipico - si corre e a un
+  /// certo punto ci si ferma - la prova e' gia' arrivata da un pezzo.
+  bool _speedIsTrustworthy = false;
+
+  bool get speedIsTrustworthy => _speedIsTrustworthy;
+
+  /// Soglia minima di spostamento per una data accuratezza.
+  ///
+  /// NOTA IMPORTANTE: alzare questa soglia non fa perdere distanza vera. Un
+  /// punto scartato qui non sposta il riferimento, quindi camminando la
+  /// distanza dal riferimento cresce campione dopo campione finche' supera la
+  /// soglia, e a quel punto viene sommata per intero. Il rumore invece oscilla
+  /// intorno a un punto senza mai allontanarsi, quindi non supera mai la
+  /// soglia e non viene mai contato. E' proprio questa la differenza fra stare
+  /// fermi e muoversi piano.
+  double minDistanceFor(double accuracy) {
+    final double scaled = accuracy * accuracyFactor;
+    final double threshold =
+        scaled > minDistanceMeters ? scaled : minDistanceMeters;
+    return threshold > maxMinDistanceMeters ? maxMinDistanceMeters : threshold;
+  }
 
   double? _lastLat;
   double? _lastLon;
@@ -55,6 +116,7 @@ class GpsFilter {
     _lastLon = null;
     _lastTime = null;
     _totalMeters = 0.0;
+    _speedIsTrustworthy = false;
   }
 
   /// "Dimentica" solo il punto di riferimento senza azzerare la distanza.
@@ -68,11 +130,14 @@ class GpsFilter {
   }
 
   /// Elabora un nuovo campione GPS.
+  ///
+  /// [speed] e' la velocita' riportata dal chip in m/s, se disponibile.
   GpsFilterResult process({
     required double latitude,
     required double longitude,
     required double accuracy,
     required DateTime timestamp,
+    double? speed,
   }) {
     // 1) Accuratezza insufficiente -> punto inutilizzabile.
     if (accuracy <= 0 || accuracy > maxAccuracyMeters) {
@@ -82,6 +147,25 @@ class GpsFilter {
     // Coordinate non valide (puo' capitare con fix parziali).
     if (latitude.abs() > 90 || longitude.abs() > 180) {
       return GpsFilterResult.rejected(GpsRejectReason.invalidCoordinates);
+    }
+
+    // Una velocita' chiaramente in movimento dimostra che il dato e' fornito.
+    if (speed != null && speed > trustSpeedAbove) {
+      _speedIsTrustworthy = true;
+    }
+
+    // 0) Fermi secondo il chip.
+    //
+    // Questo controllo vale piu' di tutti gli altri messi insieme: da fermo la
+    // posizione continua a oscillare di qualche metro, e nessuna soglia
+    // geometrica riesce a distinguere quelle oscillazioni da una camminata
+    // molto lenta. La velocita' Doppler invece va a zero, perche' non dipende
+    // dal rumore sulle coordinate.
+    //
+    // Non si aggiorna il riferimento: se poi si riparte davvero, il tratto
+    // percorso viene contato per intero dal punto in cui ci si era fermati.
+    if (_speedIsTrustworthy && speed != null && speed < stationarySpeed) {
+      return GpsFilterResult.rejected(GpsRejectReason.stationary);
     }
 
     final double? prevLat = _lastLat;
@@ -124,10 +208,16 @@ class GpsFilter {
       return GpsFilterResult.rejected(GpsRejectReason.impossibleSpeed);
     }
 
-    // 2) Micro-spostamenti: rumore da fermo. Aggiorno solo il tempo, cosi' la
-    // prossima misura di velocita' resta corretta, ma non sommo la distanza.
-    if (distance < minDistanceMeters) {
-      _lastTime = timestamp;
+    // 2) Spostamento non credibile per l'accuratezza corrente: e' rumore.
+    //
+    // Non si aggiorna NIENTE, ne' posizione ne' orario. E' il punto chiave:
+    // tenendo fermi entrambi, camminando la distanza e il tempo dal
+    // riferimento crescono insieme, cosi' quando la soglia viene superata la
+    // velocita' calcolata resta quella vera. Aggiornando solo l'orario si
+    // otterrebbe una distanza grande su un intervallo corto, cioe' una
+    // velocita' apparente assurda, e il punto verrebbe buttato al controllo
+    // successivo facendo perdere distanza reale.
+    if (distance < minDistanceFor(accuracy)) {
       return GpsFilterResult.rejected(GpsRejectReason.belowMinDistance);
     }
 
@@ -148,6 +238,9 @@ enum GpsRejectReason {
   gpsJump,
   impossibleSpeed,
   belowMinDistance,
+
+  /// Il chip riporta velocita' praticamente nulla: si e' fermi.
+  stationary,
 }
 
 /// Esito dell'elaborazione di un punto GPS.
