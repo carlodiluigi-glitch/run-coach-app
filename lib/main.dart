@@ -11,7 +11,7 @@ import 'providers/workout_provider.dart';
 import 'services/audio_coach_service.dart';
 import 'services/gps_service.dart';
 import 'services/permission_service.dart';
-import 'services/screen_service.dart';
+import 'services/native_bridge.dart';
 import 'services/storage_service.dart';
 
 Future<void> main() async {
@@ -29,7 +29,7 @@ Future<void> main() async {
   final AudioCoachService coach = AudioCoachService();
   final GpsService gps = GpsService();
   final PermissionService permissions = PermissionService();
-  final ScreenService screen = ScreenService();
+  final NativeBridge nativeBridge = NativeBridge();
 
   // --- Provider ---
   final SettingsProvider settingsProvider =
@@ -42,7 +42,7 @@ Future<void> main() async {
     gpsService: gps,
     permissionService: permissions,
     coach: coach,
-    screenService: screen,
+    nativeBridge: nativeBridge,
   );
 
   // Caricamento dei dati locali prima di mostrare la Home.

@@ -16,6 +16,29 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
+    <!-- ========== REGISTRAZIONE IN BACKGROUND ==========
+         Durante la corsa l'app avvia un "foreground service" di tipo
+         location: compare una notifica permanente e Android si impegna a non
+         chiudere il processo. Cosi' la registrazione continua con lo schermo
+         spento e il telefono in tasca.
+
+         NOTA IMPORTANTE: con questo approccio NON serve il permesso
+         ACCESS_BACKGROUND_LOCATION ("Consenti sempre"), che e' invasivo e
+         difficile da giustificare sugli store. Basta il permesso posizione
+         concesso "mentre l'app e' in uso".
+    -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+
+    <!-- Tiene la CPU sveglia mentre si registra, altrimenti Android sospende
+         il processo dopo qualche minuto di schermo spento e si perdono punti. -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <!-- Da Android 13 la notifica della registrazione richiede il consenso
+         dell'utente. Se negato la corsa si registra lo stesso, ma senza
+         notifica visibile. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <!-- Il GPS e' fortemente consigliato ma non obbligatorio per installare. -->
     <uses-feature
         android:name="android.hardware.location.gps"

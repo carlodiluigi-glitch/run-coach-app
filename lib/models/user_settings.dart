@@ -57,6 +57,7 @@ class UserSettings {
     this.paceAlertCooldownSeconds = 20,
     this.keepScreenOn = true,
     this.speechRate = 0.5,
+    this.backgroundTrackingEnabled = true,
   });
 
   /// Nome mostrato nella Home ("Ciao <nome>"). Vuoto = saluto generico.
@@ -86,6 +87,12 @@ class UserSettings {
   /// Velocita' di lettura del TTS (0.0 - 1.0 su Android).
   final double speechRate;
 
+  /// Continua a registrare con lo schermo spento e l'app in secondo piano.
+  ///
+  /// Quando e' attivo, durante la corsa compare una notifica permanente:
+  /// e' il modo con cui Android garantisce che il processo non venga chiuso.
+  final bool backgroundTrackingEnabled;
+
   bool get hasUserName => userName.trim().isNotEmpty;
 
   String get greeting => hasUserName ? 'Ciao ${userName.trim()}' : 'Ciao!';
@@ -102,6 +109,7 @@ class UserSettings {
     int? paceAlertCooldownSeconds,
     bool? keepScreenOn,
     double? speechRate,
+    bool? backgroundTrackingEnabled,
   }) =>
       UserSettings(
         userName: userName ?? this.userName,
@@ -117,6 +125,8 @@ class UserSettings {
             paceAlertCooldownSeconds ?? this.paceAlertCooldownSeconds,
         keepScreenOn: keepScreenOn ?? this.keepScreenOn,
         speechRate: speechRate ?? this.speechRate,
+        backgroundTrackingEnabled:
+            backgroundTrackingEnabled ?? this.backgroundTrackingEnabled,
       );
 
   Map<String, dynamic> toJson() => <String, dynamic>{
@@ -131,6 +141,7 @@ class UserSettings {
         'paceAlertCooldownSeconds': paceAlertCooldownSeconds,
         'keepScreenOn': keepScreenOn,
         'speechRate': speechRate,
+        'backgroundTrackingEnabled': backgroundTrackingEnabled,
       };
 
   factory UserSettings.fromJson(Map<String, dynamic> json) => UserSettings(
@@ -148,5 +159,7 @@ class UserSettings {
             (json['paceAlertCooldownSeconds'] as num?)?.toInt() ?? 20,
         keepScreenOn: json['keepScreenOn'] as bool? ?? true,
         speechRate: (json['speechRate'] as num?)?.toDouble() ?? 0.5,
+        backgroundTrackingEnabled:
+            json['backgroundTrackingEnabled'] as bool? ?? true,
       );
 }

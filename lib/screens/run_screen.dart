@@ -209,11 +209,28 @@ class _RunScreenState extends State<RunScreen> {
           ),
         ),
         const SizedBox(height: 12),
-        Text(
-          'Tieni lo schermo acceso durante la registrazione: in questa versione '
-          'il tracciamento in background non e\' attivo.',
-          textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Icon(
+              run.backgroundTrackingRequested
+                  ? Icons.phone_android
+                  : Icons.screen_lock_portrait,
+              size: 18,
+              color: scheme.onSurfaceVariant,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                run.backgroundTrackingRequested
+                    ? 'Puoi mettere il telefono in tasca e spegnere lo schermo: '
+                        'la corsa continua a registrarsi e resta una notifica attiva.'
+                    : 'Registrazione in background disattivata: tieni l\'app aperta '
+                        'e lo schermo acceso, altrimenti la corsa si interrompe.',
+                style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant),
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -243,6 +260,24 @@ class _RunScreenState extends State<RunScreen> {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
             children: <Widget>[
+              if (run.isBackgroundTracking && !run.isPaused)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Row(
+                    children: <Widget>[
+                      Icon(Icons.shield_outlined,
+                          size: 18, color: scheme.primary),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Registrazione protetta: continua anche a schermo spento.',
+                          style: TextStyle(
+                              fontSize: 13, color: scheme.onSurfaceVariant),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               if (run.isPaused)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 12),

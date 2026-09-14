@@ -137,13 +137,27 @@ class CoachPhrases {
       ));
 
   // ------------------------------------------------------------------- lap
+  /// Annuncio di fine giro.
+  ///
+  /// Le etichette arrivano gia' in forma pronunciabile da
+  /// `utils/speech_formatters.dart` (es. "cinque e ventitre al chilometro"):
+  /// qui si compone solo la frase.
+  ///
+  /// [paceLabel] puo' essere `null` quando il passo non e' attendibile: in quel
+  /// caso non viene annunciato nessun numero, invece di inventarlo.
   String lapCompleted({
     required int lapNumber,
     required String distanceLabel,
     required String timeLabel,
-    required String paceLabel,
-  }) =>
-      'Giro $lapNumber. $distanceLabel in $timeLabel. Passo $paceLabel al chilometro.';
+    String? paceLabel,
+  }) {
+    final StringBuffer buffer = StringBuffer();
+    buffer.write('Giro $lapNumber. $distanceLabel in $timeLabel.');
+    if (paceLabel != null) {
+      buffer.write(' Passo $paceLabel.');
+    }
+    return buffer.toString();
+  }
 
   // ---------------------------------------------------------- avvisi ritmo
   String tooSlow() => _pick(_byPersonality(

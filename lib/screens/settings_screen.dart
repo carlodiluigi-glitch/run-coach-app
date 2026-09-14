@@ -254,15 +254,46 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
 
             const SizedBox(height: 20),
-            const SectionTitle('Schermo'),
+            const SectionTitle('Registrazione'),
             AppCard(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              child: SwitchListTile(
-                value: settings.keepScreenOn,
-                onChanged: provider.setKeepScreenOn,
-                title: const Text('Mantieni lo schermo acceso'),
-                subtitle: const Text(
-                    'Attivo solo durante la registrazione della corsa'),
+              child: Column(
+                children: <Widget>[
+                  SwitchListTile(
+                    value: settings.backgroundTrackingEnabled,
+                    onChanged: provider.setBackgroundTracking,
+                    title: const Text('Registra in background'),
+                    subtitle: const Text(
+                        'La corsa continua con lo schermo spento e il telefono in tasca. '
+                        'Durante la registrazione compare una notifica permanente.'),
+                  ),
+                  SwitchListTile(
+                    value: settings.keepScreenOn,
+                    onChanged: provider.setKeepScreenOn,
+                    title: const Text('Mantieni lo schermo acceso'),
+                    subtitle: const Text(
+                        'Attivo solo durante la registrazione della corsa'),
+                  ),
+                  if (!settings.backgroundTrackingEnabled)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Icon(Icons.warning_amber_outlined,
+                              size: 18, color: scheme.error),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Con la registrazione in background disattivata, uscendo '
+                              'dall\'app o spegnendo lo schermo la corsa si interrompe.',
+                              style: TextStyle(fontSize: 13, color: scheme.error),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
               ),
             ),
 

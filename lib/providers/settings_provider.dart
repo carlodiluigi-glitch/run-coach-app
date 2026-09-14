@@ -70,6 +70,9 @@ class SettingsProvider extends ChangeNotifier {
   Future<void> setKeepScreenOn(bool enabled) =>
       update(_settings.copyWith(keepScreenOn: enabled));
 
+  Future<void> setBackgroundTracking(bool enabled) =>
+      update(_settings.copyWith(backgroundTrackingEnabled: enabled));
+
   Future<void> setUnits(UnitSystem units) =>
       update(_settings.copyWith(units: units));
 
