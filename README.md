@@ -191,7 +191,7 @@ run_coach_app/
 │   │   ├── coach_phrases.dart       # tutte le frasi del coach
 │   │   ├── stats_service.dart       # statistiche e trend
 │   │   ├── storage_service.dart     # salvataggio locale JSON
-│   │   └── screen_service.dart      # schermo sempre acceso
+│   │   └── native_bridge.dart       # schermo acceso + permesso notifiche
 │   ├── providers/
 │   │   ├── settings_provider.dart
 │   │   ├── shoe_provider.dart
@@ -217,7 +217,8 @@ run_coach_app/
 │   │   ├── workout_step_widget.dart
 │   │   └── empty_state.dart
 │   └── utils/
-│       ├── formatters.dart      # tempo, distanza, passo, date
+│       ├── formatters.dart        # tempo, distanza, passo, date (schermo)
+│       ├── speech_formatters.dart # numeri pronunciabili (voce)
 │       └── id_generator.dart
 ├── test/                        # test unitari e widget
 ├── analysis_options.yaml
@@ -241,13 +242,23 @@ Separazione delle responsabilita':
 
 Dichiarati in `android/app/src/main/AndroidManifest.xml`:
 
-| Permesso                  | Perche' serve                                  |
-|---------------------------|------------------------------------------------|
-| `ACCESS_FINE_LOCATION`    | posizione GPS precisa: distanza e passo         |
-| `ACCESS_COARSE_LOCATION`  | richiesto insieme al precedente da Android 12+  |
+| Permesso                       | Perche' serve                                       |
+|--------------------------------|-----------------------------------------------------|
+| `ACCESS_FINE_LOCATION`         | posizione GPS precisa: distanza e passo              |
+| `ACCESS_COARSE_LOCATION`       | richiesto insieme al precedente da Android 12+       |
+| `FOREGROUND_SERVICE`           | registrazione con l'app in secondo piano             |
+| `FOREGROUND_SERVICE_LOCATION`  | tipo del servizio (obbligatorio da Android 14)       |
+| `WAKE_LOCK`                    | tiene la CPU attiva a schermo spento                 |
+| `POST_NOTIFICATIONS`           | notifica della registrazione (da Android 13)         |
 
-Non sono richiesti permessi di background, Bluetooth, fotocamera o
-archiviazione. I dati restano nella cartella privata dell'app.
+**Non** e' richiesto `ACCESS_BACKGROUND_LOCATION` (il permesso "Consenti
+sempre"). Usando un foreground service avviato mentre l'app e' in primo piano,
+Android consente di continuare a leggere la posizione con il solo permesso
+"mentre l'app e' in uso": e' l'approccio meno invasivo e il piu' facile da
+giustificare sugli store.
+
+Non sono richiesti permessi Bluetooth, fotocamera o archiviazione. I dati
+restano nella cartella privata dell'app.
 
 ---
 
@@ -261,6 +272,9 @@ archiviazione. I dati restano nella cartella privata dell'app.
 - **GPS reale** con `geolocator`: posizione, precisione, velocita'.
 - **Filtro GPS**: scarta punti con accuratezza scarsa, micro-spostamenti da
   fermo, velocita' impossibili e salti di segnale.
+- **Registrazione in background**: la corsa continua con lo schermo spento e
+  il telefono in tasca, grazie a un foreground service con notifica
+  permanente e wake lock. Disattivabile dalle impostazioni.
 - **Timer affidabile**: start / pausa / ripresa / stop; il tempo in pausa non
   viene conteggiato.
 - **Distanza** in km con 2 decimali, **passo** in min/km (attuale, medio, del
@@ -274,6 +288,10 @@ archiviazione. I dati restano nella cartella privata dell'app.
   successivo, distanza/tempo residuo, ripetizione corrente e totale.
 - **Coach vocale** (`flutter_tts`) in italiano con countdown, annunci di fase,
   lap e fine allenamento.
+- **Numeri pronunciabili**: i valori passati alla voce vengono tradotti in
+  parole (`5:23` diventa "cinque e ventitre al chilometro"), perche' la
+  sintesi vocale legge male le cifre nude. Vedi
+  `lib/utils/speech_formatters.dart`.
 - **Tre personalita' del coach**: Normale, Motivazionale, Sergente. Tutte le
   frasi sono centralizzate in `lib/services/coach_phrases.dart`.
 - **Avvisi di ritmo** con cooldown configurabile (15-60 s).
@@ -306,9 +324,11 @@ i campi restano `null` finche' non ci sara' una sorgente reale.
 - Bluetooth: non implementato nell'MVP. L'architettura a servizi permette di
   aggiungere un `HeartRateService` che alimenta gli stessi campi, senza
   toccare UI o storage.
-- Tracking GPS in background: `GpsService` isola gia' il plugin dietro un tipo
-  proprio (`GpsSample`), quindi l'aggiunta di un foreground service non
-  impatta provider e schermate.
+- Tracking GPS in background: **implementato**, vedi sopra.
+- Ripresa dopo la chiusura forzata dell'app: se Android termina comunque il
+  processo (batteria critica, chiusura manuale dal gestore attivita'), la
+  corsa in corso non viene recuperata. Un salvataggio periodico dello stato
+  parziale e' il passo successivo naturale.
 
 ---
 
@@ -322,6 +342,7 @@ i campi restano `null` finche' non ci sara' una sorgente reale.
 | `geolocator`     | posizione GPS                          |
 | `flutter_tts`    | coach vocale (Text To Speech)          |
 | `path_provider`  | cartella documenti per lo storage JSON |
+| `geolocator_android` | foreground service per la registrazione in background |
 
 **Configurazione Android**
 
@@ -375,6 +396,20 @@ l'audio coach sia attivo nelle impostazioni dell'app.
 Serve un fix GPS valido: all'aperto, con cielo libero. La schermata di avvio
 mostra la qualita' del segnale prima dello START. Il filtro scarta di proposito
 i punti poco affidabili.
+
+**La corsa si ferma quando spengo lo schermo**
+Controlla che in *Impostazioni -> Registrazione* sia attivo "Registra in
+background". Se lo e' gia', il colpevole e' quasi sempre il risparmio
+energetico del telefono: vai in *Impostazioni Android -> App -> Run Coach ->
+Batteria* e scegli **Senza restrizioni**. Su Xiaomi, Huawei, Samsung e
+OnePlus questa impostazione e' particolarmente aggressiva e va disattivata a
+mano.
+
+**Non vedo la notifica durante la corsa**
+Serve il permesso notifiche (Android 13+). L'app lo chiede al primo START; se
+e' stato negato, riattivalo da *Impostazioni Android -> App -> Run Coach ->
+Notifiche*. Senza notifica la registrazione funziona comunque, ma Android
+potrebbe essere piu' aggressivo nel sospendere l'app.
 
 **L'APK non si installa**
 Sul telefono va autorizzata l'installazione da origini sconosciute per

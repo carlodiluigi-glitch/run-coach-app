@@ -18,6 +18,12 @@ dependencies:
   # GPS / posizione
   geolocator: ">=13.0.0 <15.0.0"
 
+  # Implementazione Android di geolocator. Viene gia' installata da geolocator,
+  # ma la dichiariamo perche' la usiamo direttamente: serve per AndroidSettings
+  # e ForegroundNotificationConfig, cioe' la registrazione in background.
+  # "any" lascia scegliere a pub la versione compatibile con geolocator.
+  geolocator_android: any
+
   # Coach vocale (Text To Speech)
   flutter_tts: ">=4.0.0 <5.0.0"
 
