@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../models/running_activity.dart';
 import '../models/running_shoe.dart';
+import '../models/training_plan.dart';
 import '../models/user_settings.dart';
 import '../models/workout.dart';
 
@@ -28,6 +29,7 @@ class StorageService {
   static const String shoesFileName = 'shoes.json';
   static const String workoutsFileName = 'workouts.json';
   static const String activitiesFileName = 'activities.json';
+  static const String planFileName = 'plan.json';
 
   final Directory? _overrideDirectory;
   Directory? _directory;
@@ -160,6 +162,41 @@ class StorageService {
         jsonEncode(
             activities.map((RunningActivity a) => a.toJson()).toList()),
       );
+
+  // -------------------------------------------------------------------- piano
+  /// Del piano si salvano solo i parametri: le sedute vengono ricalcolate.
+  /// Restituisce `null` se non c'e' nessun piano attivo.
+  Future<PlanConfig?> loadPlanConfig() async {
+    final String? raw = await _readRaw(planFileName);
+    if (raw == null) return null;
+    try {
+      final Object? decoded = jsonDecode(raw);
+      if (decoded is Map) {
+        return PlanConfig.fromJson(decoded.cast<String, dynamic>());
+      }
+    } catch (error) {
+      lastError = 'Piano non leggibile: $error';
+    }
+    return null;
+  }
+
+  Future<bool> savePlanConfig(PlanConfig config) =>
+      _writeRaw(planFileName, jsonEncode(config.toJson()));
+
+  /// Cancella il piano attivo.
+  Future<bool> deletePlanConfig() async {
+    try {
+      final File file = await _file(planFileName);
+      if (await file.exists()) {
+        await file.delete();
+      }
+      lastError = null;
+      return true;
+    } catch (error) {
+      lastError = 'Eliminazione del piano non riuscita: $error';
+      return false;
+    }
+  }
 
   // ------------------------------------------------------------------ helper
   Future<List<Map<String, dynamic>>> _readList(String name) async {

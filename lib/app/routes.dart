@@ -3,7 +3,10 @@ import 'package:flutter/material.dart';
 import '../models/workout.dart';
 import '../screens/activity_detail_screen.dart';
 import '../screens/activity_history_screen.dart';
+import '../screens/fitness_screen.dart';
 import '../screens/home_screen.dart';
+import '../screens/plan_screen.dart';
+import '../screens/plan_setup_screen.dart';
 import '../screens/records_screen.dart';
 import '../screens/run_screen.dart';
 import '../screens/settings_screen.dart';
@@ -34,6 +37,15 @@ class AppRoutes {
   static const String stats = '/stats';
   static const String records = '/records';
   static const String settings = '/settings';
+
+  /// Forma attuale: indice, passi, previsioni.
+  static const String fitness = '/fitness';
+
+  /// Piano di allenamento attivo.
+  static const String plan = '/plan';
+
+  /// Creazione di un nuovo piano.
+  static const String planSetup = '/plan-setup';
 
   /// Generatore delle rotte con gestione degli argomenti.
   static Route<dynamic> onGenerateRoute(RouteSettings routeSettings) {
@@ -112,6 +124,24 @@ class AppRoutes {
       case settings:
         return MaterialPageRoute<void>(
           builder: (_) => const SettingsScreen(),
+          settings: routeSettings,
+        );
+
+      case fitness:
+        return MaterialPageRoute<void>(
+          builder: (_) => const FitnessScreen(),
+          settings: routeSettings,
+        );
+
+      case plan:
+        return MaterialPageRoute<void>(
+          builder: (_) => const PlanScreen(),
+          settings: routeSettings,
+        );
+
+      case planSetup:
+        return MaterialPageRoute<void>(
+          builder: (_) => const PlanSetupScreen(),
           settings: routeSettings,
         );
 

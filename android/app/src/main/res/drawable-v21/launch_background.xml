@@ -1,4 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Sfondo mostrato da Android nei millisecondi fra il tocco sull'icona e il
+     primo fotogramma di Flutter. Nero come la schermata di apertura dell'app:
+     cosi' non si vede il lampo bianco che c'era prima. -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:drawable="?android:colorBackground" />
+    <item android:drawable="@color/ic_launcher_background" />
+    <item>
+        <bitmap
+            android:gravity="center"
+            android:src="@mipmap/ic_launcher" />
+    </item>
 </layer-list>

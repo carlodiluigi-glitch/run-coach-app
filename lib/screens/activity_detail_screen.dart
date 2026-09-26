@@ -6,7 +6,9 @@ import '../models/running_activity.dart';
 import '../models/running_shoe.dart';
 import '../providers/activity_provider.dart';
 import '../providers/shoe_provider.dart';
+import '../services/pace_zone_engine.dart';
 import '../services/records_service.dart';
+import '../services/session_classifier.dart';
 import '../utils/formatters.dart';
 import '../widgets/app_card.dart';
 import '../widgets/empty_state.dart';
@@ -41,6 +43,13 @@ class ActivityDetailScreen extends StatelessWidget {
     final RunningShoe? shoe = shoes.byId(activity.shoeId);
     final List<DistanceRecord> held = provider.recordsHeldBy(activity.id);
     final bool isWorkout = activity.type == ActivityType.workout;
+
+    // Cosa e' stata davvero questa seduta, guardando i passi corsi e non il
+    // nome che aveva sul programma.
+    final TrainingZones? zones = provider.trainingZones;
+    final SessionAnalysis? analysis = zones == null
+        ? null
+        : const SessionClassifier().analyse(activity, zones);
 
     return Scaffold(
       appBar: AppBar(
@@ -148,6 +157,38 @@ class ActivityDetailScreen extends StatelessWidget {
                   value: shoe?.displayName ?? 'Nessuna',
                   onTap: () => _changeShoe(context, provider, shoes, activity),
                 ),
+                if (analysis != null)
+                  AppListRow(
+                    title: 'Intensita\' reale',
+                    subtitle: analysis.explanation,
+                    value: analysis.intensity.label,
+                    valueColor: analysis.intensity.countsAsQuality
+                        ? p.accent
+                        : p.ink,
+                    showChevron: false,
+                  ),
+                if (activity.feedback != null)
+                  AppListRow(
+                    title: 'Fatica percepita',
+                    subtitle: activity.feedback!.rpeLabel,
+                    value: '${activity.rpe}/10',
+                    showChevron: false,
+                  ),
+                if (activity.feedback?.legs != null)
+                  AppListRow(
+                    title: 'Gambe',
+                    value: activity.feedback!.legs!.label,
+                    showChevron: false,
+                  ),
+                if (activity.reportedPain)
+                  AppListRow(
+                    title: 'Dolore segnalato',
+                    subtitle: 'Il motore non propone qualita\' finche\' non '
+                        'passa.',
+                    value: 'si\'',
+                    valueColor: p.red,
+                    showChevron: false,
+                  ),
                 AppListRow(
                   title: 'Punti GPS registrati',
                   value: '${activity.route.length}',

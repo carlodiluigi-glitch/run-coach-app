@@ -4,17 +4,20 @@ import 'package:provider/provider.dart';
 
 import '../app/routes.dart';
 import '../app/tokens.dart';
+import '../models/effort.dart';
 import '../models/running_activity.dart';
 import '../models/running_shoe.dart';
 import '../models/workout.dart';
 import '../models/workout_step.dart';
 import '../providers/activity_provider.dart';
+import '../providers/plan_provider.dart';
 import '../providers/running_provider.dart';
 import '../providers/shoe_provider.dart';
 import '../services/permission_service.dart';
 import '../services/workout_engine.dart';
 import '../utils/formatters.dart';
 import '../widgets/app_card.dart';
+import '../widgets/effort_sheet.dart';
 import '../widgets/lap_table.dart';
 import '../widgets/metric_display.dart';
 import '../widgets/pace_indicator.dart';
@@ -509,10 +512,18 @@ class _RunScreenState extends State<RunScreen> {
     if (!mounted) return;
     final String? shoeId = await _askShoe(context);
 
+    // La fatica percepita si chiede subito dopo, finche' la sensazione e'
+    // fresca: chiederla il giorno dopo darebbe un numero inventato.
+    if (!mounted) return;
+    final SessionFeedback? feedback = await askSessionFeedback(context);
+
     if (!mounted) return;
     final ActivityProvider activities = context.read<ActivityProvider>();
-    final RunningActivity toSave =
-        shoeId == null ? activity : activity.copyWith(shoeId: shoeId);
+    final RunningActivity toSave = activity.copyWith(
+      shoeId: shoeId,
+      feedback: feedback,
+      plannedSessionKey: _plannedSessionKey(context),
+    );
     final bool saved = await activities.add(toSave);
 
     await run.reset();
@@ -533,6 +544,22 @@ class _RunScreenState extends State<RunScreen> {
       AppRoutes.activityDetail,
       arguments: toSave.id,
     );
+  }
+
+  /// A quale seduta del piano corrisponde la corsa appena finita.
+  ///
+  /// Si usa la data invece di un identificatore perche' il piano viene
+  /// ricalcolato a ogni avvio: gli id interni cambiano, la data no. Serve al
+  /// motore per confrontare quello che era previsto con quello che e' stato
+  /// davvero corso.
+  String? _plannedSessionKey(BuildContext context) {
+    final PlanProvider plans = context.read<PlanProvider>();
+    if (!plans.hasPlan) return null;
+    final DateTime today = DateTime.now();
+    if (plans.sessionsOn(today).isEmpty) return null;
+    final String month = today.month.toString().padLeft(2, '0');
+    final String day = today.day.toString().padLeft(2, '0');
+    return '${today.year}-$month-$day';
   }
 
   /// Chiede quali scarpe sono state usate.

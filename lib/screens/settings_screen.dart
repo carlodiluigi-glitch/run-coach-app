@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../app/app.dart';
 import '../models/user_settings.dart';
 import '../providers/settings_provider.dart';
 import '../widgets/app_card.dart';
@@ -310,9 +311,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
             const SizedBox(height: 24),
             Center(
-              child: Text(
-                'Falcata - versione 1.0.0',
-                style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13),
+              child: Column(
+                children: <Widget>[
+                  Text(
+                    '${RunCoachApp.appName} - versione ${RunCoachApp.version}',
+                    style:
+                        TextStyle(color: scheme.onSurfaceVariant, fontSize: 13),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    RunCoachApp.credit,
+                    style:
+                        TextStyle(color: scheme.onSurfaceVariant, fontSize: 13),
+                  ),
+                ],
               ),
             ),
           ],

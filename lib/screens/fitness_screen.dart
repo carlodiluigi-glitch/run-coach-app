@@ -1,0 +1,367 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../app/routes.dart';
+import '../app/tokens.dart';
+import '../models/estimate.dart';
+import '../providers/activity_provider.dart';
+import '../services/fitness_service.dart';
+import '../services/pace_zone_engine.dart';
+import '../services/run_index_engine.dart';
+import '../utils/formatters.dart';
+import '../widgets/app_card.dart';
+import '../widgets/inset_list.dart';
+
+/// Forma attuale: indice, zone di allenamento, previsioni di gara.
+class FitnessScreen extends StatelessWidget {
+  const FitnessScreen({super.key});
+
+  static const FitnessService _fitness = FitnessService();
+
+  @override
+  Widget build(BuildContext context) {
+    final ActivityProvider activities = context.watch<ActivityProvider>();
+    final AppPalette p = AppPalette.of(context);
+
+    final RunIndexResult result = activities.runIndex;
+    final TrainingZones? zones = activities.trainingZones;
+    final Estimate<double>? index = result.index;
+
+    if (index == null || zones == null) {
+      return _shell(
+        context,
+        children: <Widget>[
+        AppCard(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Icon(Icons.timeline, size: 22, color: p.inkFaint),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      'Stima non disponibile',
+                      style: AppText.title
+                          .copyWith(color: p.ink, fontSize: 17),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      result.explanation,
+                      style: AppText.body.copyWith(color: p.inkSoft),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        const _MethodCard(),
+        ],
+      );
+    }
+
+    return _shell(
+      context,
+      children: <Widget>[
+        _IndexCard(result: result, index: index),
+
+        const SectionTitle('Zone di allenamento'),
+        InsetList(
+          children: <Widget>[
+            for (final ZonePace zone in zones.all)
+              AppListRow(
+                title: zone.label,
+                subtitle: zone.purpose,
+                showChevron: false,
+                trailing: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Text(
+                      '${formatPace(zone.range.low)} - '
+                      '${formatPace(zone.range.high)}',
+                      style: AppText.number(15, color: p.ink),
+                    ),
+                    Text(
+                      '/km',
+                      style:
+                          AppText.caption.copyWith(color: p.inkFaint),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+        Padding(
+          padding: const EdgeInsets.only(left: 4, top: 8),
+          child: Text(
+            index.isStrong
+                ? 'Le fasce sono strette perche\' ci sono abbastanza dati.'
+                : 'Le fasce sono larghe di proposito: con pochi dati '
+                    'una stima precisa sarebbe finta. Si stringono da '
+                    'sole man mano che corri.',
+            style: AppText.caption.copyWith(color: p.inkFaint),
+          ),
+        ),
+
+        const SectionTitle('Previsioni di gara'),
+        InsetList(
+          children: <Widget>[
+            for (final RacePrediction prediction in _fitness.predictions(
+              index.value,
+              result.samples.isEmpty
+                  ? 5000
+                  : result.samples.first.sample.meters,
+            ))
+              AppListRow(
+                title: prediction.distance.label,
+                subtitle:
+                    '${formatPaceWithUnit(prediction.paceSecPerKm)}  ·  '
+                    'fra ${formatDuration(Duration(seconds: prediction.bestCaseSeconds))} '
+                    'e ${formatDuration(Duration(seconds: prediction.worstCaseSeconds))}',
+                value: formatDuration(
+                  Duration(seconds: prediction.seconds),
+                ),
+                showChevron: false,
+              ),
+          ],
+        ),
+
+        if (result.profileBias != null) ...<Widget>[
+          const SectionTitle('Che tipo di corridore sei'),
+          _BiasCard(bias: result.profileBias!),
+        ],
+
+        const SizedBox(height: 14),
+        const _MethodCard(),
+
+        const SizedBox(height: 14),
+        SizedBox(
+          height: 54,
+          child: FilledButton.icon(
+            onPressed: () =>
+                Navigator.of(context).pushNamed(AppRoutes.plan),
+            style: FilledButton.styleFrom(
+              backgroundColor: p.accent,
+              foregroundColor: p.onAccent,
+            ),
+            icon: const Icon(Icons.calendar_month_rounded),
+            label: const Text('Costruisci un piano con questi ritmi'),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Struttura comune della schermata: barra, titolo, lista.
+  Widget _shell(BuildContext context, {required List<Widget> children}) {
+    final AppPalette p = AppPalette.of(context);
+    return Scaffold(
+      appBar: AppBar(
+        toolbarHeight: 44,
+        backgroundColor: p.background,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+      ),
+      body: SafeArea(
+        top: false,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.screenSide,
+            0,
+            AppSpacing.screenSide,
+            32,
+          ),
+          children: <Widget>[
+            Text('Forma', style: AppText.largeTitle.copyWith(color: p.ink)),
+            const SizedBox(height: 16),
+            ...children,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _IndexCard extends StatelessWidget {
+  const _IndexCard({required this.result, required this.index});
+
+  final RunIndexResult result;
+  final Estimate<double> index;
+
+  @override
+  Widget build(BuildContext context) {
+    final AppPalette p = AppPalette.of(context);
+
+    Color confidenceColor() {
+      if (index.isStrong) return p.green;
+      if (index.isWeak) return p.orange;
+      return p.blue;
+    }
+
+    return AppCard(
+      padding: const EdgeInsets.fromLTRB(16, 15, 16, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            'INDICE DI FORMA',
+            style: AppText.label.copyWith(color: p.inkFaint),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: <Widget>[
+              Text(
+                index.value.toStringAsFixed(1),
+                style: AppText.number(46, color: p.accent),
+              ),
+              const SizedBox(width: 10),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: confidenceColor().withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(AppRadius.pill),
+                  ),
+                  child: Text(
+                    'fiducia ${index.confidenceLabel}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: confidenceColor(),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            result.explanation,
+            style: AppText.caption.copyWith(color: p.inkSoft),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BiasCard extends StatelessWidget {
+  const _BiasCard({required this.bias});
+
+  final Estimate<double> bias;
+
+  @override
+  Widget build(BuildContext context) {
+    final AppPalette p = AppPalette.of(context);
+
+    // La posizione sulla barra: -6 punti = velocista puro, +6 = fondista.
+    final double position = ((bias.value + 6) / 12).clamp(0.0, 1.0);
+
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            bias.note ?? '',
+            style: AppText.body.copyWith(color: p.ink),
+          ),
+          const SizedBox(height: 14),
+          LayoutBuilder(
+            builder: (BuildContext context, BoxConstraints constraints) {
+              final double width = constraints.maxWidth;
+              return SizedBox(
+                height: 26,
+                child: Stack(
+                  children: <Widget>[
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      top: 10,
+                      child: Container(
+                        height: 5,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(3),
+                          gradient: LinearGradient(
+                            colors: <Color>[p.blue, p.separator, p.accent],
+                          ),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      left: (width - 14) * position,
+                      top: 4,
+                      child: Container(
+                        width: 14,
+                        height: 18,
+                        decoration: BoxDecoration(
+                          color: p.ink,
+                          borderRadius: BorderRadius.circular(7),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: <Widget>[
+              Text('Velocista',
+                  style: AppText.caption.copyWith(color: p.inkFaint)),
+              const Spacer(),
+              Text('Fondista',
+                  style: AppText.caption.copyWith(color: p.inkFaint)),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Fiducia ${bias.confidenceLabel}. Serve molta piu\' evidenza per '
+            'dire che tipo sei che per stimare il tuo ritmo: finche\' non ci '
+            'sono prove su distanze diverse, questa riga vale poco.',
+            style: AppText.caption.copyWith(color: p.inkFaint),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MethodCard extends StatelessWidget {
+  const _MethodCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final AppPalette p = AppPalette.of(context);
+
+    return AppCard(
+      padding: const EdgeInsets.fromLTRB(14, 13, 15, 14),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Icon(Icons.info_outline, size: 18, color: p.inkFaint),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'L\'indice nasce dalle tue prestazioni, pesate per quanto sono '
+              'affidabili: una gara conta piu\' di un tratto veloce dentro una '
+              'corsa normale, e una corsa che hai dichiarato facile non conta '
+              'quasi niente. Nessuna singola giornata puo\' spostarlo di molto: '
+              'serve conferma. E non scende perche\' hai corso piano, ma solo '
+              'se passano settimane senza prove.',
+              style: AppText.caption.copyWith(color: p.inkFaint),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

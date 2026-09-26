@@ -1,3 +1,4 @@
+import 'effort.dart';
 import 'health_data.dart';
 import 'lap.dart';
 import '../utils/formatters.dart';
@@ -59,6 +60,8 @@ class RunningActivity {
     this.shoeId,
     this.workoutId,
     this.note,
+    this.feedback,
+    this.plannedSessionKey,
     // --- Campi predisposti per il futuro (mai inventati) ---
     this.dynamics,
     this.heartRateAverage,
@@ -91,6 +94,20 @@ class RunningActivity {
 
   final String? note;
 
+  /// Come e' andata secondo chi l'ha corsa: fatica percepita, gambe, dolori.
+  ///
+  /// E' l'unico dato che il telefono non puo' misurare da solo, ed e' anche
+  /// il piu' informativo: dice quanto e' costata la seduta, non solo cosa e'
+  /// stato fatto.
+  final SessionFeedback? feedback;
+
+  /// A quale seduta del piano corrisponde questa attivita'.
+  ///
+  /// E' la data della seduta in formato `aaaa-mm-gg`, non un identificatore:
+  /// il piano viene ricalcolato a ogni avvio, quindi gli id interni cambiano
+  /// mentre la data no. Serve a confrontare previsto ed effettivo.
+  final String? plannedSessionKey;
+
   // ---- Predisposizione funzioni future -------------------------------------
   /// Cadenza, lunghezza passo, oscillazione verticale. `null` se non misurate.
   final RunningDynamics? dynamics;
@@ -109,11 +126,19 @@ class RunningActivity {
 
   Duration get duration => Duration(seconds: durationSeconds);
 
+  /// `true` se l'atleta ha dichiarato dolore su questa seduta.
+  bool get reportedPain => feedback?.hasPain ?? false;
+
+  /// Fatica percepita, se dichiarata.
+  int? get rpe => feedback?.rpe;
+
   RunningActivity copyWith({
     String? name,
     String? shoeId,
     bool clearShoe = false,
     String? note,
+    SessionFeedback? feedback,
+    String? plannedSessionKey,
   }) =>
       RunningActivity(
         id: id,
@@ -127,6 +152,8 @@ class RunningActivity {
         shoeId: clearShoe ? null : (shoeId ?? this.shoeId),
         workoutId: workoutId,
         note: note ?? this.note,
+        feedback: feedback ?? this.feedback,
+        plannedSessionKey: plannedSessionKey ?? this.plannedSessionKey,
         dynamics: dynamics,
         heartRateAverage: heartRateAverage,
         heartRateMax: heartRateMax,
@@ -147,6 +174,8 @@ class RunningActivity {
         'shoeId': shoeId,
         'workoutId': workoutId,
         'note': note,
+        'feedback': feedback?.toJson(),
+        'plannedSessionKey': plannedSessionKey,
         'dynamics': dynamics?.toJson(),
         'heartRateAverage': heartRateAverage,
         'heartRateMax': heartRateMax,
@@ -162,6 +191,8 @@ class RunningActivity {
         (json['route'] as List<dynamic>?) ?? <dynamic>[];
     final List<dynamic> rawHr =
         (json['heartRateSamples'] as List<dynamic>?) ?? <dynamic>[];
+    final Map<String, dynamic>? rawFeedback =
+        (json['feedback'] as Map?)?.cast<String, dynamic>();
     final Map<String, dynamic>? rawDynamics =
         (json['dynamics'] as Map?)?.cast<String, dynamic>();
     final Map<String, dynamic>? rawHrv =
@@ -187,6 +218,9 @@ class RunningActivity {
       shoeId: json['shoeId'] as String?,
       workoutId: json['workoutId'] as String?,
       note: json['note'] as String?,
+      feedback:
+          rawFeedback == null ? null : SessionFeedback.fromJson(rawFeedback),
+      plannedSessionKey: json['plannedSessionKey'] as String?,
       dynamics:
           rawDynamics == null ? null : RunningDynamics.fromJson(rawDynamics),
       heartRateAverage: (json['heartRateAverage'] as num?)?.toInt(),

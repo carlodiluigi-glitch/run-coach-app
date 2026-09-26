@@ -76,47 +76,69 @@ class _SplashScreenState extends State<SplashScreen> {
           // aspettare un'animazione.
           behavior: HitTestBehavior.opaque,
           onTap: _goOn,
-          child: Center(
+          child: SafeArea(
             child: AnimatedOpacity(
               opacity: _visible ? 1 : 0,
               duration: const Duration(milliseconds: 500),
               curve: Curves.easeOut,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  Text(
-                    RunCoachApp.appName.toUpperCase(),
-                    style: TextStyle(
-                      fontSize: 44,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 6,
-                      color: p.ink,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+                child: Column(
+                  children: <Widget>[
+                    Expanded(
+                      child: Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            // Il segno dell'app, lo stesso dell'icona: tre
+                            // falcate che si allungano.
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: <Widget>[
+                                _Stride(width: 30, color: p.accent),
+                                const SizedBox(height: 9),
+                                _Stride(width: 48, color: p.accent),
+                                const SizedBox(height: 9),
+                                _Stride(width: 68, color: p.accent),
+                              ],
+                            ),
+                            const SizedBox(height: 26),
+                            Text(
+                              RunCoachApp.appName.toUpperCase(),
+                              style: TextStyle(
+                                fontSize: 42,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 7,
+                                color: p.ink,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              hasName
+                                  ? settings.settings.greeting
+                                  : 'Allenati meglio',
+                              style: TextStyle(
+                                fontSize: 17,
+                                fontWeight: FontWeight.w500,
+                                letterSpacing: -0.2,
+                                color: p.inkFaint,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 14),
-                  // Il segno sotto il nome: una falcata, cioe' un passo che
-                  // si allunga.
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      _Stride(width: 14, color: p.accent),
-                      const SizedBox(width: 5),
-                      _Stride(width: 26, color: p.accent),
-                      const SizedBox(width: 5),
-                      _Stride(width: 44, color: p.accent),
-                    ],
-                  ),
-                  const SizedBox(height: 22),
-                  Text(
-                    hasName ? settings.settings.greeting : 'Allenati meglio',
-                    style: TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w500,
-                      letterSpacing: -0.2,
-                      color: p.inkFaint,
+                    Text(
+                      RunCoachApp.credit,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        letterSpacing: 0.3,
+                        color: p.inkFaint,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),

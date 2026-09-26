@@ -9,6 +9,11 @@ class RunCoachApp extends StatelessWidget {
 
   static const String appName = 'Falcata';
 
+  /// Riga di paternita', mostrata all'avvio e nelle impostazioni.
+  static const String credit = 'Sviluppato da Carlo Di Luigi';
+
+  static const String version = '1.1.0';
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(

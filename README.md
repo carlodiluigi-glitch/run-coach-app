@@ -212,9 +212,13 @@ run_coach_app/
 │   │   ├── shoe_provider.dart
 │   │   ├── workout_provider.dart
 │   │   ├── activity_provider.dart
+│   │   ├── plan_provider.dart       # piano attivo
 │   │   └── running_provider.dart    # timer, distanza, lap, coach
 │   ├── screens/
 │   │   ├── splash_screen.dart       # apertura: nome app e saluto
+│   │   ├── fitness_screen.dart      # forma, passi, previsioni
+│   │   ├── plan_screen.dart         # il piano attivo
+│   │   ├── plan_setup_screen.dart   # creazione del piano
 │   │   ├── welcome_screen.dart      # primo avvio: chiede il nome
 │   │   ├── home_screen.dart
 │   │   ├── run_screen.dart
@@ -331,6 +335,12 @@ restano nella cartella privata dell'app.
 - **Indicatore ritmo** accessibile: simbolo + parola (`↓ troppo lento`,
   `✓ ritmo corretto`, `↑ troppo veloce`).
 - **Storico attivita'** e **dettaglio** con tabella lap.
+- **Forma e previsioni**: indice VDOT dai record, cinque passi di allenamento
+  personali, tempi previsti su 5 km, 10 km, mezza e maratona con un margine
+  che si allarga allontanandosi dalla distanza misurata.
+- **Piano di allenamento**: obiettivo, durata e giorni a scelta; fasi, volumi
+  con scarichi, sedute di qualita' che sono allenamenti eseguibili. Le gare
+  impreviste si inseriscono e il piano alleggerisce prima e recupera dopo.
 - **Record personali**: miglior tempo su 1 km, 3 km, 5 km, 10 km, mezza e
   maratona, calcolati col tratto piu' veloce dentro ogni corsa (finestra
   scorrevole sul tracciato, con interpolazione del punto di partenza); piu'
@@ -385,6 +395,195 @@ scheda per riga: sarebbe un mosaico.
 Pausa e - negli allenamenti - Salta fase. Termina non c'e': un tocco
 sbagliato in tasca chiuderebbe la registrazione. Per terminare si mette prima
 in pausa, e a quel punto il tempo e' gia' fermo.
+
+---
+
+## Il motore di allenamento
+
+Due servizi, entrambi Dart puro e quindi testabili senza telefono:
+`lib/services/fitness_service.dart` e `lib/services/plan_service.dart`.
+
+### La forma: il VDOT
+
+Il metodo e' quello di Jack Daniels. Da una singola prestazione si ricava un
+indice (il VDOT), e da quell'indice tutte le prestazioni equivalenti: 5 km in
+19:57 vale un VDOT 50, e un VDOT 50 vale 41:21 sui 10 km, 1:31:35 in mezza e
+3:10:49 in maratona.
+
+Le formule sono quelle di Daniels e Gilbert: una dice quanto ossigeno costa
+correre a una certa velocita', l'altra quale percentuale del massimo si tiene
+per una certa durata. Il VDOT e' il rapporto fra le due; la previsione e'
+l'operazione inversa, risolta per bisezione.
+
+`test/fitness_service_test.dart` verifica i numeri contro le tabelle
+pubblicate: le previsioni cadono entro pochi secondi da quelle stampate nel
+libro.
+
+### I passi di allenamento
+
+Non sono percentuali arbitrarie: ognuno e' il passo di una gara equivalente,
+che e' anche il modo in cui si spiegano a parole.
+
+| Passo | Cos'e' | VDOT 50 |
+|---|---|---|
+| Lento (E) | fra il 55% e il 62% del costo di ossigeno | 5:38 - 6:12 /km |
+| Medio (M) | il passo della tua maratona | 4:31 /km |
+| Soglia (T) | il passo che terresti per un'ora esatta | 4:13 /km |
+| Ripetute (I) | il passo dei tuoi 3000 metri | 3:51 /km |
+| Veloci (R) | il passo dei tuoi 1500 metri | 3:36 /km |
+
+### Il piano
+
+Quattro principi, tutti documentati in letteratura:
+
+1. **Distribuzione polarizzata** (Seiler): circa l'80% del tempo piano e il
+   20% forte, con poco in mezzo. Il "medio tutti i giorni" stanca come il
+   forte senza darne i benefici.
+2. **Passi dalla forma attuale** (Daniels): ogni fase di ogni seduta ha un
+   passo obiettivo derivato dal VDOT.
+3. **Progressione con scarichi**: il volume cresce al massimo del 55% dal
+   punto di partenza fino al picco, e ogni quarta settimana scende del 25%.
+   L'adattamento avviene nel recupero, non nel carico.
+4. **Periodizzazione**: costruzione, sviluppo, specifico, scarico.
+
+Schema settimanale fisso, perche' un piano si segue solo se e' prevedibile:
+qualita' il martedi' e il giovedi', lungo la domenica, il resto lento.
+
+Ogni seduta di qualita' non e' una descrizione ma un **allenamento vero**, con
+riscaldamento, ripetizioni, recuperi e passi obiettivo: dal piano si preme
+START e il motore esegue le fasi.
+
+### Le gare nel mezzo
+
+Se salta fuori una gara non prevista si aggiunge al piano e le settimane
+intorno vengono ammorbidite: niente qualita' nei giorni prima, lungo
+accorciato, e solo corsa lenta nei giorni dopo. Quanti giorni dipende dalla
+distanza (3 prima e 6 dopo per una 10 km, 5 e 11 per una mezza), secondo la
+regola classica di un giorno di recupero per miglio di gara, addolcita e
+limitata a dodici giorni.
+
+Il resto del piano non viene rifatto: le settimane lontane dalla gara restano
+identiche. C'e' un test apposta per questo.
+
+### Cosa viene salvato
+
+Del piano si salvano solo i **parametri** (obiettivo, date, giorni, forma di
+partenza, gare): le sedute vengono ricalcolate a ogni avvio. Un file di poche
+righe invece di un centinaio di allenamenti serializzati, e nessuna doppia
+versione della verita' da tenere in sincronia.
+
+Il VDOT viene congelato alla creazione del piano di proposito: se cambiasse a
+ogni corsa, i passi delle sedute ballerebbero da un giorno all'altro e non si
+capirebbe piu' se stai migliorando o se e' cambiato il metro.
+
+### Quello che il piano non puo' sapere
+
+Se hai dormito male, se il ginocchio tira, se al lavoro e' una settimana
+pesante. Un piano scritto un mese prima e' un'ipotesi: va corretto in corsa.
+La parte che chiede come stai, e sposta la seduta di conseguenza, non c'e'
+ancora.
+
+---
+
+## ADAPTIVE RUNNING COACH ENGINE
+
+Il motore adattivo che sostituisce il generatore di piani statico. Viene
+costruito per moduli: ogni rilascio e' compilabile, testabile e usabile da
+solo.
+
+### Stato dei moduli
+
+| Modulo | Cosa fa | Stato |
+|---|---|---|
+| `AthleteProfile` | eta', esperienza, stop recenti, personali | fatto |
+| `RunIndexEngine` | indice di forma con smoothing e confidenza | fatto |
+| `PaceZoneEngine` | nove zone di allenamento come fasce | fatto |
+| `SessionClassifier` | cosa e' stata **davvero** una seduta | fatto |
+| Raccolta fatica percepita | domanda a fine corsa | fatto |
+| `TrainingLoadEngine` | carico per intensita', non per chilometri | da fare |
+| `FatigueEngine` / `ReadinessEngine` | fatica residua, prontezza 0-100 | da fare |
+| `WorkoutDecisionEngine` | sceglie la seduta di oggi | da fare |
+| `RiskEngine` | filtro di sicurezza prima di confermare | da fare |
+| `AdaptationEngine` | impara dalla risposta individuale | da fare |
+
+### Il principio che governa tutto: mai inventare un dato
+
+Ogni stima importante e' un [`Estimate`](lib/models/estimate.dart): porta con
+se' **valore, confidenza, fonte e data**. Se un dato non c'e', il campo e'
+`null` e chi lo usa deve gestirlo. Non esistono valori di comodo.
+
+La confidenza non e' decorativa: **cambia il comportamento del motore**. Con
+pochi dati le fasce di ritmo si allargano, invece di fingere una precisione
+che non c'e'. Si stringono da sole man mano che arrivano prestazioni.
+
+### RunIndexEngine: l'indice di forma
+
+Ogni prestazione viene convertita nell'indice che, da sola, suggerirebbe. Poi
+le prestazioni vengono pesate su quattro fattori:
+
+1. **da dove viene** - una gara vale piu' di un tratto veloce dentro una corsa
+   normale (affidabilita' 1,00 contro 0,45);
+2. **quanto ti e' costata** - una corsa dichiarata a fatica 3 pesa un decimo
+   di una a fatica 9: stavi passeggiando, non dice niente su quanto vai forte;
+3. **quanto e' vecchia** - il peso si dimezza ogni sei settimane;
+4. **quanto e' lunga** - sotto 1,5 km non conta, sopra 3 km conta pieno.
+
+La fusione e' un **filtro sequenziale**, non una media. Tre regole lo
+governano:
+
+- **si sale piu' facilmente di quanto si scenda** (guadagno 0,55 contro 0,20).
+  Una prestazione eccellente prova cosa sai fare; una scarsa puo' essere
+  caldo, stanchezza, una brutta giornata;
+- **nessuna singola prestazione sposta l'indice di piu' di 1,5 punti**, e il
+  limite scende per le prove meno affidabili. Una domenica eccezionale non
+  cambia tutti i ritmi del mese;
+- **quattro conferme di fila valgono piu' di una**: il passo aumenta quando
+  piu' prestazioni consecutive indicano la stessa direzione.
+
+Una corsa e' **una** prova, non cinque: i tratti da 1,5 / 3 / 5 / 10 km dentro
+la stessa uscita sono lo stesso sforzo guardato con lenti diverse, e vengono
+uniti in uno solo.
+
+L'indice **non scende mai perche' hai corso piano**. Scende solo per il
+passare del tempo senza prove: quello e' decadimento vero, mentre "oggi ero
+lento quindi sono peggiorato" non lo e'.
+
+### SessionClassifier: cosa e' stata davvero la seduta
+
+Il programma dice "8 km facili". L'atleta li corre venticinque secondi al km
+piu' veloce perche' si sentiva bene. Sulla carta e' stata una corsa facile;
+nelle gambe e' stata una seduta scorrevole, e programmare ripetute il giorno
+dopo significa programmarle su un corpo che non ha recuperato.
+
+Il tracciato viene diviso in finestre di venti secondi, ogni finestra viene
+assegnata a una zona, e la seduta viene classificata su quanto tempo e' stato
+passato dove. Il confronto fra previsto ed effettivo produce una nota che il
+motore usera' per decidere il giorno dopo.
+
+### Il dolore non e' un segnale come gli altri
+
+Nel motore del rischio il dolore dichiarato **chiude la porta** alla
+qualita': nessun punteggio lo puo' compensare. Un algoritmo che manda a fare
+ripetute su un ginocchio che tira fa un danno che nessun guadagno di forma
+ripaga.
+
+### Valori empirici
+
+Tutte le costanti tarabili sono raccolte in cima ai rispettivi motori e
+marcate `VALORI EMPIRICI, TARABILI`, con accanto il ragionamento che le
+giustifica. Sono volutamente prudenti: sbagliare per eccesso di cautela costa
+qualche settimana, sbagliare per eccesso di entusiasmo costa un infortunio.
+
+### Test
+
+Gli scenari della specifica sono test veri:
+
+| Scenario | Test |
+|---|---|
+| D - miglioramento costante | l'indice sale, e piu' di un picco isolato |
+| E - singola prestazione eccezionale | il salto resta sotto 1,5 punti |
+| F - facile corso troppo forte | riclassificato, e l'indice non si muove |
+| L - nessun sensore | tutto il motore gira su passo, distanza e fatica |
 
 ---
 

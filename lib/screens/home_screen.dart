@@ -5,7 +5,9 @@ import '../app/app.dart';
 import '../app/routes.dart';
 import '../app/tokens.dart';
 import '../models/running_activity.dart';
+import '../models/training_plan.dart';
 import '../providers/activity_provider.dart';
+import '../providers/plan_provider.dart';
 import '../providers/settings_provider.dart';
 import '../services/stats_service.dart';
 import '../utils/formatters.dart';
@@ -22,8 +24,13 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final SettingsProvider settings = context.watch<SettingsProvider>();
     final ActivityProvider activities = context.watch<ActivityProvider>();
+    final PlanProvider plans = context.watch<PlanProvider>();
     final RunningStats stats = activities.stats;
     final AppPalette p = AppPalette.of(context);
+
+    final List<PlannedSession> todaySessions = plans.sessionsOn(DateTime.now());
+    final PlannedSession? today =
+        todaySessions.isEmpty ? null : todaySessions.first;
 
     return Scaffold(
       body: SafeArea(
@@ -68,6 +75,11 @@ class HomeScreen extends StatelessWidget {
             // -------------------------------------------- questa settimana
             _WeekCard(stats: stats),
 
+            if (today != null) ...<Widget>[
+              const SectionTitle('Oggi in programma'),
+              _TodayCard(session: today),
+            ],
+
             const SizedBox(height: 14),
 
             // ------------------------------------------------- come partire
@@ -110,8 +122,29 @@ class HomeScreen extends StatelessWidget {
               children: <Widget>[
                 AppListRow(
                   leading: IconSquare(
-                    icon: Icons.emoji_events_rounded,
+                    icon: Icons.calendar_month_rounded,
                     color: p.accent,
+                  ),
+                  title: 'Piano di allenamento',
+                  subtitle: plans.hasPlan
+                      ? plans.config!.goal.label
+                      : 'Nessun piano attivo',
+                  onTap: () => Navigator.of(context).pushNamed(AppRoutes.plan),
+                ),
+                AppListRow(
+                  leading: IconSquare(
+                    icon: Icons.speed_rounded,
+                    color: p.blue,
+                  ),
+                  title: 'Forma e previsioni',
+                  subtitle: 'Passi di allenamento e tempi di gara',
+                  onTap: () =>
+                      Navigator.of(context).pushNamed(AppRoutes.fitness),
+                ),
+                AppListRow(
+                  leading: IconSquare(
+                    icon: Icons.emoji_events_rounded,
+                    color: p.orange,
                   ),
                   title: 'Record personali',
                   onTap: () =>
@@ -120,7 +153,7 @@ class HomeScreen extends StatelessWidget {
                 AppListRow(
                   leading: IconSquare(
                     icon: Icons.format_list_bulleted_rounded,
-                    color: p.blue,
+                    color: p.inkSoft,
                   ),
                   title: 'Storico',
                   subtitle: stats.totalActivities == 0
@@ -140,7 +173,7 @@ class HomeScreen extends StatelessWidget {
                 AppListRow(
                   leading: IconSquare(
                     icon: Icons.directions_walk_rounded,
-                    color: p.orange,
+                    color: p.blue,
                   ),
                   title: 'Scarpe',
                   onTap: () => Navigator.of(context).pushNamed(AppRoutes.shoes),
@@ -384,6 +417,68 @@ class _LastActivityCard extends StatelessWidget {
               ),
             ],
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// La seduta prevista dal piano per oggi, con il pulsante per eseguirla.
+class _TodayCard extends StatelessWidget {
+  const _TodayCard({required this.session});
+
+  final PlannedSession session;
+
+  @override
+  Widget build(BuildContext context) {
+    final AppPalette p = AppPalette.of(context);
+    final Color tone =
+        session.kind == SessionKind.easy ? p.inkFaint : p.accent;
+
+    return AppCard(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 15),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(color: tone, shape: BoxShape.circle),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                session.kind.label.toUpperCase(),
+                style: AppText.label.copyWith(color: tone),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(session.title, style: AppText.title.copyWith(color: p.ink)),
+          const SizedBox(height: 6),
+          Text(
+            session.detail,
+            style: AppText.caption.copyWith(color: p.inkSoft),
+          ),
+          if (session.kind != SessionKind.race) ...<Widget>[
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 46,
+              child: FilledButton.icon(
+                onPressed: () => Navigator.of(context).pushNamed(
+                  AppRoutes.run,
+                  arguments: session.workout,
+                ),
+                style: FilledButton.styleFrom(
+                  backgroundColor: p.accent,
+                  foregroundColor: p.onAccent,
+                ),
+                icon: const Icon(Icons.play_arrow_rounded),
+                label: Text(session.hasWorkout ? 'Esegui' : 'Parti'),
+              ),
+            ),
+          ],
         ],
       ),
     );

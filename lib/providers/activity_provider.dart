@@ -1,7 +1,10 @@
 import 'package:flutter/foundation.dart';
 
+import '../models/athlete_profile.dart';
 import '../models/running_activity.dart';
+import '../services/pace_zone_engine.dart';
 import '../services/records_service.dart';
+import '../services/run_index_engine.dart';
 import '../services/stats_service.dart';
 import '../services/storage_service.dart';
 import 'shoe_provider.dart';
@@ -24,6 +27,14 @@ class ActivityProvider extends ChangeNotifier {
   /// da parte e buttato via solo quando lo storico cambia.
   PersonalRecords? _recordsCache;
 
+  // Il motore di forma gira su tutto lo storico: si calcola una volta e si
+  // tiene finche' non cambia niente, come per i record.
+  static const RunIndexEngine _runIndexEngine = RunIndexEngine();
+  static const PaceZoneEngine _paceZoneEngine = PaceZoneEngine();
+  RunIndexResult? _runIndexCache;
+  TrainingZones? _zonesCache;
+  AthleteProfile _athleteProfile = const AthleteProfile();
+
   List<RunningActivity> _activities = <RunningActivity>[];
   bool _loaded = false;
   String? _errorMessage;
@@ -40,6 +51,8 @@ class ActivityProvider extends ChangeNotifier {
   Future<void> load() async {
     _activities = await _storage.loadActivities();
     _recordsCache = null;
+    _runIndexCache = null;
+    _zonesCache = null;
     _loaded = true;
     _errorMessage = _storage.lastError;
     notifyListeners();
@@ -56,6 +69,8 @@ class ActivityProvider extends ChangeNotifier {
   Future<bool> add(RunningActivity activity) async {
     _activities = <RunningActivity>[activity, ..._activities];
     _recordsCache = null;
+    _runIndexCache = null;
+    _zonesCache = null;
     _sort();
     notifyListeners();
 
@@ -79,6 +94,8 @@ class ActivityProvider extends ChangeNotifier {
         .toList();
     _activities = next;
     _recordsCache = null;
+    _runIndexCache = null;
+    _zonesCache = null;
     _sort();
     notifyListeners();
 
@@ -107,6 +124,8 @@ class ActivityProvider extends ChangeNotifier {
     final RunningActivity? activity = byId(id);
     _activities = _activities.where((RunningActivity a) => a.id != id).toList();
     _recordsCache = null;
+    _runIndexCache = null;
+    _zonesCache = null;
     notifyListeners();
 
     final String? shoeId = activity?.shoeId;
@@ -132,6 +151,33 @@ class ActivityProvider extends ChangeNotifier {
   ///
   /// Si appoggia ai record gia' calcolati, quindi e' immediato: non rilegge i
   /// tracciati.
+  /// Profilo dell'atleta, usato dal motore di forma per i personali
+  /// dichiarati a mano.
+  AthleteProfile get athleteProfile => _athleteProfile;
+
+  set athleteProfile(AthleteProfile profile) {
+    _athleteProfile = profile;
+    _runIndexCache = null;
+    _zonesCache = null;
+    notifyListeners();
+  }
+
+  /// Indice di forma calcolato sullo storico piu' i personali dichiarati.
+  RunIndexResult get runIndex {
+    final RunIndexResult? cached = _runIndexCache;
+    if (cached != null) return cached;
+
+    final List<PerformanceSample> samples = <PerformanceSample>[
+      ..._runIndexEngine.samplesFromActivities(_activities),
+      ..._runIndexEngine.samplesFromProfile(_athleteProfile),
+    ];
+    return _runIndexCache = _runIndexEngine.estimate(samples);
+  }
+
+  /// Zone di allenamento ricavate dall'indice. `null` se non stimabile.
+  TrainingZones? get trainingZones =>
+      _zonesCache ??= _paceZoneEngine.zonesFor(runIndex.index);
+
   List<DistanceRecord> recordsHeldBy(String activityId) => records.byDistance
       .where((DistanceRecord r) => r.activityId == activityId)
       .toList();
