@@ -1,5 +1,3 @@
-import 'package:flutter/material.dart';
-
 /// Colori, misure e stili di testo dell'app: un unico posto da cui passano
 /// tutte le schermate.
 ///
@@ -12,6 +10,8 @@ import 'package:flutter/material.dart';
 /// gli stessi valori (vedi `theme.dart`), cosi' i widget standard - dialoghi,
 /// campi di testo, interruttori - restano coerenti.
 library;
+
+import 'package:flutter/material.dart';
 
 /// La palette di una singola modalita' (chiara o scura).
 class AppPalette {

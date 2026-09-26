@@ -304,7 +304,9 @@ class _RunScreenState extends State<RunScreen> {
               8,
             ),
             children: <Widget>[
-              if (hasWorkout) ...<Widget>[
+              // La condizione va scritta per esteso qui dentro: e' cosi' che
+              // Dart capisce che dentro il blocco `engine` non e' piu' nullo.
+              if (engine != null && !engine.isEmpty) ...<Widget>[
                 _StepProgress(run: run, engine: engine),
                 const SizedBox(height: 22),
               ],
