@@ -307,7 +307,7 @@ class RunningProvider extends ChangeNotifier {
 
     // Chiude l'ultimo lap parziale, se ha senso (almeno 10 metri).
     if (currentLapDistance >= 10) {
-      _closeLap(manual: false, partial: true);
+      _closeLap(manual: false, announce: false);
     }
 
     await _coach.speak(_coach.phrases.stopped(), priority: SpeechPriority.high);
@@ -486,7 +486,21 @@ class RunningProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// `true` mentre un allenamento programmato e' effettivamente in esecuzione.
+  bool get _workoutInProgress {
+    final WorkoutEngine? engine = _engine;
+    return engine != null &&
+        !engine.isEmpty &&
+        engine.isStarted &&
+        !engine.isFinished;
+  }
+
   void _checkAutoLap() {
+    // Durante un allenamento programmato i parziali seguono le fasi, non i
+    // chilometri: mischiare i due criteri produrrebbe giri a cavallo fra una
+    // ripetuta e il recupero, cioe' numeri senza significato.
+    if (_workoutInProgress) return;
+
     if (!_settings.autoLapEnabled) return;
     final double lapDistance = _settings.autoLapDistanceMeters;
     if (lapDistance < 100) return;
@@ -498,36 +512,76 @@ class RunningProvider extends ChangeNotifier {
     }
   }
 
-  /// Chiude il lap corrente.
+  /// Chiude un parziale alla fine di una fase dell'allenamento programmato.
+  ///
+  /// E' cosi' che le ripetute finiscono nello storico: senza questo un
+  /// `10 x 400 m` non lasciava nessun parziale, perche' il lap automatico
+  /// scatta solo ogni chilometro e le fasi sono piu' corte.
+  void _closeStepLap(ResolvedStep? completed) {
+    if (completed == null) return;
+    // Una fase saltata all'istante non deve produrre un giro vuoto.
+    if (currentLapDistance < 1 && currentLapSeconds < 1) return;
+
+    final Lap? lap = _closeLap(
+      manual: false,
+      announce: false,
+      stepLabel: completed.label,
+    );
+    if (lap == null) return;
+
+    // Il tempo del recupero non si annuncia: subito dopo arriva la voce della
+    // fase nuova e due frasi di fila si accavallano proprio quando serve
+    // ripartire. Il parziale resta comunque salvato.
+    if (completed.step.type == StepType.recovery) return;
+    if (lap.durationSeconds < 10) return;
+
+    unawaited(_coach.speak(
+      _coach.phrases.stepCompleted(
+        stepLabel: completed.label,
+        distanceLabel: spokenDistance(lap.distanceMeters),
+        timeLabel: spokenDuration(lap.durationSeconds),
+        paceLabel: spokenPace(lap.paceSecondsPerKm),
+      ),
+    ));
+  }
+
+  /// Chiude il lap corrente e restituisce il lap creato.
   ///
   /// [exactDistance] permette di chiudere il lap esattamente sulla distanza
   /// impostata (es. 1000 m) invece che sulla distanza percorsa al momento del
   /// controllo, evitando che i lap "slittino" progressivamente.
-  void _closeLap({
+  ///
+  /// [stepLabel] forza l'etichetta della fase: alla fine di uno step il motore
+  /// e' gia' passato a quello successivo, quindi `currentStep` indicherebbe la
+  /// fase sbagliata.
+  Lap? _closeLap({
     required bool manual,
     double? exactDistance,
-    bool partial = false,
+    bool announce = true,
+    String? stepLabel,
   }) {
     final double lapDistance = exactDistance ?? currentLapDistance;
-    if (lapDistance <= 0) return;
+    // Un parziale a distanza zero ha senso solo per le fasi a tempo (es. un
+    // riscaldamento fermi sul posto): quello che conta li' e' il tempo.
+    if (lapDistance < 0) return null;
 
     final int lapSeconds = currentLapSeconds;
     final int totalSeconds = elapsedSeconds;
 
-    _laps.add(Lap(
+    final Lap lap = Lap(
       number: _laps.length + 1,
       distanceMeters: lapDistance,
       durationSeconds: lapSeconds,
       totalTimeSeconds: totalSeconds,
       manual: manual,
-      stepLabel: currentStep?.label,
-    ));
+      stepLabel: stepLabel ?? currentStep?.label,
+    );
+    _laps.add(lap);
 
     _lapStartDistance += lapDistance;
     _lapStartSeconds = totalSeconds;
 
-    if (!partial) {
-      final Lap lap = _laps.last;
+    if (announce) {
       unawaited(_coach.speak(
         // I numeri vanno passati in forma pronunciabile: "cinque e ventitre"
         // si capisce correndo, "5:23" viene letto male dalla sintesi vocale.
@@ -539,6 +593,8 @@ class RunningProvider extends ChangeNotifier {
         ),
       ));
     }
+
+    return lap;
   }
 
   void _updateWorkout() {
@@ -557,6 +613,9 @@ class RunningProvider extends ChangeNotifier {
         case WorkoutEventType.started:
           break;
         case WorkoutEventType.stepStarted:
+          // Prima di annunciare la fase nuova si chiude il parziale di quella
+          // appena finita: e' il parziale della ripetuta.
+          _closeStepLap(event.previousStep);
           final ResolvedStep? step = event.step;
           if (step == null) break;
           _coach.resetPaceAlerts();
@@ -583,6 +642,8 @@ class RunningProvider extends ChangeNotifier {
           unawaited(_coach.speak(_coach.phrases.lastMeters(meters.round())));
           break;
         case WorkoutEventType.finished:
+          // Anche l'ultima fase lascia il suo parziale.
+          _closeStepLap(event.previousStep);
           unawaited(_coach.speak(
             _coach.phrases.workoutCompleted(),
             priority: SpeechPriority.high,

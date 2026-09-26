@@ -40,9 +40,14 @@ android/local.properties
 android/app/debug/
 android/app/profile/
 android/app/release/
-android/key.properties
 **/android/**/gradle-wrapper.jar.sha*
+# NOTA: la chiave di firma dell'app (android/app/runcoach-release.jks) e il
+# file android/key.properties NON sono esclusi di proposito: devono stare nel
+# repository perche' GitHub Actions possa firmare l'APK sempre con la stessa
+# chiave, cosi' gli aggiornamenti si installano senza disinstallare l'app.
+# Qualsiasi ALTRA chiave resta esclusa.
 *.jks
+!android/app/runcoach-release.jks
 *.keystore
 
 # Symbolication / obfuscation

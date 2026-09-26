@@ -147,6 +147,12 @@ class HomeScreen extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             _HomeButton(
+              icon: Icons.emoji_events_outlined,
+              label: 'RECORD',
+              onTap: () => Navigator.of(context).pushNamed(AppRoutes.records),
+            ),
+            const SizedBox(height: 10),
+            _HomeButton(
               icon: Icons.insights,
               label: 'STATISTICHE',
               onTap: () => Navigator.of(context).pushNamed(AppRoutes.stats),

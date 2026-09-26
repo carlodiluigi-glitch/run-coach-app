@@ -23,6 +23,42 @@ if (flutterVersionName == null) {
     flutterVersionName = "1.0.0"
 }
 
+// Su GitHub Actions il numero progressivo della build diventa il versionCode:
+// ogni APK generata risulta piu' recente della precedente e Android la
+// installa sopra senza protestare.
+def ciRunNumber = System.getenv("GITHUB_RUN_NUMBER")
+if (ciRunNumber != null && !ciRunNumber.trim().isEmpty()) {
+    flutterVersionCode = ciRunNumber.trim()
+}
+
+// ---------------------------------------------------------------------------
+// CHIAVE DI FIRMA FISSA
+// ---------------------------------------------------------------------------
+// Android identifica un'app dalla firma: due APK firmate con chiavi diverse
+// sono per il sistema due app diverse, e l'aggiornamento viene rifiutato con
+// "il pacchetto e' in conflitto con un pacchetto esistente".
+//
+// Senza una chiave nostra, ogni build di GitHub Actions ne genera una nuova al
+// volo: da qui la necessita' di disinstallare l'app a ogni aggiornamento,
+// perdendo attivita', scarpe e impostazioni.
+//
+// Con la chiave fissa in "android/app/runcoach-release.jks", tutte le build
+// sono firmate uguali e le APK si installano una sopra l'altra.
+//
+// ATTENZIONE: chiave e password stanno nel repository, quindi NON sono un
+// segreto. Va bene per un'app che si installa a mano. Prima di pubblicare
+// sul Play Store conviene generarne una nuova e tenerla fuori dal repository.
+// E soprattutto: conservane una copia altrove. Se la chiave si perde, l'app
+// non e' piu' aggiornabile e va ripubblicata da zero.
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file("key.properties")
+def hasReleaseKey = keystorePropertiesFile.exists()
+if (hasReleaseKey) {
+    keystorePropertiesFile.withReader("UTF-8") { reader ->
+        keystoreProperties.load(reader)
+    }
+}
+
 android {
     namespace = "com.runcoachapp.run_coach_app"
     // compileSdk e targetSdk seguono la versione di Flutter installata:
@@ -49,13 +85,22 @@ android {
         versionName = flutterVersionName
     }
 
+    signingConfigs {
+        release {
+            // Popolata solo se key.properties esiste: cosi' il progetto
+            // continua a compilare anche senza chiave, usando quella di debug.
+            if (hasReleaseKey) {
+                storeFile = file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // NESSUNA CHIAVE PRIVATA RICHIESTA.
-            // La build release usa la firma di debug: l'APK e' installabile
-            // subito e GitHub Actions funziona senza configurare secret.
-            // Per pubblicare sullo Store andra' creato un keystore dedicato.
-            signingConfig = signingConfigs.debug
+            signingConfig = hasReleaseKey ? signingConfigs.release : signingConfigs.debug
             minifyEnabled = false
             shrinkResources = false
         }

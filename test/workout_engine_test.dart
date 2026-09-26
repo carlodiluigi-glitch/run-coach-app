@@ -162,6 +162,74 @@ void main() {
       expect(engine.overallProgress, 1.0);
     });
 
+    // I parziali dell'allenamento vengono creati dal provider della corsa in
+    // corrispondenza di `previousStep`: se il motore non riportasse la fase
+    // appena conclusa, le ripetute non lascerebbero nessun parziale.
+    test('ogni fase conclusa viene riportata una sola volta', () {
+      final WorkoutEngine engine = WorkoutEngine(_buildWorkout());
+      engine.start();
+
+      final List<ResolvedStep> completed = <ResolvedStep>[];
+      double distance = 0;
+      int seconds = 0;
+      for (int i = 0; i < 3000 && !engine.isFinished; i++) {
+        distance += 20;
+        seconds += 10;
+        for (final WorkoutEvent event in engine.update(
+          totalDistanceMeters: distance,
+          totalActiveSeconds: seconds,
+        )) {
+          if (event.previousStep != null) completed.add(event.previousStep!);
+        }
+      }
+
+      // Tutte e 22 le fasi, nell'ordine, senza duplicati ne' buchi.
+      expect(engine.isFinished, isTrue);
+      expect(completed.length, 22);
+      expect(
+        completed.map((ResolvedStep s) => s.globalIndex).toList(),
+        List<int>.generate(22, (int i) => i),
+      );
+      expect(completed.first.step.type, StepType.warmup);
+      expect(completed[1].label, 'Ripetuta 1/10');
+      expect(completed[2].step.type, StepType.recovery);
+      expect(completed.last.step.type, StepType.cooldown);
+    });
+
+    test('anche l\'ultima fase riporta previousStep', () {
+      final Workout workout = Workout(
+        name: 'Test breve',
+        blocks: <WorkoutBlock>[
+          WorkoutBlock(
+            repeat: 1,
+            steps: <WorkoutStep>[
+              WorkoutStep(
+                type: StepType.run,
+                goalType: StepGoalType.distance,
+                goalDistanceMeters: 1000,
+              ),
+            ],
+          ),
+        ],
+      );
+      final WorkoutEngine engine = WorkoutEngine(workout);
+      engine.start();
+
+      final List<WorkoutEvent> events =
+          engine.update(totalDistanceMeters: 1000, totalActiveSeconds: 300);
+      final WorkoutEvent finished = events
+          .firstWhere((WorkoutEvent e) => e.type == WorkoutEventType.finished);
+      expect(finished.previousStep, isNotNull);
+      expect(finished.previousStep!.step.type, StepType.run);
+    });
+
+    test('skipToNextStep riporta la fase saltata', () {
+      final WorkoutEngine engine = WorkoutEngine(_buildWorkout());
+      engine.start();
+      final List<WorkoutEvent> events = engine.skipToNextStep();
+      expect(events.single.previousStep?.step.type, StepType.warmup);
+    });
+
     test('skipToNextStep salta la fase corrente', () {
       final WorkoutEngine engine = WorkoutEngine(_buildWorkout());
       engine.start();

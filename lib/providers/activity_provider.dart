@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../models/running_activity.dart';
+import '../services/records_service.dart';
 import '../services/stats_service.dart';
 import '../services/storage_service.dart';
 import 'shoe_provider.dart';
@@ -16,6 +17,12 @@ class ActivityProvider extends ChangeNotifier {
   final StorageService _storage;
   final ShoeProvider _shoes;
   final StatsService _stats = const StatsService();
+  final RecordsService _recordsService = const RecordsService();
+
+  /// I record si calcolano scorrendo tutti i tracciati: e' un lavoro lineare
+  /// ma inutile da rifare a ogni ridisegno, quindi il risultato viene tenuto
+  /// da parte e buttato via solo quando lo storico cambia.
+  PersonalRecords? _recordsCache;
 
   List<RunningActivity> _activities = <RunningActivity>[];
   bool _loaded = false;
@@ -32,6 +39,7 @@ class ActivityProvider extends ChangeNotifier {
 
   Future<void> load() async {
     _activities = await _storage.loadActivities();
+    _recordsCache = null;
     _loaded = true;
     _errorMessage = _storage.lastError;
     notifyListeners();
@@ -47,6 +55,7 @@ class ActivityProvider extends ChangeNotifier {
   /// Salva una nuova attivita' e aggiorna i km della scarpa selezionata.
   Future<bool> add(RunningActivity activity) async {
     _activities = <RunningActivity>[activity, ..._activities];
+    _recordsCache = null;
     _sort();
     notifyListeners();
 
@@ -69,6 +78,7 @@ class ActivityProvider extends ChangeNotifier {
         .map((RunningActivity a) => a.id == activity.id ? activity : a)
         .toList();
     _activities = next;
+    _recordsCache = null;
     _sort();
     notifyListeners();
 
@@ -96,6 +106,7 @@ class ActivityProvider extends ChangeNotifier {
   Future<bool> remove(String id) async {
     final RunningActivity? activity = byId(id);
     _activities = _activities.where((RunningActivity a) => a.id != id).toList();
+    _recordsCache = null;
     notifyListeners();
 
     final String? shoeId = activity?.shoeId;
@@ -111,6 +122,19 @@ class ActivityProvider extends ChangeNotifier {
 
   /// Statistiche calcolate sullo storico corrente.
   RunningStats get stats => _stats.compute(_activities);
+
+  /// Record personali (miglior tempo su ogni distanza classica, corsa piu'
+  /// lunga, settimana migliore).
+  PersonalRecords get records =>
+      _recordsCache ??= _recordsService.compute(_activities);
+
+  /// Distanze per cui una determinata attivita' detiene il record attuale.
+  ///
+  /// Si appoggia ai record gia' calcolati, quindi e' immediato: non rilegge i
+  /// tracciati.
+  List<DistanceRecord> recordsHeldBy(String activityId) => records.byDistance
+      .where((DistanceRecord r) => r.activityId == activityId)
+      .toList();
 
   ImprovementResult get paceImprovement =>
       _stats.computePaceImprovement(_activities);

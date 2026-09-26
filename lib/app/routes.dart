@@ -4,6 +4,7 @@ import '../models/workout.dart';
 import '../screens/activity_detail_screen.dart';
 import '../screens/activity_history_screen.dart';
 import '../screens/home_screen.dart';
+import '../screens/records_screen.dart';
 import '../screens/run_screen.dart';
 import '../screens/settings_screen.dart';
 import '../screens/shoes_screen.dart';
@@ -23,6 +24,7 @@ class AppRoutes {
   static const String activityDetail = '/activity';
   static const String shoes = '/shoes';
   static const String stats = '/stats';
+  static const String records = '/records';
   static const String settings = '/settings';
 
   /// Generatore delle rotte con gestione degli argomenti.
@@ -78,6 +80,12 @@ class AppRoutes {
       case stats:
         return MaterialPageRoute<void>(
           builder: (_) => const StatsScreen(),
+          settings: routeSettings,
+        );
+
+      case records:
+        return MaterialPageRoute<void>(
+          builder: (_) => const RecordsScreen(),
           settings: routeSettings,
         );
 

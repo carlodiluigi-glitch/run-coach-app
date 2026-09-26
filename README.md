@@ -90,9 +90,16 @@ build/app/outputs/flutter-apk/app-debug.apk
 build/app/outputs/flutter-apk/app-release.apk
 ```
 
-> La build release usa la firma di debug, quindi **non richiede nessun
-> keystore**. L'APK e' installabile subito sul telefono. Per pubblicare sul
-> Play Store sara' invece necessario creare una chiave di firma dedicata.
+> La build release e' firmata con la chiave fissa del progetto
+> (`android/app/runcoach-release.jks`, referenziata da `android/key.properties`).
+> Non serve configurare nulla: la chiave e' nel repository apposta, cosi'
+> ogni APK e' firmata allo stesso modo e si installa **sopra** la precedente
+> senza disinstallare e senza perdere i dati.
+>
+> Chiave e password NON sono quindi un segreto. Prima di pubblicare sul Play
+> Store va generata una chiave nuova, tenuta fuori dal repository e passata
+> alla CI come secret. **Conservane sempre una copia**: se si perde, l'app non
+> e' piu' aggiornabile.
 
 ---
 
@@ -190,6 +197,7 @@ run_coach_app/
 │   │   ├── audio_coach_service.dart # Text To Speech + cooldown avvisi
 │   │   ├── coach_phrases.dart       # tutte le frasi del coach
 │   │   ├── stats_service.dart       # statistiche e trend
+│   │   ├── records_service.dart     # record personali per distanza
 │   │   ├── storage_service.dart     # salvataggio locale JSON
 │   │   └── native_bridge.dart       # schermo acceso + permesso notifiche
 │   ├── providers/
@@ -206,6 +214,7 @@ run_coach_app/
 │   │   ├── activity_history_screen.dart
 │   │   ├── activity_detail_screen.dart
 │   │   ├── shoes_screen.dart
+│   │   ├── records_screen.dart
 │   │   ├── stats_screen.dart
 │   │   └── settings_screen.dart
 │   ├── widgets/
@@ -280,6 +289,13 @@ restano nella cartella privata dell'app.
 - **Distanza** in km con 2 decimali, **passo** in min/km (attuale, medio, del
   lap), `--:--` quando i dati non bastano.
 - **Lap automatici** ogni 1 km (distanza configurabile) e **lap manuale**.
+- **Parziali per fase**: durante un allenamento programmato ogni fase chiude il
+  proprio parziale (ripetuta, recupero, riscaldamento...), con l'etichetta
+  della fase salvata nel lap. In questa modalita' il lap automatico a distanza
+  resta sospeso, altrimenti i giri cadrebbero a cavallo fra una ripetuta e il
+  recupero. Alla fine di ogni fase "di lavoro" il coach annuncia anche il
+  tempo del parziale; i recuperi restano silenziosi per non accavallarsi con
+  l'annuncio della fase successiva.
 - **Editor di allenamenti** con blocchi ripetuti (`10 x (400 m + 200 m)`).
 - Step a **distanza** o a **tempo**, tipi: riscaldamento, corsa, ripetuta,
   recupero, defaticamento, generico.
@@ -298,6 +314,11 @@ restano nella cartella privata dell'app.
 - **Indicatore ritmo** accessibile: simbolo + parola (`↓ troppo lento`,
   `✓ ritmo corretto`, `↑ troppo veloce`).
 - **Storico attivita'** e **dettaglio** con tabella lap.
+- **Record personali**: miglior tempo su 1 km, 3 km, 5 km, 10 km, mezza e
+  maratona, calcolati col tratto piu' veloce dentro ogni corsa (finestra
+  scorrevole sul tracciato, con interpolazione del punto di partenza); piu'
+  corsa piu' lunga e settimana migliore. Il dettaglio di una corsa segnala i
+  primati che quella corsa detiene.
 - **Gestione scarpe**: marca, modello, data primo utilizzo, km iniziali, km
   accumulati, soglia consigliata, numero corse, ultimo utilizzo.
 - A fine attivita' viene chiesto **quali scarpe hai usato** e i km vengono

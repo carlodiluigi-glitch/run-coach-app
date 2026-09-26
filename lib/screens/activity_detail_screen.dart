@@ -5,6 +5,7 @@ import '../models/running_activity.dart';
 import '../models/running_shoe.dart';
 import '../providers/activity_provider.dart';
 import '../providers/shoe_provider.dart';
+import '../services/records_service.dart';
 import '../utils/formatters.dart';
 import '../widgets/app_card.dart';
 import '../widgets/empty_state.dart';
@@ -143,6 +144,8 @@ class ActivityDetailScreen extends StatelessWidget {
             ),
 
             const SizedBox(height: 20),
+            _RecordsHeld(records: provider.recordsHeldBy(activity.id)),
+
             const SectionTitle('Lap'),
             AppCard(
               child: LapTable(
@@ -254,5 +257,87 @@ class ActivityDetailScreen extends StatelessWidget {
     } else {
       await provider.update(activity.copyWith(shoeId: selected));
     }
+  }
+}
+
+/// Mostra le distanze per cui questa corsa detiene il record personale.
+///
+/// Non compare nulla se la corsa non detiene nessun primato: e' un premio,
+/// non una sezione fissa.
+class _RecordsHeld extends StatelessWidget {
+  const _RecordsHeld({required this.records});
+
+  final List<DistanceRecord> records;
+
+  @override
+  Widget build(BuildContext context) {
+    if (records.isEmpty) return const SizedBox.shrink();
+
+    final ColorScheme scheme = Theme.of(context).colorScheme;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 20),
+      child: AppCard(
+        color: scheme.primaryContainer,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Row(
+              children: <Widget>[
+                Icon(Icons.emoji_events,
+                    color: scheme.onPrimaryContainer, size: 26),
+                const SizedBox(width: 10),
+                Text(
+                  records.length == 1
+                      ? 'Record personale'
+                      : 'Record personali',
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    color: scheme.onPrimaryContainer,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Con questa corsa detieni il tuo miglior tempo su:',
+              style: TextStyle(
+                  fontSize: 13, color: scheme.onPrimaryContainer),
+            ),
+            const SizedBox(height: 8),
+            for (final DistanceRecord record in records)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: Text(
+                        record.distance.label,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: scheme.onPrimaryContainer,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      formatDuration(Duration(seconds: record.seconds)),
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                        color: scheme.onPrimaryContainer,
+                        fontFeatures: const <FontFeature>[
+                          FontFeature.tabularFigures(),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
   }
 }

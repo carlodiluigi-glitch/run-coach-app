@@ -159,6 +159,24 @@ class CoachPhrases {
     return buffer.toString();
   }
 
+  /// Annuncio di fine fase in un allenamento programmato.
+  ///
+  /// Serve a sentire subito il tempo della ripetuta appena chiusa, senza
+  /// guardare il telefono. Viene detto prima dell'annuncio della fase nuova.
+  String stepCompleted({
+    required String stepLabel,
+    required String distanceLabel,
+    required String timeLabel,
+    String? paceLabel,
+  }) {
+    final StringBuffer buffer = StringBuffer();
+    buffer.write('$stepLabel: $distanceLabel in $timeLabel.');
+    if (paceLabel != null) {
+      buffer.write(' Passo $paceLabel.');
+    }
+    return buffer.toString();
+  }
+
   // ---------------------------------------------------------- avvisi ritmo
   String tooSlow() => _pick(_byPersonality(
         normal: <String>['Stai rallentando.'],
