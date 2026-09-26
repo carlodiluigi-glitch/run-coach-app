@@ -1,8 +1,15 @@
-# Run Coach
+# Falcata
 
-App Android (Flutter) per la corsa: registrazione GPS, allenamenti a intervalli
-con esecuzione automatica delle fasi, coach vocale, lap, storico, gestione
-scarpe e statistiche.
+App Android (Flutter) per la corsa su strada: registrazione GPS, allenamenti a
+intervalli con esecuzione automatica delle fasi, coach vocale, parziali,
+record personali, storico, gestione scarpe e statistiche.
+
+> **Nota sul nome.** L'app si chiama Falcata, ma il nome tecnico del pacchetto
+> Android e' rimasto `com.runcoachapp.run_coach_app`, e cosi' deve restare:
+> per Android quel nome e' l'identita' dell'app. Cambiandolo, il telefono
+> vedrebbe un'app diversa e l'aggiornamento non si installerebbe piu' sopra
+> quella esistente, perdendo tutte le corse registrate. Vale lo stesso per il
+> nome del progetto Flutter (`run_coach_app`) usato negli import.
 
 Il progetto e' pensato per essere caricato su GitHub e compilato
 automaticamente in APK tramite GitHub Actions, **senza configurare nessuna
@@ -116,7 +123,7 @@ Da riga di comando:
 ```bash
 git init
 git add .
-git commit -m "Run Coach - primo commit"
+git commit -m "Falcata - primo commit"
 git branch -M main
 git remote add origin https://github.com/TUO-UTENTE/run_coach_app.git
 git push -u origin main
@@ -136,7 +143,7 @@ Cosa fa il workflow:
 5. esegue `flutter analyze` (non bloccante);
 6. esegue `flutter test` (non bloccante);
 7. compila `app-release.apk` e `app-debug.apk`;
-8. carica gli APK come artifact chiamato **`RunCoach-APK`**.
+8. carica gli APK come artifact chiamato **`Falcata-APK`**.
 
 Non e' richiesto nessun *secret*, nessuna password e nessuna API key.
 
@@ -148,7 +155,7 @@ Non e' richiesto nessun *secret*, nessuna password e nessuna API key.
 2. Vai su **Actions**.
 3. Clicca sull'ultima esecuzione del workflow **Android APK**.
 4. In fondo alla pagina, nella sezione **Artifacts**, clicca su
-   **RunCoach-APK**.
+   **Falcata-APK**.
 5. Scarichi uno zip contenente `app-release.apk` e `app-debug.apk`.
 6. Copia l'APK sul telefono e installala (serve autorizzare
    "installazione da origini sconosciute").
@@ -207,6 +214,8 @@ run_coach_app/
 │   │   ├── activity_provider.dart
 │   │   └── running_provider.dart    # timer, distanza, lap, coach
 │   ├── screens/
+│   │   ├── splash_screen.dart       # apertura: nome app e saluto
+│   │   ├── welcome_screen.dart      # primo avvio: chiede il nome
 │   │   ├── home_screen.dart
 │   │   ├── run_screen.dart
 │   │   ├── workout_library_screen.dart
@@ -219,7 +228,9 @@ run_coach_app/
 │   │   └── settings_screen.dart
 │   ├── widgets/
 │   │   ├── app_card.dart
+│   │   ├── inset_list.dart
 │   │   ├── metric_card.dart
+│   │   ├── metric_display.dart
 │   │   ├── lap_table.dart
 │   │   ├── pace_indicator.dart
 │   │   ├── run_control_buttons.dart
@@ -288,6 +299,10 @@ restano nella cartella privata dell'app.
   viene conteggiato.
 - **Distanza** in km con 2 decimali, **passo** in min/km (attuale, medio, del
   lap), `--:--` quando i dati non bastano.
+- **Apertura e benvenuto**: all'avvio compare il nome dell'app con il saluto
+  (toccando si salta l'attesa); al primissimo avvio viene chiesto il nome, una
+  volta sola. Chi non lo vuole dare preme "Preferisco non dirlo" e la domanda
+  non torna piu'. Il nome resta modificabile da Impostazioni.
 - **Lap automatici** ogni 1 km (distanza configurabile) e **lap manuale**.
 - **Parziali per fase**: durante un allenamento programmato ogni fase chiude il
   proprio parziale (ripetuta, recupero, riscaldamento...), con l'etichetta
@@ -462,14 +477,14 @@ i punti poco affidabili.
 **La corsa si ferma quando spengo lo schermo**
 Controlla che in *Impostazioni -> Registrazione* sia attivo "Registra in
 background". Se lo e' gia', il colpevole e' quasi sempre il risparmio
-energetico del telefono: vai in *Impostazioni Android -> App -> Run Coach ->
+energetico del telefono: vai in *Impostazioni Android -> App -> Falcata ->
 Batteria* e scegli **Senza restrizioni**. Su Xiaomi, Huawei, Samsung e
 OnePlus questa impostazione e' particolarmente aggressiva e va disattivata a
 mano.
 
 **Non vedo la notifica durante la corsa**
 Serve il permesso notifiche (Android 13+). L'app lo chiede al primo START; se
-e' stato negato, riattivalo da *Impostazioni Android -> App -> Run Coach ->
+e' stato negato, riattivalo da *Impostazioni Android -> App -> Falcata ->
 Notifiche*. Senza notifica la registrazione funziona comunque, ma Android
 potrebbe essere piu' aggressivo nel sospendere l'app.
 

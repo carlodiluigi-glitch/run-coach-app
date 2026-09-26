@@ -8,7 +8,9 @@ import '../screens/records_screen.dart';
 import '../screens/run_screen.dart';
 import '../screens/settings_screen.dart';
 import '../screens/shoes_screen.dart';
+import '../screens/splash_screen.dart';
 import '../screens/stats_screen.dart';
+import '../screens/welcome_screen.dart';
 import '../screens/workout_builder_screen.dart';
 import '../screens/workout_library_screen.dart';
 
@@ -16,7 +18,13 @@ import '../screens/workout_library_screen.dart';
 class AppRoutes {
   AppRoutes._();
 
-  static const String home = '/';
+  /// Schermata di apertura: e' la prima cosa che parte.
+  static const String splash = '/';
+
+  /// Benvenuto del primo avvio (chiede il nome). Mostrato una volta sola.
+  static const String welcome = '/welcome';
+
+  static const String home = '/home';
   static const String run = '/run';
   static const String workoutLibrary = '/workouts';
   static const String workoutBuilder = '/workout-builder';
@@ -30,6 +38,18 @@ class AppRoutes {
   /// Generatore delle rotte con gestione degli argomenti.
   static Route<dynamic> onGenerateRoute(RouteSettings routeSettings) {
     switch (routeSettings.name) {
+      case splash:
+        return MaterialPageRoute<void>(
+          builder: (_) => const SplashScreen(),
+          settings: routeSettings,
+        );
+
+      case welcome:
+        return MaterialPageRoute<void>(
+          builder: (_) => const WelcomeScreen(),
+          settings: routeSettings,
+        );
+
       case home:
         return MaterialPageRoute<void>(
           builder: (_) => const HomeScreen(),

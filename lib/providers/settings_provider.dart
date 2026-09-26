@@ -43,6 +43,13 @@ class SettingsProvider extends ChangeNotifier {
   Future<void> setUserName(String name) =>
       update(_settings.copyWith(userName: name));
 
+  /// Chiude la schermata di benvenuto, salvando il nome inserito.
+  ///
+  /// Nome e "benvenuto fatto" vengono scritti insieme: due salvataggi di fila
+  /// potrebbero lasciare il file a meta' se l'app viene chiusa nel mezzo.
+  Future<void> completeWelcome({String name = ''}) =>
+      update(_settings.copyWith(userName: name.trim(), welcomeDone: true));
+
   Future<void> setAudioCoachEnabled(bool enabled) =>
       update(_settings.copyWith(audioCoachEnabled: enabled));
 

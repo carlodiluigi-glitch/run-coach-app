@@ -80,7 +80,7 @@ class GpsService {
   Future<void> start({
     int distanceFilterMeters = 0,
     bool background = false,
-    String notificationTitle = 'Run Coach',
+    String notificationTitle = 'Falcata',
     String notificationText = 'Registrazione della corsa in corso',
   }) async {
     if (_running) return;
@@ -147,7 +147,7 @@ class GpsService {
   Future<void> restart({
     required bool background,
     int distanceFilterMeters = 0,
-    String notificationTitle = 'Run Coach',
+    String notificationTitle = 'Falcata',
     String notificationText = 'Registrazione della corsa in corso',
   }) async {
     await stop();

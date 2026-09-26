@@ -397,7 +397,7 @@ class RunningProvider extends ChangeNotifier {
     try {
       await _gps.start(
         background: background,
-        notificationTitle: 'Run Coach',
+        notificationTitle: 'Falcata',
         notificationText: hasWorkout
             ? 'Allenamento in corso'
             : 'Registrazione della corsa in corso',

@@ -7,7 +7,7 @@ import 'theme.dart';
 class RunCoachApp extends StatelessWidget {
   const RunCoachApp({super.key});
 
-  static const String appName = 'Run Coach';
+  static const String appName = 'Falcata';
 
   @override
   Widget build(BuildContext context) {
@@ -17,7 +17,7 @@ class RunCoachApp extends StatelessWidget {
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
       themeMode: ThemeMode.system,
-      initialRoute: AppRoutes.home,
+      initialRoute: AppRoutes.splash,
       onGenerateRoute: AppRoutes.onGenerateRoute,
     );
   }

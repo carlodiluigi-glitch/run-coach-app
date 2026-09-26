@@ -58,6 +58,7 @@ class UserSettings {
     this.keepScreenOn = true,
     this.speechRate = 0.5,
     this.backgroundTrackingEnabled = true,
+    this.welcomeDone = false,
   });
 
   /// Nome mostrato nella Home ("Ciao <nome>"). Vuoto = saluto generico.
@@ -93,6 +94,12 @@ class UserSettings {
   /// e' il modo con cui Android garantisce che il processo non venga chiuso.
   final bool backgroundTrackingEnabled;
 
+  /// `true` dopo che la schermata di benvenuto e' stata completata o saltata.
+  ///
+  /// Serve un campo suo invece di guardare se il nome e' vuoto: chi decide di
+  /// non metterlo non deve ritrovarsi la domanda a ogni avvio.
+  final bool welcomeDone;
+
   bool get hasUserName => userName.trim().isNotEmpty;
 
   String get greeting => hasUserName ? 'Ciao ${userName.trim()}' : 'Ciao!';
@@ -110,6 +117,7 @@ class UserSettings {
     bool? keepScreenOn,
     double? speechRate,
     bool? backgroundTrackingEnabled,
+    bool? welcomeDone,
   }) =>
       UserSettings(
         userName: userName ?? this.userName,
@@ -127,6 +135,7 @@ class UserSettings {
         speechRate: speechRate ?? this.speechRate,
         backgroundTrackingEnabled:
             backgroundTrackingEnabled ?? this.backgroundTrackingEnabled,
+        welcomeDone: welcomeDone ?? this.welcomeDone,
       );
 
   Map<String, dynamic> toJson() => <String, dynamic>{
@@ -142,6 +151,7 @@ class UserSettings {
         'keepScreenOn': keepScreenOn,
         'speechRate': speechRate,
         'backgroundTrackingEnabled': backgroundTrackingEnabled,
+        'welcomeDone': welcomeDone,
       };
 
   factory UserSettings.fromJson(Map<String, dynamic> json) => UserSettings(
@@ -161,5 +171,9 @@ class UserSettings {
         speechRate: (json['speechRate'] as num?)?.toDouble() ?? 0.5,
         backgroundTrackingEnabled:
             json['backgroundTrackingEnabled'] as bool? ?? true,
+        // Chi ha gia' l'app installata non deve rivedere il benvenuto: se il
+        // nome c'e' gia', il giro e' considerato fatto.
+        welcomeDone: json['welcomeDone'] as bool? ??
+            ((json['userName'] as String? ?? '').trim().isNotEmpty),
       );
 }

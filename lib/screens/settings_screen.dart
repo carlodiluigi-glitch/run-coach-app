@@ -311,7 +311,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const SizedBox(height: 24),
             Center(
               child: Text(
-                'Run Coach - versione 1.0.0',
+                'Falcata - versione 1.0.0',
                 style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13),
               ),
             ),
