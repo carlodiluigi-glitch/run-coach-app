@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../app/routes.dart';
+import '../app/tokens.dart';
 import '../models/running_activity.dart';
 import '../models/running_shoe.dart';
 import '../models/workout.dart';
@@ -14,11 +16,14 @@ import '../services/workout_engine.dart';
 import '../utils/formatters.dart';
 import '../widgets/app_card.dart';
 import '../widgets/lap_table.dart';
-import '../widgets/metric_card.dart';
+import '../widgets/metric_display.dart';
 import '../widgets/pace_indicator.dart';
 import '../widgets/run_control_buttons.dart';
 
 /// Schermata di registrazione della corsa (libera o con allenamento).
+///
+/// Durante la corsa la schermata e' sempre nera, in qualunque tema: si legge
+/// al sole, consuma meno e non acceca di notte.
 class RunScreen extends StatefulWidget {
   const RunScreen({super.key, this.workout});
 
@@ -58,15 +63,23 @@ class _RunScreenState extends State<RunScreen> {
     final RunningProvider run = context.watch<RunningProvider>();
     final bool active = run.isActive;
 
-    return PopScope(
-      canPop: !active,
-      child: Scaffold(
-        appBar: AppBar(
-          title: Text(widget.workout?.name ?? 'Corsa libera'),
-          automaticallyImplyLeading: !active,
+    if (!active) {
+      return PopScope(
+        canPop: true,
+        child: Scaffold(
+          appBar: AppBar(title: Text(widget.workout?.name ?? 'Corsa libera')),
+          body: SafeArea(child: _buildPreStart(context, run)),
         ),
-        body: SafeArea(
-          child: active ? _buildActive(context, run) : _buildPreStart(context, run),
+      );
+    }
+
+    return PopScope(
+      canPop: false,
+      child: AnnotatedRegion<SystemUiOverlayStyle>(
+        value: SystemUiOverlayStyle.light,
+        child: Scaffold(
+          backgroundColor: AppPalette.run.background,
+          body: SafeArea(child: _buildActive(context, run)),
         ),
       ),
     );
@@ -74,22 +87,26 @@ class _RunScreenState extends State<RunScreen> {
 
   // ----------------------------------------------------------- prima dello
   Widget _buildPreStart(BuildContext context, RunningProvider run) {
-    final ColorScheme scheme = Theme.of(context).colorScheme;
+    final AppPalette p = AppPalette.of(context);
     final GpsAvailability availability = run.gpsAvailability;
     final bool ready = availability.isReady;
     final Workout? workout = widget.workout;
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.screenSide,
+        8,
+        AppSpacing.screenSide,
+        32,
+      ),
       children: <Widget>[
         AppCard(
-          color: ready ? scheme.surfaceContainerHighest : scheme.errorContainer,
           child: Row(
             children: <Widget>[
               Icon(
-                ready ? Icons.gps_fixed : Icons.gps_off,
-                size: 32,
-                color: ready ? scheme.primary : scheme.onErrorContainer,
+                ready ? Icons.gps_fixed_rounded : Icons.gps_off_rounded,
+                size: 28,
+                color: ready ? p.green : p.red,
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -98,23 +115,15 @@ class _RunScreenState extends State<RunScreen> {
                   children: <Widget>[
                     Text(
                       ready ? 'Stato GPS' : 'GPS non disponibile',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: ready ? null : scheme.onErrorContainer,
+                      style: AppText.title.copyWith(
+                        color: ready ? p.ink : p.red,
+                        fontSize: 17,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 3),
                     Text(
-                      ready
-                          ? _gpsQualityLabel(run)
-                          : availability.message,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: ready
-                            ? scheme.onSurfaceVariant
-                            : scheme.onErrorContainer,
-                      ),
+                      ready ? _gpsQualityLabel(run) : availability.message,
+                      style: AppText.body.copyWith(color: p.inkSoft),
                     ),
                   ],
                 ),
@@ -155,11 +164,9 @@ class _RunScreenState extends State<RunScreen> {
           const SizedBox(height: 12),
           Text(
             run.gpsError!,
-            style: TextStyle(color: scheme.error, fontSize: 13),
+            style: AppText.caption.copyWith(color: p.red),
           ),
         ],
-
-        const SizedBox(height: 20),
 
         if (workout != null) ...<Widget>[
           const SectionTitle('Allenamento'),
@@ -167,48 +174,73 @@ class _RunScreenState extends State<RunScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
+                Text(workout.name, style: AppText.title.copyWith(color: p.ink)),
+                const SizedBox(height: 4),
                 Text(
-                  workout.name,
-                  style: const TextStyle(
-                      fontSize: 18, fontWeight: FontWeight.w700),
+                  '${workout.totalSteps} fasi  ·  stima '
+                  '${formatDistanceKmWithUnit(workout.estimatedMeters, decimals: 1)} '
+                  'in ${formatDurationShort(workout.estimatedSeconds)}',
+                  style: AppText.caption.copyWith(color: p.inkFaint),
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  '${workout.totalSteps} fasi - stima ${formatDistanceKmWithUnit(workout.estimatedMeters, decimals: 1)} / ${formatDurationShort(workout.estimatedSeconds)}',
-                  style: TextStyle(color: scheme.onSurfaceVariant),
-                ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 12),
                 for (final ResolvedStep step in workout.expand().take(6))
                   Padding(
-                    padding: const EdgeInsets.only(bottom: 4),
-                    child: Text(
-                      '- ${step.label}: ${step.step.goalLabel}',
-                      style: const TextStyle(fontSize: 14),
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: Text(
+                            step.label,
+                            style: AppText.body.copyWith(color: p.inkSoft),
+                          ),
+                        ),
+                        Text(
+                          step.step.goalLabel,
+                          style: AppText.row.copyWith(color: p.ink),
+                        ),
+                      ],
                     ),
                   ),
                 if (workout.totalSteps > 6)
                   Text(
-                    '... e altre ${workout.totalSteps - 6} fasi',
-                    style: TextStyle(color: scheme.onSurfaceVariant),
+                    'e altre ${workout.totalSteps - 6} fasi',
+                    style: AppText.caption.copyWith(color: p.inkFaint),
                   ),
               ],
             ),
           ),
-          const SizedBox(height: 20),
         ],
 
-        SizedBox(
-          height: 96,
-          child: FilledButton.icon(
-            onPressed: ready ? () => _start(context, run) : null,
-            icon: const Icon(Icons.play_arrow, size: 40),
-            label: const Text(
-              'START',
-              style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900),
+        const SizedBox(height: 26),
+
+        Center(
+          child: SizedBox(
+            width: 92,
+            height: 92,
+            child: FilledButton(
+              onPressed: ready ? () => _start(context, run) : null,
+              style: FilledButton.styleFrom(
+                backgroundColor: p.green,
+                foregroundColor: Colors.white,
+                disabledBackgroundColor: p.separator,
+                disabledForegroundColor: p.inkFaint,
+                padding: EdgeInsets.zero,
+                shape: const CircleBorder(),
+                minimumSize: const Size(92, 92),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: <Widget>[
+                  const Icon(Icons.play_arrow_rounded, size: 36),
+                  const SizedBox(height: 1),
+                  Text('START', style: AppText.label),
+                ],
+              ),
             ),
           ),
         ),
-        const SizedBox(height: 12),
+
+        const SizedBox(height: 20),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
@@ -216,8 +248,8 @@ class _RunScreenState extends State<RunScreen> {
               run.backgroundTrackingRequested
                   ? Icons.phone_android
                   : Icons.screen_lock_portrait,
-              size: 18,
-              color: scheme.onSurfaceVariant,
+              size: 17,
+              color: p.inkFaint,
             ),
             const SizedBox(width: 8),
             Expanded(
@@ -227,7 +259,7 @@ class _RunScreenState extends State<RunScreen> {
                         'la corsa continua a registrarsi e resta una notifica attiva.'
                     : 'Registrazione in background disattivata: tieni l\'app aperta '
                         'e lo schermo acceso, altrimenti la corsa si interrompe.',
-                style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant),
+                style: AppText.caption.copyWith(color: p.inkFaint),
               ),
             ),
           ],
@@ -243,7 +275,8 @@ class _RunScreenState extends State<RunScreen> {
       case 2:
         return 'Segnale buono (precisione ${run.accuracy?.round()} m).';
       case 1:
-        return 'Segnale debole (precisione ${run.accuracy?.round()} m). Attendi qualche secondo all\'aperto.';
+        return 'Segnale debole (precisione ${run.accuracy?.round()} m). '
+            'Attendi qualche secondo all\'aperto.';
       default:
         return 'In attesa del segnale GPS...';
     }
@@ -251,171 +284,127 @@ class _RunScreenState extends State<RunScreen> {
 
   // ------------------------------------------------------ durante la corsa
   Widget _buildActive(BuildContext context, RunningProvider run) {
-    final ColorScheme scheme = Theme.of(context).colorScheme;
+    final AppPalette p = AppPalette.run;
     final WorkoutEngine? engine = run.engine;
+    final bool hasWorkout = engine != null && !engine.isEmpty;
 
     return Column(
       children: <Widget>[
+        Padding(
+          padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide, 10,
+              AppSpacing.screenSide, 0),
+          child: _TopBar(run: run),
+        ),
         Expanded(
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.screenSide,
+              14,
+              AppSpacing.screenSide,
+              8,
+            ),
             children: <Widget>[
-              if (run.isBackgroundTracking && !run.isPaused)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: Row(
-                    children: <Widget>[
-                      Icon(Icons.shield_outlined,
-                          size: 18, color: scheme.primary),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Registrazione protetta: continua anche a schermo spento.',
-                          style: TextStyle(
-                              fontSize: 13, color: scheme.onSurfaceVariant),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              if (run.isPaused)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: AppCard(
-                    color: scheme.tertiaryContainer,
-                    child: Row(
-                      children: <Widget>[
-                        Icon(Icons.pause_circle_outline,
-                            color: scheme.onTertiaryContainer),
-                        const SizedBox(width: 10),
-                        Text(
-                          'IN PAUSA - il tempo non viene conteggiato',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            color: scheme.onTertiaryContainer,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+              if (hasWorkout) ...<Widget>[
+                _StepProgress(run: run, engine: engine),
+                const SizedBox(height: 22),
+              ],
 
-              // Metriche principali, molto grandi.
-              MetricCard(
-                label: 'Tempo',
-                value: formatDuration(run.elapsed),
-                valueFontSize: 56,
-                emphasized: true,
+              // Il numero principale: il passo attuale, colorato secondo il
+              // target quando l'allenamento ne ha uno.
+              BigMetric(
+                label: 'Passo attuale',
+                value: formatPace(run.currentPaceSecPerKm),
+                unit: '/km',
+                size: 74,
+                color: _paceColor(run, p),
+                footnote: hasWorkout
+                    ? PaceIndicator(
+                        status: run.paceStatus,
+                        currentPaceSecPerKm: run.currentPaceSecPerKm,
+                        target: run.currentPaceTarget,
+                      )
+                    : null,
               ),
-              const SizedBox(height: 12),
+
+              const SizedBox(height: 24),
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   Expanded(
-                    child: MetricCard(
+                    child: BigMetric(
+                      label: 'Tempo',
+                      value: formatDuration(run.elapsed),
+                      size: 34,
+                    ),
+                  ),
+                  Expanded(
+                    child: BigMetric(
                       label: 'Distanza',
                       value: formatDistanceKm(run.distanceMeters),
                       unit: 'km',
-                      valueFontSize: 40,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: MetricCard(
-                      label: 'Passo attuale',
-                      value: formatPace(run.currentPaceSecPerKm),
-                      unit: '/km',
-                      valueFontSize: 40,
+                      size: 34,
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 20),
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   Expanded(
-                    child: MetricCard(
+                    child: BigMetric(
+                      label: hasWorkout ? 'Questa fase' : 'Giro in corso',
+                      value: formatDuration(
+                        Duration(seconds: run.currentLapSeconds),
+                      ),
+                      size: 24,
+                    ),
+                  ),
+                  Expanded(
+                    child: BigMetric(
                       label: 'Passo medio',
                       value: formatPace(run.averagePaceSecPerKm),
                       unit: '/km',
-                      valueFontSize: 28,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: MetricCard(
-                      label: 'Velocita',
-                      value: formatSpeedKmh(run.currentSpeedMps),
-                      valueFontSize: 28,
+                      size: 24,
                     ),
                   ),
                 ],
               ),
 
-              const SizedBox(height: 16),
-
-              // Fase di allenamento in corso.
-              if (engine != null && !engine.isEmpty) ...<Widget>[
-                _WorkoutStepPanel(run: run, engine: engine),
-                const SizedBox(height: 12),
-                PaceIndicator(
-                  status: run.paceStatus,
-                  currentPaceSecPerKm: run.currentPaceSecPerKm,
-                  target: run.currentPaceTarget,
-                ),
-                const SizedBox(height: 16),
-              ],
-
-              // Lap.
-              const SectionTitle('Giri'),
-              AppCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              if (!run.hasGpsFix) ...<Widget>[
+                const SizedBox(height: 18),
+                Row(
                   children: <Widget>[
-                    Row(
-                      children: <Widget>[
-                        Expanded(
-                          child: _InlineInfo(
-                            label: 'Lap',
-                            value: '${run.lapCount}',
-                          ),
-                        ),
-                        Expanded(
-                          child: _InlineInfo(
-                            label: 'Lap corrente',
-                            value: formatDistanceAuto(run.currentLapDistance),
-                          ),
-                        ),
-                        Expanded(
-                          child: _InlineInfo(
-                            label: 'Ultimo lap',
-                            value: run.lastLap == null
-                                ? kEmptyPace
-                                : formatPace(run.lastLap!.paceSecondsPerKm),
-                          ),
-                        ),
-                      ],
+                    Icon(Icons.gps_off_rounded, size: 17, color: p.orange),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Segnale GPS assente: la distanza non si aggiorna.',
+                        style: AppText.caption.copyWith(color: p.orange),
+                      ),
                     ),
-                    if (run.laps.isNotEmpty) ...<Widget>[
-                      const SizedBox(height: 8),
-                      LapTable(laps: run.laps, showStepColumn: run.hasWorkout),
-                    ],
                   ],
                 ),
-              ),
-              const SizedBox(height: 8),
-              if (!run.hasGpsFix)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Text(
-                    'Segnale GPS assente: la distanza non viene aggiornata.',
-                    style: TextStyle(color: scheme.error, fontSize: 13),
-                  ),
+              ],
+
+              if (run.laps.isNotEmpty) ...<Widget>[
+                const SizedBox(height: 26),
+                Text(
+                  'PARZIALI',
+                  style: AppText.label.copyWith(color: p.inkFaint),
                 ),
+                const SizedBox(height: 8),
+                LapTable(
+                  laps: run.laps.reversed.toList(),
+                  showStepColumn: run.hasWorkout,
+                  dark: true,
+                ),
+              ],
             ],
           ),
         ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
           child: RunControlButtons(
             isRunning: run.isRunning,
             isPaused: run.isPaused,
@@ -428,6 +417,20 @@ class _RunScreenState extends State<RunScreen> {
         ),
       ],
     );
+  }
+
+  /// Il passo si colora solo quando c'e' un obiettivo da rispettare: nella
+  /// corsa libera resta bianco, perche' non esiste un "giusto".
+  Color _paceColor(RunningProvider run, AppPalette p) {
+    switch (run.paceStatus) {
+      case PaceStatus.onTarget:
+        return p.green;
+      case PaceStatus.tooFast:
+      case PaceStatus.tooSlow:
+        return p.orange;
+      case PaceStatus.unknown:
+        return p.ink;
+    }
   }
 
   // ------------------------------------------------------------- azioni
@@ -536,13 +539,12 @@ class _RunScreenState extends State<RunScreen> {
     final List<RunningShoe> available = shoes.activeShoes;
 
     if (available.isEmpty) {
-      // Nessuna scarpa disponibile: si informa l'utente senza bloccarlo.
       await showDialog<void>(
         context: context,
         builder: (BuildContext ctx) => AlertDialog(
           title: const Text('Nessuna scarpa'),
           content: const Text(
-              'Non hai ancora inserito nessuna scarpa. Puoi aggiungerla dalla sezione SCARPE e assegnarla in seguito.'),
+              'Non hai ancora inserito nessuna scarpa. Puoi aggiungerla dalla sezione Scarpe e assegnarla in seguito.'),
           actions: <Widget>[
             FilledButton(
               onPressed: () => Navigator.of(ctx).pop(),
@@ -566,7 +568,7 @@ class _RunScreenState extends State<RunScreen> {
             itemBuilder: (BuildContext c, int index) {
               final RunningShoe shoe = available[index];
               return ListTile(
-                leading: const Icon(Icons.hiking),
+                leading: const Icon(Icons.directions_walk_rounded),
                 title: Text(shoe.displayName),
                 subtitle: Text('${shoe.totalKm.toStringAsFixed(0)} km'),
                 onTap: () => Navigator.of(ctx).pop(shoe.id),
@@ -585,36 +587,98 @@ class _RunScreenState extends State<RunScreen> {
   }
 }
 
-/// Pannello con la fase corrente dell'allenamento programmato.
-class _WorkoutStepPanel extends StatelessWidget {
-  const _WorkoutStepPanel({required this.run, required this.engine});
+/// Riga in cima alla schermata di corsa: fase in corso a sinistra, stato del
+/// segnale a destra.
+class _TopBar extends StatelessWidget {
+  const _TopBar({required this.run});
+
+  final RunningProvider run;
+
+  @override
+  Widget build(BuildContext context) {
+    final AppPalette p = AppPalette.run;
+    final ResolvedStep? step = run.currentStep;
+    final bool paused = run.isPaused;
+
+    final String pillText;
+    final Color dotColor;
+    if (paused) {
+      pillText = 'In pausa';
+      dotColor = p.orange;
+    } else if (step != null) {
+      pillText = step.label;
+      dotColor = p.accent;
+    } else {
+      pillText = 'Corsa libera';
+      dotColor = p.green;
+    }
+
+    return Row(
+      children: <Widget>[
+        Flexible(
+          child: StatusPill(
+            text: pillText,
+            dotColor: dotColor,
+            background: p.surfaceElevated,
+            textColor: p.ink,
+          ),
+        ),
+        const Spacer(),
+        Icon(
+          run.hasGpsFix ? Icons.gps_fixed_rounded : Icons.gps_off_rounded,
+          size: 15,
+          color: run.hasGpsFix ? p.green : p.orange,
+        ),
+        const SizedBox(width: 6),
+        Text(
+          _signalLabel(run),
+          style: AppText.label.copyWith(
+            color: run.hasGpsFix ? p.green : p.orange,
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _signalLabel(RunningProvider run) {
+    switch (run.gpsQuality) {
+      case 3:
+        return 'GPS OTTIMO';
+      case 2:
+        return 'GPS BUONO';
+      case 1:
+        return 'GPS DEBOLE';
+      default:
+        return 'GPS ASSENTE';
+    }
+  }
+}
+
+/// Avanzamento della fase corrente: barra sottile, obiettivo a sinistra,
+/// quanto manca a destra.
+class _StepProgress extends StatelessWidget {
+  const _StepProgress({required this.run, required this.engine});
 
   final RunningProvider run;
   final WorkoutEngine engine;
 
   @override
   Widget build(BuildContext context) {
-    final ColorScheme scheme = Theme.of(context).colorScheme;
+    final AppPalette p = AppPalette.run;
     final ResolvedStep? step = engine.currentStep;
 
     if (step == null || engine.isFinished) {
-      return AppCard(
-        color: scheme.primaryContainer,
-        child: Row(
-          children: <Widget>[
-            Icon(Icons.check_circle, color: scheme.onPrimaryContainer, size: 30),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                'Allenamento completato. Puoi terminare la registrazione.',
-                style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  color: scheme.onPrimaryContainer,
-                ),
-              ),
+      return Row(
+        children: <Widget>[
+          Icon(Icons.check_circle_rounded, size: 20, color: p.green),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Text(
+              'Allenamento completato. Metti in pausa per terminare.',
+              style: AppText.body.copyWith(color: p.green),
             ),
-          ],
-        ),
+          ),
+        ],
       );
     }
 
@@ -622,92 +686,42 @@ class _WorkoutStepPanel extends StatelessWidget {
     final int? secondsLeft = engine.remainingSeconds;
     final ResolvedStep? next = engine.nextStep;
 
-    return AppCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: Text(
-                  step.step.type.label.toUpperCase(),
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1.0,
-                    color: scheme.primary,
-                  ),
-                ),
-              ),
-              if (step.isRepeated)
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: scheme.primary,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    '${step.repetitionIndex} / ${step.repetitionTotal}',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 16,
-                      color: scheme.onPrimary,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Obiettivo ${step.step.goalLabel}',
-            style: TextStyle(fontSize: 15, color: scheme.onSurfaceVariant),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            metersLeft != null
-                ? '${metersLeft.round()} m rimanenti'
-                : '${formatDuration(Duration(seconds: secondsLeft ?? 0))} rimanenti',
-            style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(height: 10),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: LinearProgressIndicator(
-              value: engine.stepProgress,
-              minHeight: 10,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            next == null
-                ? 'Ultima fase dell\'allenamento'
-                : 'Prossima: ${next.label} - ${next.step.goalLabel}',
-            style: TextStyle(fontSize: 14, color: scheme.onSurfaceVariant),
-          ),
-        ],
-      ),
-    );
-  }
-}
+    final String remaining = metersLeft != null
+        ? 'restano ${metersLeft.round()} m'
+        : 'restano ${formatDuration(Duration(seconds: secondsLeft ?? 0))}';
 
-class _InlineInfo extends StatelessWidget {
-  const _InlineInfo({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final ColorScheme scheme = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        Text(label,
-            style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
-        const SizedBox(height: 2),
-        Text(value,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+        ThinProgressBar(
+          value: engine.stepProgress,
+          color: p.accent,
+          trackColor: p.surfaceElevated,
+        ),
+        const SizedBox(height: 9),
+        Row(
+          children: <Widget>[
+            Expanded(
+              child: Text(
+                step.step.goalLabel,
+                style: AppText.label.copyWith(color: p.inkFaint),
+              ),
+            ),
+            Text(
+              remaining.toUpperCase(),
+              style: AppText.label.copyWith(color: p.ink),
+            ),
+          ],
+        ),
+        if (next != null) ...<Widget>[
+          const SizedBox(height: 5),
+          Text(
+            'poi ${next.label.toLowerCase()} · ${next.step.goalLabel}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppText.caption.copyWith(color: p.inkFaint),
+          ),
+        ],
       ],
     );
   }

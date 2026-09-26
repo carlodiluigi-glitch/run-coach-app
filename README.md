@@ -295,7 +295,9 @@ restano nella cartella privata dell'app.
   resta sospeso, altrimenti i giri cadrebbero a cavallo fra una ripetuta e il
   recupero. Alla fine di ogni fase "di lavoro" il coach annuncia anche il
   tempo del parziale; i recuperi restano silenziosi per non accavallarsi con
-  l'annuncio della fase successiva.
+  l'annuncio della fase successiva. Lo spezzone finale, quello che resta
+  premendo Termina, viene salvato solo se supera 100 m o 30 secondi, e non
+  prende il nome della fase: non e' una ripetuta, e' la coda della corsa.
 - **Editor di allenamenti** con blocchi ripetuti (`10 x (400 m + 200 m)`).
 - Step a **distanza** o a **tempo**, tipi: riscaldamento, corsa, ripetuta,
   recupero, defaticamento, generico.
@@ -329,6 +331,45 @@ restano nella cartella privata dell'app.
 - **Storage locale** su file JSON: i dati restano dopo la chiusura dell'app.
 - Gestione degli errori: GPS spento, permesso negato, permesso negato in modo
   permanente, assenza di fix, errori di storage, liste vuote.
+
+---
+
+## Grafica
+
+L'aspetto dell'app segue le convenzioni di iOS, adattate ad Android. Tutte le
+scelte passano da un unico file, `lib/app/tokens.dart`: cambiando un colore
+li' cambia ovunque.
+
+**Nero mentre corri, chiaro quando ti riposi.** La schermata di corsa e'
+sempre nera, in qualunque tema. Non e' una scelta estetica: il bianco su nero
+e' la combinazione piu' leggibile al sole, e sugli schermi OLED il nero pieno
+non consuma batteria. Tutte le altre schermate seguono il tema del telefono,
+chiaro o scuro.
+
+**Un numero grande per schermata.** Durante la corsa il numero piu' grande e'
+il passo attuale, e prende il colore del passo obiettivo: verde se sei
+dentro, arancio se sei fuori, bianco nella corsa libera (dove non esiste un
+"giusto"). Gli altri valori sono deliberatamente piu' piccoli: se sono tutti
+uguali, nessuno si legge.
+
+**Colori.** Un solo colore di identita' (rosa) per record e fasi di lavoro;
+verde, arancio e rosso solo per dire qualcosa di preciso (in ritmo, fuori
+ritmo, azione distruttiva). Nel tema chiaro verde e arancio sono piu' scuri
+della versione iOS: quelli originali, su fondo bianco, non hanno abbastanza
+contrasto.
+
+**Carattere.** Inter, incluso in `assets/fonts/` (vedi la nota in
+`pubspec.yaml`). I numeri usano sempre le cifre a larghezza fissa, cosi'
+mentre corri non "ballano" quando un 1 diventa un 7.
+
+**Liste.** Le righe stanno tutte dentro un'unica scheda arrotondata, con i
+separatori fra una e l'altra, come nelle impostazioni dell'iPhone. Non una
+scheda per riga: sarebbe un mosaico.
+
+**"Termina" compare solo in pausa.** Durante la corsa i comandi sono Giro,
+Pausa e - negli allenamenti - Salta fase. Termina non c'e': un tocco
+sbagliato in tasca chiuderebbe la registrazione. Per terminare si mette prima
+in pausa, e a quel punto il tempo e' gia' fermo.
 
 ---
 

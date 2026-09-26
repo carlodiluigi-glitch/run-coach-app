@@ -3,15 +3,18 @@ import 'package:provider/provider.dart';
 
 import '../app/app.dart';
 import '../app/routes.dart';
+import '../app/tokens.dart';
 import '../models/running_activity.dart';
 import '../providers/activity_provider.dart';
 import '../providers/settings_provider.dart';
 import '../services/stats_service.dart';
 import '../utils/formatters.dart';
 import '../widgets/app_card.dart';
-import '../widgets/metric_card.dart';
+import '../widgets/inset_list.dart';
+import '../widgets/metric_display.dart';
 
-/// Schermata iniziale: saluto, riepilogo e accessi rapidi.
+/// Schermata iniziale: a che punto sei questa settimana, come si parte, dove
+/// si va.
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
@@ -20,36 +23,34 @@ class HomeScreen extends StatelessWidget {
     final SettingsProvider settings = context.watch<SettingsProvider>();
     final ActivityProvider activities = context.watch<ActivityProvider>();
     final RunningStats stats = activities.stats;
-    final ColorScheme scheme = Theme.of(context).colorScheme;
+    final AppPalette p = AppPalette.of(context);
 
     return Scaffold(
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.screenSide,
+            8,
+            AppSpacing.screenSide,
+            32,
+          ),
           children: <Widget>[
             // ------------------------------------------------ intestazione
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
                       Text(
-                        RunCoachApp.appName,
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 1.4,
-                          color: scheme.primary,
-                        ),
+                        RunCoachApp.appName.toUpperCase(),
+                        style: AppText.label.copyWith(color: p.accent),
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 4),
                       Text(
                         settings.settings.greeting,
-                        style: const TextStyle(
-                          fontSize: 30,
-                          fontWeight: FontWeight.w800,
-                        ),
+                        style: AppText.largeTitle.copyWith(color: p.ink),
                       ),
                     ],
                   ),
@@ -57,117 +58,103 @@ class HomeScreen extends StatelessWidget {
                 IconButton(
                   onPressed: () =>
                       Navigator.of(context).pushNamed(AppRoutes.settings),
-                  icon: const Icon(Icons.settings_outlined, size: 28),
+                  icon: Icon(Icons.settings_outlined, size: 26, color: p.inkSoft),
                   tooltip: 'Impostazioni',
                 ),
               ],
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 14),
 
-            // -------------------------------------------------- riepilogo
+            // -------------------------------------------- questa settimana
+            _WeekCard(stats: stats),
+
+            const SizedBox(height: 14),
+
+            // ------------------------------------------------- come partire
             Row(
               children: <Widget>[
                 Expanded(
-                  child: MetricCard(
-                    label: 'Km settimana',
-                    value: stats.weekKm.toStringAsFixed(1),
-                    unit: 'km',
-                    valueFontSize: 30,
-                    emphasized: true,
+                  child: _StartTile(
+                    background: p.isDark ? p.surfaceElevated : Colors.black,
+                    foreground: Colors.white,
+                    overline: 'Parti subito',
+                    title: 'Corsa libera',
+                    icon: Icons.directions_run_rounded,
+                    onTap: () =>
+                        Navigator.of(context).pushNamed(AppRoutes.run),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: MetricCard(
-                    label: 'Allenamenti',
-                    value: '${stats.weekActivities}',
-                    secondary: 'questa settimana',
-                    valueFontSize: 30,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: <Widget>[
-                Expanded(
-                  child: MetricCard(
-                    label: 'Passo medio recente',
-                    value: formatPace(stats.averagePaceSecPerKm),
-                    unit: '/km',
-                    secondary: 'ultime 4 settimane',
-                    valueFontSize: 30,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: MetricCard(
-                    label: 'Totale',
-                    value: stats.totalKm.toStringAsFixed(0),
-                    unit: 'km',
-                    secondary: '${stats.totalActivities} attivita',
-                    valueFontSize: 30,
+                  child: _StartTile(
+                    background: p.accent,
+                    foreground: p.onAccent,
+                    overline: 'Programmato',
+                    title: 'Allenamenti',
+                    icon: Icons.repeat_rounded,
+                    onTap: () => Navigator.of(context)
+                        .pushNamed(AppRoutes.workoutLibrary),
                   ),
                 ),
               ],
             ),
 
-            const SizedBox(height: 20),
-
-            // --------------------------------------------- ultima attivita
-            const SectionTitle('Ultima attivita'),
+            // ------------------------------------------------ ultima uscita
+            const SectionTitle('Ultima uscita'),
             _LastActivityCard(activity: stats.lastActivity),
 
-            const SizedBox(height: 24),
-
-            // ---------------------------------------------------- pulsanti
-            SizedBox(
-              height: 80,
-              child: FilledButton.icon(
-                onPressed: () => Navigator.of(context).pushNamed(AppRoutes.run),
-                icon: const Icon(Icons.directions_run, size: 34),
-                label: const Text(
-                  'CORSA LIBERA',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+            // -------------------------------------------------------- vai a
+            const SectionTitle('Vai a'),
+            InsetList(
+              separatorIndent: 58,
+              children: <Widget>[
+                AppListRow(
+                  leading: IconSquare(
+                    icon: Icons.emoji_events_rounded,
+                    color: p.accent,
+                  ),
+                  title: 'Record personali',
+                  onTap: () =>
+                      Navigator.of(context).pushNamed(AppRoutes.records),
                 ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            _HomeButton(
-              icon: Icons.list_alt,
-              label: 'ALLENAMENTI',
-              onTap: () =>
-                  Navigator.of(context).pushNamed(AppRoutes.workoutLibrary),
-            ),
-            const SizedBox(height: 10),
-            _HomeButton(
-              icon: Icons.history,
-              label: 'STORICO',
-              onTap: () => Navigator.of(context).pushNamed(AppRoutes.history),
-            ),
-            const SizedBox(height: 10),
-            _HomeButton(
-              icon: Icons.emoji_events_outlined,
-              label: 'RECORD',
-              onTap: () => Navigator.of(context).pushNamed(AppRoutes.records),
-            ),
-            const SizedBox(height: 10),
-            _HomeButton(
-              icon: Icons.insights,
-              label: 'STATISTICHE',
-              onTap: () => Navigator.of(context).pushNamed(AppRoutes.stats),
-            ),
-            const SizedBox(height: 10),
-            _HomeButton(
-              icon: Icons.hiking,
-              label: 'SCARPE',
-              onTap: () => Navigator.of(context).pushNamed(AppRoutes.shoes),
-            ),
-            const SizedBox(height: 10),
-            _HomeButton(
-              icon: Icons.settings_outlined,
-              label: 'IMPOSTAZIONI',
-              onTap: () => Navigator.of(context).pushNamed(AppRoutes.settings),
+                AppListRow(
+                  leading: IconSquare(
+                    icon: Icons.format_list_bulleted_rounded,
+                    color: p.blue,
+                  ),
+                  title: 'Storico',
+                  subtitle: stats.totalActivities == 0
+                      ? null
+                      : '${stats.totalActivities} attivita registrate',
+                  onTap: () =>
+                      Navigator.of(context).pushNamed(AppRoutes.history),
+                ),
+                AppListRow(
+                  leading: IconSquare(
+                    icon: Icons.show_chart_rounded,
+                    color: p.green,
+                  ),
+                  title: 'Statistiche',
+                  onTap: () => Navigator.of(context).pushNamed(AppRoutes.stats),
+                ),
+                AppListRow(
+                  leading: IconSquare(
+                    icon: Icons.directions_walk_rounded,
+                    color: p.orange,
+                  ),
+                  title: 'Scarpe',
+                  onTap: () => Navigator.of(context).pushNamed(AppRoutes.shoes),
+                ),
+                AppListRow(
+                  leading: IconSquare(
+                    icon: Icons.settings_rounded,
+                    color: p.inkFaint,
+                  ),
+                  title: 'Impostazioni',
+                  onTap: () =>
+                      Navigator.of(context).pushNamed(AppRoutes.settings),
+                ),
+              ],
             ),
           ],
         ),
@@ -176,29 +163,152 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-class _HomeButton extends StatelessWidget {
-  const _HomeButton({
+/// Riepilogo della settimana in corso, confrontato con le quattro precedenti.
+///
+/// Il confronto con la media e' piu' utile di un totale secco: dice se stai
+/// facendo piu' o meno del solito, che e' la domanda vera.
+class _WeekCard extends StatelessWidget {
+  const _WeekCard({required this.stats});
+
+  final RunningStats stats;
+
+  @override
+  Widget build(BuildContext context) {
+    final AppPalette p = AppPalette.of(context);
+    final double averageKm = stats.lastFourWeeksKm / 4.0;
+    final bool hasHistory = averageKm >= 0.5;
+    final double ratio = hasHistory
+        ? stats.weekKm / averageKm
+        : (stats.weekKm > 0 ? 1.0 : 0.0);
+
+    final String note;
+    if (!hasHistory) {
+      note = stats.weekKm > 0
+          ? 'La tua prima settimana di dati'
+          : 'Nessuna corsa questa settimana';
+    } else if (stats.weekKm >= averageKm) {
+      note = 'Sopra la tua media di ${averageKm.toStringAsFixed(1)} km';
+    } else {
+      note = 'Media delle ultime 4 settimane: '
+          '${averageKm.toStringAsFixed(1)} km';
+    }
+
+    return AppCard(
+      padding: const EdgeInsets.fromLTRB(16, 15, 16, 16),
+      child: Row(
+        children: <Widget>[
+          ProgressRing(
+            value: ratio,
+            color: p.accent,
+            trackColor: p.surfaceElevated,
+            size: 64,
+            thickness: 9,
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Text(
+                  'QUESTA SETTIMANA',
+                  style: AppText.label.copyWith(color: p.inkFaint),
+                ),
+                const SizedBox(height: 7),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
+                  children: <Widget>[
+                    Text(
+                      stats.weekKm.toStringAsFixed(1),
+                      style: AppText.number(34, color: p.ink),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      'km',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: p.inkFaint,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      stats.weekActivities == 1
+                          ? '1 uscita'
+                          : '${stats.weekActivities} uscite',
+                      style: AppText.caption.copyWith(color: p.inkFaint),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  note,
+                  style: AppText.caption.copyWith(color: p.inkFaint),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Uno dei due riquadri colorati per iniziare a correre.
+class _StartTile extends StatelessWidget {
+  const _StartTile({
+    required this.background,
+    required this.foreground,
+    required this.overline,
+    required this.title,
     required this.icon,
-    required this.label,
     required this.onTap,
   });
 
+  final Color background;
+  final Color foreground;
+  final String overline;
+  final String title;
   final IconData icon;
-  final String label;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 62,
-      child: OutlinedButton.icon(
-        onPressed: onTap,
-        icon: Icon(icon, size: 26),
-        label: Align(
-          alignment: Alignment.centerLeft,
-          child: Text(label,
-              style:
-                  const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+    return Material(
+      color: background,
+      borderRadius: BorderRadius.circular(AppRadius.card),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 13, 14, 15),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: Text(
+                      overline.toUpperCase(),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppText.label.copyWith(
+                        color: foreground.withValues(alpha: 0.75),
+                      ),
+                    ),
+                  ),
+                  Icon(icon, size: 19, color: foreground.withValues(alpha: 0.9)),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                title,
+                style: AppText.title.copyWith(color: foreground),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -212,19 +322,19 @@ class _LastActivityCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ColorScheme scheme = Theme.of(context).colorScheme;
+    final AppPalette p = AppPalette.of(context);
     final RunningActivity? last = activity;
 
     if (last == null) {
       return AppCard(
         child: Row(
           children: <Widget>[
-            Icon(Icons.flag_outlined, color: scheme.onSurfaceVariant),
+            Icon(Icons.flag_outlined, color: p.inkFaint),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
-                'Nessuna attivita registrata. Premi CORSA LIBERA per iniziare.',
-                style: TextStyle(color: scheme.onSurfaceVariant),
+                'Nessuna attivita registrata. Premi Corsa libera per iniziare.',
+                style: AppText.body.copyWith(color: p.inkSoft),
               ),
             ),
           ],
@@ -235,6 +345,7 @@ class _LastActivityCard extends StatelessWidget {
     return AppCard(
       onTap: () => Navigator.of(context)
           .pushNamed(AppRoutes.activityDetail, arguments: last.id),
+      padding: const EdgeInsets.fromLTRB(16, 14, 12, 15),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
@@ -243,19 +354,20 @@ class _LastActivityCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   last.name,
-                  style: const TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w700,
-                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppText.title.copyWith(color: p.ink),
                 ),
               ),
+              const SizedBox(width: 8),
               Text(
                 formatRelativeDay(last.startTime),
-                style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13),
+                style: AppText.caption.copyWith(color: p.inkFaint),
               ),
+              Icon(Icons.chevron_right, size: 20, color: p.separator),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           Row(
             children: <Widget>[
               _MiniMetric(
@@ -286,20 +398,17 @@ class _MiniMetric extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ColorScheme scheme = Theme.of(context).colorScheme;
+    final AppPalette p = AppPalette.of(context);
     return Expanded(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Text(
-            label,
-            style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+            label.toUpperCase(),
+            style: AppText.label.copyWith(color: p.inkFaint),
           ),
-          const SizedBox(height: 2),
-          Text(
-            value,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-          ),
+          const SizedBox(height: 4),
+          Text(value, style: AppText.number(17, color: p.ink)),
         ],
       ),
     );

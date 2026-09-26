@@ -1,6 +1,14 @@
 import 'package:flutter/material.dart';
 
-/// Card Material 3 riutilizzabile, con stile coerente in tutta l'app.
+import '../app/tokens.dart';
+
+/// Scheda bianca ad angoli arrotondati: il mattone di quasi tutte le
+/// schermate.
+///
+/// E' volutamente povera di decorazioni. Niente bordi, niente ombre: si
+/// distingue dallo sfondo solo perche' e' piu' chiara (o piu' scura, nel tema
+/// notturno). Bordi e ombre su ogni blocco appiattiscono la gerarchia e fanno
+/// sembrare tutto ugualmente importante.
 class AppCard extends StatelessWidget {
   const AppCard({
     super.key,
@@ -8,7 +16,7 @@ class AppCard extends StatelessWidget {
     this.onTap,
     this.padding = const EdgeInsets.all(16),
     this.color,
-    this.borderRadius = 20,
+    this.borderRadius = AppRadius.card,
   });
 
   final Widget child;
@@ -19,11 +27,11 @@ class AppCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ColorScheme scheme = Theme.of(context).colorScheme;
+    final AppPalette p = AppPalette.of(context);
     final BorderRadius radius = BorderRadius.circular(borderRadius);
 
     return Material(
-      color: color ?? scheme.surfaceContainerHighest,
+      color: color ?? p.surface,
       borderRadius: radius,
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -35,7 +43,8 @@ class AppCard extends StatelessWidget {
   }
 }
 
-/// Titolo di sezione, con spaziatura coerente.
+/// Intestazione di un gruppo di righe, come nelle impostazioni di iOS:
+/// piccola, grigia, a filo con il bordo sinistro della scheda sottostante.
 class SectionTitle extends StatelessWidget {
   const SectionTitle(this.text, {super.key, this.trailing});
 
@@ -44,24 +53,50 @@ class SectionTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final TextTheme textTheme = Theme.of(context).textTheme;
+    final AppPalette p = AppPalette.of(context);
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8, top: 4),
+      padding: const EdgeInsets.fromLTRB(4, 20, 4, 8),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: <Widget>[
           Expanded(
             child: Text(
               text.toUpperCase(),
-              style: textTheme.labelLarge?.copyWith(
-                letterSpacing: 1.1,
-                fontWeight: FontWeight.w700,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
+              style: AppText.groupHeader.copyWith(color: p.inkFaint),
             ),
           ),
           if (trailing != null) trailing!,
         ],
       ),
+    );
+  }
+}
+
+/// Riquadro colorato con l'icona, come quelli a sinistra delle voci nelle
+/// impostazioni di iOS.
+class IconSquare extends StatelessWidget {
+  const IconSquare({
+    super.key,
+    required this.icon,
+    required this.color,
+    this.size = 30,
+  });
+
+  final IconData icon;
+  final Color color;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(AppRadius.small),
+      ),
+      alignment: Alignment.center,
+      child: Icon(icon, size: size * 0.6, color: Colors.white),
     );
   }
 }

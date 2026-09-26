@@ -1,99 +1,96 @@
 import 'package:flutter/material.dart';
 
+import '../app/tokens.dart';
 import '../models/workout_step.dart';
 import '../utils/formatters.dart';
-import 'app_card.dart';
 
-/// Indicatore del ritmo rispetto al target.
+/// Riga che dice se stai tenendo il passo richiesto dalla fase.
 ///
-/// ACCESSIBILITA': lo stato e' comunicato prima di tutto da un simbolo e da
-/// una parola ("↓ troppo lento", "✓ ritmo corretto", "↑ troppo veloce").
-/// Il colore e' solo un supporto: chi non distingue i colori legge comunque
-/// l'informazione.
+/// ACCESSIBILITA': lo stato e' scritto a parole e accompagnato da un simbolo
+/// ("in ritmo", "troppo lento", "troppo veloce"). Il colore e' solo un
+/// rinforzo: chi non distingue i colori legge comunque l'informazione.
 class PaceIndicator extends StatelessWidget {
   const PaceIndicator({
     super.key,
     required this.status,
     required this.currentPaceSecPerKm,
     this.target,
+
+    /// Usa la palette scura fissa (schermata di corsa).
+    this.dark = true,
   });
 
   final PaceStatus status;
   final double? currentPaceSecPerKm;
   final PaceTarget? target;
+  final bool dark;
 
   @override
   Widget build(BuildContext context) {
-    final ColorScheme scheme = Theme.of(context).colorScheme;
+    final AppPalette p = dark ? AppPalette.run : AppPalette.of(context);
+    final PaceTarget? paceTarget = target;
 
-    Color background;
-    Color foreground;
+    Color color;
+    IconData icon;
+    String text;
     switch (status) {
       case PaceStatus.onTarget:
-        background = scheme.primaryContainer;
-        foreground = scheme.onPrimaryContainer;
+        color = p.green;
+        icon = Icons.check_rounded;
+        text = 'Sei in ritmo';
         break;
       case PaceStatus.tooFast:
+        color = p.orange;
+        icon = Icons.keyboard_arrow_up_rounded;
+        text = 'Stai spingendo troppo';
+        break;
       case PaceStatus.tooSlow:
-        background = scheme.tertiaryContainer;
-        foreground = scheme.onTertiaryContainer;
+        color = p.orange;
+        icon = Icons.keyboard_arrow_down_rounded;
+        text = 'Stai rallentando';
         break;
       case PaceStatus.unknown:
-        background = scheme.surfaceContainerHighest;
-        foreground = scheme.onSurfaceVariant;
+        color = p.inkFaint;
+        icon = Icons.more_horiz_rounded;
+        text = paceTarget == null || paceTarget.isEmpty
+            ? 'Nessun passo obiettivo'
+            : 'In attesa del passo';
         break;
     }
 
-    final PaceTarget? paceTarget = target;
-
-    return AppCard(
-      color: background,
-      child: Row(
-        children: <Widget>[
-          Text(
-            status.symbol,
+    return Row(
+      children: <Widget>[
+        Icon(icon, size: 19, color: color),
+        const SizedBox(width: 6),
+        Flexible(
+          child: Text(
+            text,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontSize: 40,
-              height: 1.0,
-              fontWeight: FontWeight.w700,
-              color: foreground,
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              letterSpacing: -0.2,
+              color: color,
             ),
           ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                Text(
-                  status.label.toUpperCase(),
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.8,
-                    color: foreground,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  paceTarget == null || paceTarget.isEmpty
-                      ? 'Nessun target impostato'
-                      : 'Target ${paceTarget.label}',
-                  style: TextStyle(fontSize: 14, color: foreground),
-                ),
-                Text(
-                  'Attuale ${formatPaceWithUnit(currentPaceSecPerKm)}',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: foreground,
-                  ),
-                ),
-              ],
-            ),
+        ),
+        if (paceTarget != null && paceTarget.isNotEmpty) ...<Widget>[
+          const SizedBox(width: 10),
+          Text(
+            'obiettivo ${paceTarget.label}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppText.caption.copyWith(color: p.inkFaint),
+          ),
+        ] else ...<Widget>[
+          const SizedBox(width: 10),
+          Text(
+            formatPaceWithUnit(currentPaceSecPerKm),
+            style: AppText.caption.copyWith(color: p.inkFaint),
           ),
         ],
-      ),
+      ],
     );
   }
 }

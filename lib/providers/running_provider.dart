@@ -305,9 +305,15 @@ class RunningProvider extends ChangeNotifier {
     await _stopGpsStream();
     await _native.setKeepScreenOn(false);
 
-    // Chiude l'ultimo lap parziale, se ha senso (almeno 10 metri).
-    if (currentLapDistance >= 10) {
-      _closeLap(manual: false, announce: false);
+    // Chiude l'ultimo spezzone rimasto, ma solo se vale davvero qualcosa.
+    //
+    // Fermandosi subito dopo una ripetuta restano quasi sempre pochi metri e
+    // pochi secondi: salvarli produce un parziale tipo "10 m in 6 secondi"
+    // che sporca l'elenco e non dice niente. E comunque non e' una fase
+    // dell'allenamento, quindi non ne prende l'etichetta: e' solo la coda
+    // della corsa.
+    if (currentLapDistance >= 100 || currentLapSeconds >= 30) {
+      _closeLap(manual: false, announce: false, stepLabel: _finalLapLabel());
     }
 
     await _coach.speak(_coach.phrases.stopped(), priority: SpeechPriority.high);
@@ -349,7 +355,7 @@ class RunningProvider extends ChangeNotifier {
   void manualLap() {
     if (_state != RunState.running) return;
     if (currentLapDistance < 5) return;
-    _closeLap(manual: true);
+    _closeLap(manual: true, stepLabel: currentStep?.label);
     notifyListeners();
   }
 
@@ -508,8 +514,21 @@ class RunningProvider extends ChangeNotifier {
     int safety = 0;
     while (currentLapDistance >= lapDistance && safety < 10) {
       safety++;
-      _closeLap(manual: false, exactDistance: lapDistance);
+      // Il lap automatico a distanza esiste solo nella corsa libera, dove non
+      // c'e' nessuna fase da scrivere.
+      _closeLap(manual: false, stepLabel: null, exactDistance: lapDistance);
     }
+  }
+
+  /// Etichetta da dare allo spezzone finale, quello chiuso premendo Termina.
+  ///
+  /// Se l'allenamento e' finito lo spezzone non appartiene a nessuna fase:
+  /// sono i metri fatti dopo, e non deve chiamarsi "Ripetuta". Se invece ci si
+  /// ferma a meta' di una fase, quello e' un pezzo di quella fase.
+  String? _finalLapLabel() {
+    final WorkoutEngine? engine = _engine;
+    if (engine == null || engine.isEmpty || engine.isFinished) return null;
+    return currentStep?.label;
   }
 
   /// Chiude un parziale alla fine di una fase dell'allenamento programmato.
@@ -551,14 +570,15 @@ class RunningProvider extends ChangeNotifier {
   /// impostata (es. 1000 m) invece che sulla distanza percorsa al momento del
   /// controllo, evitando che i lap "slittino" progressivamente.
   ///
-  /// [stepLabel] forza l'etichetta della fase: alla fine di uno step il motore
-  /// e' gia' passato a quello successivo, quindi `currentStep` indicherebbe la
-  /// fase sbagliata.
+  /// [stepLabel] e' l'etichetta della fase, e va sempre passata dal chiamante.
+  /// Non viene dedotta da `currentStep` perche' alla fine di uno step il
+  /// motore e' gia' passato al successivo: leggendola qui si scriverebbe la
+  /// fase sbagliata. Chi chiude un giro senza fase passa `null`.
   Lap? _closeLap({
     required bool manual,
+    required String? stepLabel,
     double? exactDistance,
     bool announce = true,
-    String? stepLabel,
   }) {
     final double lapDistance = exactDistance ?? currentLapDistance;
     // Un parziale a distanza zero ha senso solo per le fasi a tempo (es. un
@@ -574,7 +594,7 @@ class RunningProvider extends ChangeNotifier {
       durationSeconds: lapSeconds,
       totalTimeSeconds: totalSeconds,
       manual: manual,
-      stepLabel: stepLabel ?? currentStep?.label,
+      stepLabel: stepLabel,
     );
     _laps.add(lap);
 

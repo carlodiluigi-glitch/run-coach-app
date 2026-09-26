@@ -1,71 +1,91 @@
 import 'package:flutter/material.dart';
 
-/// Tema Material 3 dell'app.
+import 'tokens.dart';
+
+/// Tema dell'app.
 ///
-/// Obiettivi: alta leggibilita' durante la corsa (numeri grandi, contrasto
-/// alto) e pulsanti generosi, facili da colpire anche in movimento.
+/// I colori veri stanno in `tokens.dart`: qui vengono solo travasati dentro il
+/// ColorScheme di Material, cosi' anche i widget standard (dialoghi, campi di
+/// testo, interruttori, SnackBar) usano la stessa palette senza doverli
+/// personalizzare uno per uno.
 ///
-/// NOTA: qui vengono impostate solo le parti di tema stabili fra le versioni
-/// di Flutter (ColorScheme e stili dei pulsanti). Material 3 e' attivo per
-/// impostazione predefinita. Lo stile delle card e' definito dal widget
-/// riutilizzabile `AppCard`, cosi' il progetto non dipende dalle classi di
-/// tema che Flutter ha rinominato nel tempo.
+/// NOTA per chi mette mano al file: qui si impostano solo parti di tema
+/// stabili fra le versioni di Flutter. Le classi `CardTheme`, `AppBarTheme` e
+/// simili sono state rinominate piu' volte, quindi non le usiamo: l'aspetto
+/// delle schede e' definito dai nostri widget in `lib/widgets/`.
 class AppTheme {
   AppTheme._();
 
-  /// Colore di partenza per la palette Material 3.
-  static const Color seedColor = Color(0xFF00696D);
+  static ThemeData light() => _build(AppPalette.light);
+  static ThemeData dark() => _build(AppPalette.dark);
 
-  static ThemeData light() => _build(Brightness.light);
-  static ThemeData dark() => _build(Brightness.dark);
-
-  static ThemeData _build(Brightness brightness) {
+  static ThemeData _build(AppPalette p) {
     final ColorScheme scheme = ColorScheme.fromSeed(
-      seedColor: seedColor,
-      brightness: brightness,
+      seedColor: p.accent,
+      brightness: p.isDark ? Brightness.dark : Brightness.light,
+    ).copyWith(
+      primary: p.accent,
+      onPrimary: p.onAccent,
+      secondary: p.blue,
+      onSecondary: Colors.white,
+      error: p.red,
+      onError: Colors.white,
+      surface: p.surface,
+      onSurface: p.ink,
+      onSurfaceVariant: p.inkSoft,
+      surfaceContainerHighest: p.surfaceElevated,
+      outlineVariant: p.separator,
     );
 
     return ThemeData(
       colorScheme: scheme,
-      scaffoldBackgroundColor: scheme.surface,
+      fontFamily: AppText.fontFamily,
+      scaffoldBackgroundColor: p.background,
+      dividerColor: p.separator,
+      splashFactory: InkSparkle.splashFactory,
+
+      // I pulsanti restano generosi: vanno colpiti anche correndo.
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          minimumSize: const Size.fromHeight(60),
+          minimumSize: const Size.fromHeight(54),
           textStyle: const TextStyle(
-            fontSize: 18,
+            fontFamily: AppText.fontFamily,
+            fontSize: 17,
             fontWeight: FontWeight.w700,
-            letterSpacing: 0.5,
+            letterSpacing: -0.2,
           ),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(AppRadius.card),
           ),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          minimumSize: const Size.fromHeight(56),
-          textStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+          minimumSize: const Size.fromHeight(52),
+          foregroundColor: p.blue,
+          side: BorderSide(color: p.separator),
+          textStyle: const TextStyle(
+            fontFamily: AppText.fontFamily,
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            letterSpacing: -0.2,
+          ),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(AppRadius.card),
           ),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          minimumSize: const Size(64, 48),
-          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          foregroundColor: p.blue,
+          minimumSize: const Size(64, 46),
+          textStyle: const TextStyle(
+            fontFamily: AppText.fontFamily,
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ),
     );
   }
-}
-
-/// Spaziature riutilizzabili in tutta l'app.
-class AppSpacing {
-  AppSpacing._();
-  static const double xs = 4;
-  static const double sm = 8;
-  static const double md = 16;
-  static const double lg = 24;
-  static const double xl = 32;
 }

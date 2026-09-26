@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../app/tokens.dart';
 import '../models/running_activity.dart';
 import '../models/running_shoe.dart';
 import '../providers/activity_provider.dart';
@@ -9,6 +10,7 @@ import '../services/records_service.dart';
 import '../utils/formatters.dart';
 import '../widgets/app_card.dart';
 import '../widgets/empty_state.dart';
+import '../widgets/inset_list.dart';
 import '../widgets/lap_table.dart';
 import '../widgets/metric_card.dart';
 
@@ -23,6 +25,7 @@ class ActivityDetailScreen extends StatelessWidget {
     final ActivityProvider provider = context.watch<ActivityProvider>();
     final ShoeProvider shoes = context.watch<ShoeProvider>();
     final RunningActivity? activity = provider.byId(activityId);
+    final AppPalette p = AppPalette.of(context);
 
     if (activity == null) {
       return Scaffold(
@@ -36,41 +39,55 @@ class ActivityDetailScreen extends StatelessWidget {
     }
 
     final RunningShoe? shoe = shoes.byId(activity.shoeId);
-    final ColorScheme scheme = Theme.of(context).colorScheme;
+    final List<DistanceRecord> held = provider.recordsHeldBy(activity.id);
+    final bool isWorkout = activity.type == ActivityType.workout;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(activity.name),
+        toolbarHeight: 44,
+        backgroundColor: p.background,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
         actions: <Widget>[
           IconButton(
             tooltip: 'Elimina',
-            icon: const Icon(Icons.delete_outline),
+            icon: Icon(Icons.delete_outline, color: p.red),
             onPressed: () => _confirmDelete(context, provider, activity),
           ),
         ],
       ),
       body: SafeArea(
+        top: false,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.screenSide,
+            0,
+            AppSpacing.screenSide,
+            32,
+          ),
           children: <Widget>[
             Text(
-              formatDateLong(activity.startTime),
-              style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 14),
+              activity.name,
+              style: AppText.largeTitle.copyWith(color: p.ink),
             ),
+            const SizedBox(height: 5),
             Text(
-              'Inizio ore ${formatTimeShort(activity.startTime)}',
-              style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 14),
+              '${formatDateLong(activity.startTime)}, ore '
+              '${formatTimeShort(activity.startTime)}',
+              style: AppText.caption.copyWith(color: p.inkFaint),
             ),
             const SizedBox(height: 16),
 
+            // ------------------------------------------------- numeri chiave
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 Expanded(
                   child: MetricCard(
                     label: 'Distanza',
                     value: formatDistanceKm(activity.distanceMeters),
                     unit: 'km',
-                    emphasized: true,
+                    valueFontSize: 28,
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -78,94 +95,94 @@ class ActivityDetailScreen extends StatelessWidget {
                   child: MetricCard(
                     label: 'Durata',
                     value: formatDuration(activity.duration),
+                    valueFontSize: 28,
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 12),
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 Expanded(
                   child: MetricCard(
                     label: 'Passo medio',
                     value: formatPace(activity.averagePaceSecondsPerKm),
                     unit: '/km',
-                    valueFontSize: 30,
+                    valueFontSize: 28,
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: MetricCard(
-                    label: 'Lap',
+                    label: isWorkout ? 'Parziali' : 'Giri',
                     value: '${activity.laps.length}',
-                    valueFontSize: 30,
+                    valueFontSize: 28,
                   ),
                 ),
               ],
             ),
 
-            const SizedBox(height: 20),
+            // ------------------------------------------------------ record
+            if (held.isNotEmpty) ...<Widget>[
+              const SizedBox(height: 14),
+              _RecordsHeld(records: held),
+            ],
+
+            // ---------------------------------------------------- parziali
+            SectionTitle(isWorkout ? 'Parziali' : 'Giri'),
+            LapTable(laps: activity.laps, showStepColumn: isWorkout),
+
+            // ------------------------------------------------ informazioni
             const SectionTitle('Informazioni'),
-            AppCard(
-              child: Column(
-                children: <Widget>[
-                  MetricRow(label: 'Tipo', value: activity.type.label),
-                  MetricRow(
-                    label: 'Scarpa',
-                    value: shoe?.displayName ?? 'Non assegnata',
+            InsetList(
+              children: <Widget>[
+                AppListRow(
+                  title: 'Tipo',
+                  value: activity.type.label,
+                  showChevron: false,
+                ),
+                AppListRow(
+                  title: 'Scarpa',
+                  subtitle: shoe == null ? 'Tocca per assegnarla' : null,
+                  value: shoe?.displayName ?? 'Nessuna',
+                  onTap: () => _changeShoe(context, provider, shoes, activity),
+                ),
+                AppListRow(
+                  title: 'Punti GPS registrati',
+                  value: '${activity.route.length}',
+                  showChevron: false,
+                ),
+                if (activity.heartRateAverage != null)
+                  AppListRow(
+                    title: 'FC media',
+                    value: '${activity.heartRateAverage} bpm',
+                    showChevron: false,
                   ),
-                  MetricRow(
-                    label: 'Punti GPS registrati',
-                    value: '${activity.route.length}',
+                if (activity.dynamics?.cadenceSpm != null)
+                  AppListRow(
+                    title: 'Cadenza',
+                    value: '${activity.dynamics!.cadenceSpm} passi/min',
+                    showChevron: false,
                   ),
-                  if (activity.heartRateAverage != null)
-                    MetricRow(
-                      label: 'FC media',
-                      value: '${activity.heartRateAverage} bpm',
-                    ),
-                  if (activity.dynamics?.cadenceSpm != null)
-                    MetricRow(
-                      label: 'Cadenza',
-                      value: '${activity.dynamics!.cadenceSpm} passi/min',
-                    ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              height: 52,
-              child: OutlinedButton.icon(
-                onPressed: () => _changeShoe(context, provider, shoes, activity),
-                icon: const Icon(Icons.hiking),
-                label: Text(shoe == null
-                    ? 'Assegna una scarpa'
-                    : 'Cambia scarpa'),
-              ),
+              ],
             ),
 
-            const SizedBox(height: 20),
-            _RecordsHeld(records: provider.recordsHeldBy(activity.id)),
-
-            const SectionTitle('Lap'),
+            const SizedBox(height: 14),
             AppCard(
-              child: LapTable(
-                laps: activity.laps,
-                showStepColumn: activity.type == ActivityType.workout,
-              ),
-            ),
-
-            const SizedBox(height: 20),
-            AppCard(
-              color: scheme.surfaceContainerHigh,
+              padding: const EdgeInsets.fromLTRB(14, 13, 15, 14),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Icon(Icons.favorite_border, color: scheme.onSurfaceVariant),
+                  Icon(Icons.favorite_border, size: 18, color: p.inkFaint),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'Frequenza cardiaca, cadenza, oscillazione verticale, HRV e sonno sono gia previsti nel modello dati: verranno mostrati qui quando sara collegata una sorgente reale (fascia cardio o orologio).',
-                      style: TextStyle(
-                          fontSize: 13, color: scheme.onSurfaceVariant),
+                      'Frequenza cardiaca, cadenza, oscillazione verticale, HRV e '
+                      'sonno sono gia previsti nel modello dati: verranno mostrati '
+                      'qui quando sara collegata una sorgente reale (fascia cardio '
+                      'o orologio).',
+                      style: AppText.caption.copyWith(color: p.inkFaint),
                     ),
                   ),
                 ],
@@ -216,7 +233,7 @@ class ActivityDetailScreen extends StatelessWidget {
     if (available.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-            content: Text('Nessuna scarpa disponibile: aggiungila da SCARPE.')),
+            content: Text('Nessuna scarpa disponibile: aggiungila da Scarpe.')),
       );
       return;
     }
@@ -233,7 +250,7 @@ class ActivityDetailScreen extends StatelessWidget {
             itemBuilder: (BuildContext c, int index) {
               final RunningShoe shoe = available[index];
               return ListTile(
-                leading: const Icon(Icons.hiking),
+                leading: const Icon(Icons.directions_walk_rounded),
                 title: Text(shoe.displayName),
                 subtitle: Text('${shoe.totalKm.toStringAsFixed(0)} km'),
                 selected: shoe.id == activity.shoeId,
@@ -260,7 +277,7 @@ class ActivityDetailScreen extends StatelessWidget {
   }
 }
 
-/// Mostra le distanze per cui questa corsa detiene il record personale.
+/// Targhetta con le distanze per cui questa corsa detiene il record.
 ///
 /// Non compare nulla se la corsa non detiene nessun primato: e' un premio,
 /// non una sezione fissa.
@@ -271,72 +288,57 @@ class _RecordsHeld extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (records.isEmpty) return const SizedBox.shrink();
+    final AppPalette p = AppPalette.of(context);
 
-    final ColorScheme scheme = Theme.of(context).colorScheme;
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 20),
-      child: AppCard(
-        color: scheme.primaryContainer,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Row(
-              children: <Widget>[
-                Icon(Icons.emoji_events,
-                    color: scheme.onPrimaryContainer, size: 26),
-                const SizedBox(width: 10),
-                Text(
-                  records.length == 1
-                      ? 'Record personale'
-                      : 'Record personali',
-                  style: TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w800,
-                    color: scheme.onPrimaryContainer,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Con questa corsa detieni il tuo miglior tempo su:',
-              style: TextStyle(
-                  fontSize: 13, color: scheme.onPrimaryContainer),
-            ),
-            const SizedBox(height: 8),
-            for (final DistanceRecord record in records)
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Row(
-                  children: <Widget>[
-                    Expanded(
-                      child: Text(
-                        record.distance.label,
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          color: scheme.onPrimaryContainer,
-                        ),
-                      ),
-                    ),
-                    Text(
-                      formatDuration(Duration(seconds: record.seconds)),
-                      style: TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w800,
-                        color: scheme.onPrimaryContainer,
-                        fontFeatures: const <FontFeature>[
-                          FontFeature.tabularFigures(),
-                        ],
-                      ),
-                    ),
-                  ],
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(AppRadius.card),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[p.accent, const Color(0xFFFF6B4A)],
+        ),
+      ),
+      padding: const EdgeInsets.fromLTRB(15, 14, 15, 15),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              const Icon(Icons.emoji_events_rounded,
+                  size: 22, color: Colors.white),
+              const SizedBox(width: 10),
+              Text(
+                records.length == 1
+                    ? 'Record personale'
+                    : 'Record personali',
+                style: AppText.title.copyWith(
+                  color: Colors.white,
+                  fontSize: 17,
                 ),
               ),
-          ],
-        ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          for (final DistanceRecord record in records)
+            Padding(
+              padding: const EdgeInsets.only(top: 5),
+              child: Row(
+                children: <Widget>[
+                  Expanded(
+                    child: Text(
+                      record.distance.label,
+                      style: AppText.row.copyWith(color: Colors.white),
+                    ),
+                  ),
+                  Text(
+                    formatDuration(Duration(seconds: record.seconds)),
+                    style: AppText.number(19, color: Colors.white),
+                  ),
+                ],
+              ),
+            ),
+        ],
       ),
     );
   }

@@ -37,3 +37,28 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+  # Inter, il carattere dell'interfaccia.
+  #
+  # PERCHE' NON IL CARATTERE DI SISTEMA: su Android il carattere predefinito e'
+  # Roboto, che cambia aspetto da telefono a telefono (i produttori lo
+  # sostituiscono). Inter e' incluso nell'app, quindi l'aspetto e' identico
+  # ovunque. E' anche il carattere libero piu' vicino al San Francisco di
+  # Apple, che e' lo stile scelto per l'app.
+  #
+  # I file sono "ridotti": contengono solo i caratteri latini che servono
+  # (circa 60 KB l'uno invece di 420 KB). Se un giorno servisse un alfabeto
+  # diverso, vanno rigenerati dai font originali di rsms.me/inter.
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Inter-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Inter-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Inter-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Inter-ExtraBold.ttf
+          weight: 800

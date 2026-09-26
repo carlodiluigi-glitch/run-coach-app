@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../app/tokens.dart';
+
 /// Messaggio mostrato quando una lista e' vuota o manca un permesso.
 ///
 /// Serve a gestire in modo chiaro i casi previsti: nessuna attivita', nessun
@@ -22,26 +24,35 @@ class EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ColorScheme scheme = Theme.of(context).colorScheme;
+    final AppPalette p = AppPalette.of(context);
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            Icon(icon, size: 64, color: scheme.onSurfaceVariant),
-            const SizedBox(height: 16),
+            Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                color: p.surface,
+                shape: BoxShape.circle,
+              ),
+              alignment: Alignment.center,
+              child: Icon(icon, size: 34, color: p.inkFaint),
+            ),
+            const SizedBox(height: 18),
             Text(
               title,
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+              style: AppText.title.copyWith(color: p.ink),
             ),
             if (message != null) ...<Widget>[
               const SizedBox(height: 8),
               Text(
                 message!,
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 15, color: scheme.onSurfaceVariant),
+                style: AppText.body.copyWith(color: p.inkSoft),
               ),
             ],
             if (actionLabel != null && onAction != null) ...<Widget>[
