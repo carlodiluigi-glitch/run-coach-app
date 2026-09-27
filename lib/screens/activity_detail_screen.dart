@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../app/tokens.dart';
+import '../models/effort.dart';
 import '../models/running_activity.dart';
 import '../models/running_shoe.dart';
 import '../providers/activity_provider.dart';
