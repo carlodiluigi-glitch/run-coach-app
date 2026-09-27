@@ -104,9 +104,13 @@ void main() {
 
       final double jump = after.index!.value - before.index!.value;
       // Quella prova da sola direbbe circa 47, cioe' nove punti sopra.
-      // L'indice si muove al massimo di un punto e mezzo.
+      // Per un tratto dentro una corsa il freno resta stretto: non e' detto
+      // che stesse spingendo, poteva essere una discesa.
       expect(jump > 0, isTrue, reason: 'deve salire un po\'');
-      expect(jump <= RunIndexEngine.maxUpStep + 0.01, isTrue,
+      expect(
+          jump <=
+              RunIndexEngine.maxUpStepFor(EstimateSource.runSegment) + 0.01,
+          isTrue,
           reason: 'salto di $jump punti: troppo');
     });
   });
@@ -133,7 +137,8 @@ void main() {
       // Sei conferme consecutive spostano l'indice di piu' di un singolo
       // salto massimo: e' la conferma ripetuta che fa il suo lavoro.
       final double growth = result.index!.value - onlyFirst.index!.value;
-      expect(growth > RunIndexEngine.maxUpStep, isTrue,
+      expect(growth > RunIndexEngine.maxUpStepFor(EstimateSource.runSegment),
+          isTrue,
           reason: 'cresciuto solo di $growth punti');
 
       // Ma resta comunque sotto quello che l'ultima prova direbbe da sola:
@@ -403,6 +408,110 @@ void main() {
         ],
       );
       expect(engine.samplesFromProfile(profile), isEmpty);
+    });
+  });
+
+  // --------------------------------------------------------------- le gare
+  //
+  // Questo gruppo nasce da un errore vero, trovato al primo uso serio: un
+  // atleta ha dichiarato il suo 10 km in 44:00 (indice 46,5) e il motore si
+  // e' mosso da 36,2 a 37,7. Gli avrebbe fatto correre il lento quasi un
+  // minuto al chilometro piu' piano del dovuto. Due regole tarate sui tratti
+  // GPS erano state applicate anche alle gare.
+  group('una gara dichiarata viene creduta', () {
+    PerformanceSample gara({
+      double meters = 10000,
+      required int seconds,
+      required int daysAgo,
+    }) =>
+        PerformanceSample(
+          meters: meters,
+          seconds: seconds,
+          date: now.subtract(Duration(days: daysAgo)),
+          source: EstimateSource.race,
+        );
+
+    test('non viene punita per la fatica non dichiarata', () {
+      // In gara si spinge per definizione: non avere l'RPE non deve costarle
+      // niente. Prima valeva il 60% del suo peso.
+      final double peso = engine.weightOf(
+        gara(seconds: mmss(44, 0), daysAgo: 1),
+        now: now,
+      );
+      expect(peso > 0.95, isTrue, reason: 'peso $peso: una gara deve pesare '
+          'quasi uno, anche senza fatica dichiarata');
+    });
+
+    test('porta l\'indice vicino a quello che la gara dice', () {
+      final List<PerformanceSample> soloCorse = <PerformanceSample>[
+        sample(seconds: mmss(26, 13), daysAgo: 0, rpe: null),
+      ];
+      final RunIndexResult prima = engine.estimate(soloCorse, now: now);
+
+      final RunIndexResult dopo = engine.estimate(
+        <PerformanceSample>[...soloCorse, gara(seconds: mmss(44, 0), daysAgo: 0)],
+        now: now,
+      );
+
+      final double dice = engine.fitness.vdotFromPerformance(10000, 44 * 60)!;
+      expect(dopo.index!.value > prima.index!.value + 5, isTrue,
+          reason: 'la gara vale $dice ma l\'indice si e\' fermato a '
+              '${dopo.index!.value}');
+      // Resta comunque un filo sotto: il motore e' prudente, non ottimista.
+      expect(dopo.index!.value <= dice, isTrue);
+      expect(dopo.index!.value > dice - 2.0, isTrue,
+          reason: 'troppo lontano da quello che la gara dice');
+    });
+
+    test('una corsa lenta non fa crollare la fiducia nella gara', () {
+      // Non si dimostra di essere lenti correndo piano: una corsa tranquilla
+      // non contraddice una gara, e non deve abbassare la fiducia.
+      final RunIndexResult solaGara = engine.estimate(
+        <PerformanceSample>[gara(seconds: mmss(44, 0), daysAgo: 0)],
+        now: now,
+      );
+      final RunIndexResult conLenta = engine.estimate(
+        <PerformanceSample>[
+          gara(seconds: mmss(44, 0), daysAgo: 0),
+          sample(seconds: mmss(32, 0), daysAgo: 2, rpe: 3),
+        ],
+        now: now,
+      );
+      expect(conLenta.index!.confidence >= solaGara.index!.confidence - 0.02,
+          isTrue,
+          reason: 'fiducia scesa da ${solaGara.index!.confidence} a '
+              '${conLenta.index!.confidence} per una corsa lenta');
+    });
+
+    test('una gara andata male viene ascoltata, ma con calma', () {
+      final RunIndexResult buona = engine.estimate(
+        <PerformanceSample>[gara(seconds: mmss(44, 0), daysAgo: 30)],
+        now: now,
+      );
+      final RunIndexResult poi = engine.estimate(
+        <PerformanceSample>[
+          gara(seconds: mmss(44, 0), daysAgo: 30),
+          gara(seconds: mmss(50, 0), daysAgo: 0),
+        ],
+        now: now,
+      );
+      final double calo = buona.index!.value - poi.index!.value;
+      expect(calo > 0, isTrue, reason: 'una gara peggiore deve contare');
+      expect(calo <= RunIndexEngine.maxDownStepFor(EstimateSource.race) + 0.01,
+          isTrue, reason: 'caduta di $calo punti: troppo di colpo');
+    });
+
+    test('il freno sui tratti GPS resta stretto', () {
+      expect(RunIndexEngine.maxUpStepFor(EstimateSource.runSegment) <= 1.5,
+          isTrue);
+      expect(
+          RunIndexEngine.maxUpStepFor(EstimateSource.race) >
+              RunIndexEngine.maxUpStepFor(EstimateSource.runSegment) * 3,
+          isTrue);
+      expect(
+          RunIndexEngine.upGainFor(EstimateSource.race) >
+              RunIndexEngine.upGainFor(EstimateSource.runSegment),
+          isTrue);
     });
   });
 }

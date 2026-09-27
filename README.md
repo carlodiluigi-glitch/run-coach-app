@@ -566,14 +566,47 @@ le prestazioni vengono pesate su quattro fattori:
 La fusione e' un **filtro sequenziale**, non una media. Tre regole lo
 governano:
 
-- **si sale piu' facilmente di quanto si scenda** (guadagno 0,55 contro 0,20).
-  Una prestazione eccellente prova cosa sai fare; una scarsa puo' essere
-  caldo, stanchezza, una brutta giornata;
-- **nessuna singola prestazione sposta l'indice di piu' di 1,5 punti**, e il
-  limite scende per le prove meno affidabili. Una domenica eccezionale non
-  cambia tutti i ritmi del mese;
+- **si sale piu' facilmente di quanto si scenda.** Una prestazione eccellente
+  prova cosa sai fare; una scarsa puo' essere caldo, stanchezza, una brutta
+  giornata;
+- **quanto l'indice segue una prestazione, e di quanto puo' spostarsi al
+  massimo, dipendono da DOVE VIENE quella prestazione** (vedi sotto);
 - **quattro conferme di fila valgono piu' di una**: il passo aumenta quando
   piu' prestazioni consecutive indicano la stessa direzione.
+
+#### Il freno non e' uguale per tutti (e qui c'era un errore)
+
+| fonte | quanto segue | spostamento massimo |
+|---|---|---|
+| gara | 0,90 | 10 punti |
+| test / prova a cronometro | 0,80 | 6 punti |
+| personale inserito a mano | 0,75 | 6 punti |
+| seduta di qualita' | 0,62 | 2 punti |
+| tratto veloce dentro una corsa | 0,55 | 1,2 punti |
+
+La prima versione usava **0,55 e 1,5 punti per tutto**. Quei numeri erano
+tarati sul caso difficile - un tratto veloce dentro una corsa normale, dove
+non si sa se l'atleta stava spingendo o se era una discesa - e applicarli
+anche alle gare e' stato un errore grosso.
+
+Si e' visto al primo uso serio: un atleta ha dichiarato il suo **10 km in
+44:00**, che vale indice **46,5**, e il motore si e' spostato da 36,2 a
+**37,7**. Un punto e mezzo, il massimo consentito. Gli avrebbe fatto correre
+il lento **quasi un minuto al chilometro piu' piano del dovuto**.
+
+Due regole sbagliate, tutte e due corrette:
+
+1. il motore moltiplicava ogni prestazione per la fatica dichiarata, e una
+   gara senza RPE prendeva 0,60 invece di 1,00 - veniva penalizzata perche'
+   nessuno le aveva chiesto se stava spingendo. **In gara si spinge per
+   definizione**: ora la fatica percepita pesa solo dove l'impegno e' davvero
+   ignoto (tratti e sedute);
+2. il tetto di 1,5 punti serve contro il rumore, e **una gara non e' rumore**:
+   e' la misura. Un allenatore che ti vede correre 44:00 non risponde
+   "aspettiamo conferme", risponde "allora i tuoi ritmi sono questi".
+
+Con le regole corrette, lo stesso atleta arriva a **45,4**: appena sotto quello
+che la gara dice, perche' il motore resta prudente, non ottimista.
 
 Una corsa e' **una** prova, non cinque: i tratti da 1,5 / 3 / 5 / 10 km dentro
 la stessa uscita sono lo stesso sforzo guardato con lenti diverse, e vengono
@@ -582,6 +615,22 @@ uniti in uno solo.
 L'indice **non scende mai perche' hai corso piano**. Scende solo per il
 passare del tempo senza prove: quello e' decadimento vero, mentre "oggi ero
 lento quindi sono peggiorato" non lo e'.
+
+E lo stesso principio vale per la **fiducia**: una corsa tranquilla non
+contraddice una gara, quindi non la abbassa. Prima bastava un'uscita lenta in
+archivio per far crollare la fiducia in un 10 km corso in gara - la
+confidenza diceva il contrario di quello che il motore dichiara altrove.
+
+#### Un limite noto
+
+Il filtro parte dalla prestazione piu' vecchia e la prende per buona qualunque
+sia il suo peso. Conseguenza: **una gara di sei mesi fa continua a reggere
+l'indice** finche' si continua a correre piano, perche' il decadimento scatta
+solo quando non arriva nessuna prova, non quando non ne arriva una
+significativa. La fiducia in quel caso resta bassa e le fasce larghe, quindi
+il motore lo dichiara - ma il numero resta piu' alto di quanto meriti. Va
+sistemato insieme al motore del carico, dove la distinzione fra "ho corso" e
+"ho corso forte" esiste gia'.
 
 ### SessionClassifier: cosa e' stata davvero la seduta
 
@@ -616,7 +665,7 @@ Gli scenari della specifica sono test veri:
 | Scenario | Test |
 |---|---|
 | D - miglioramento costante | l'indice sale, e piu' di un picco isolato |
-| E - singola prestazione eccezionale | il salto resta sotto 1,5 punti |
+| E - singola prestazione eccezionale | il salto resta sotto 1,2 punti |
 | F - facile corso troppo forte | riclassificato, e l'indice non si muove |
 | L - nessun sensore | tutto il motore gira su passo, distanza e fatica |
 

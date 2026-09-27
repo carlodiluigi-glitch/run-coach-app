@@ -154,20 +154,112 @@ class RunIndexEngine {
   static const double fullWeightMeters = 3000;
 
   /// Quanto in fretta l'indice segue una prestazione migliore del previsto.
-  static const double upGain = 0.55;
+  ///
+  /// NON E' UN NUMERO SOLO, E IL MOTIVO CONTA
+  /// ----------------------------------------
+  /// La prima versione usava 0,55 per tutto, con un tetto di 1,5 punti per
+  /// prestazione. Quei valori erano tarati su un tratto veloce dentro una
+  /// corsa normale, dove la prudenza e' d'obbligo: non si sa se l'atleta
+  /// stava spingendo o se era una discesa.
+  ///
+  /// Applicarli anche a una gara dichiarata e' stato un errore grosso. Un
+  /// atleta ha inserito il suo 10 km in 44:00 - indice 46,5 - e il motore si
+  /// e' mosso da 36,2 a 37,7: un punto e mezzo, il massimo consentito. Gli
+  /// avrebbe fatto fare il lento quasi un minuto al chilometro piu' piano
+  /// del dovuto.
+  ///
+  /// Una gara non e' un indizio da confermare: e' la misura. Un allenatore
+  /// che ti vede correre 44:00 non risponde "vediamo, aspettiamo conferme",
+  /// risponde "allora i tuoi ritmi sono questi". Il freno serve contro il
+  /// rumore, e una gara non e' rumore.
+  static double upGainFor(EstimateSource source) {
+    switch (source) {
+      case EstimateSource.race:
+        return 0.90;
+      case EstimateSource.timeTrial:
+        return 0.80;
+      case EstimateSource.userEntered:
+        return 0.75;
+      case EstimateSource.workout:
+        return 0.62;
+      case EstimateSource.runSegment:
+        return 0.55; // il valore di partenza, gia' validato sugli scenari
+      case EstimateSource.derived:
+        return 0.55;
+      case EstimateSource.defaultValue:
+        return 0.30;
+    }
+  }
 
-  /// Quanto in fretta segue una peggiore. Molto meno: una giornata storta non
-  /// e' una perdita di forma.
-  static const double downGain = 0.20;
+  /// Quanto in fretta segue una prestazione peggiore.
+  ///
+  /// Sempre meno di quanto salga: una giornata storta puo' essere caldo,
+  /// stanchezza, una notte insonne, mentre una prestazione eccellente non si
+  /// improvvisa. Ma una gara andata male resta una gara, e va ascoltata piu'
+  /// di un tratto lento dentro un'uscita.
+  static double downGainFor(EstimateSource source) {
+    switch (source) {
+      case EstimateSource.race:
+        return 0.35;
+      case EstimateSource.timeTrial:
+        return 0.28;
+      case EstimateSource.userEntered:
+        return 0.25;
+      default:
+        return 0.20;
+    }
+  }
 
   /// Massimo spostamento in punti che una singola prestazione puo' produrre.
   ///
-  /// Il limite viene poi ridotto per le prestazioni meno affidabili: una gara
-  /// puo' spostare l'indice di 1,5 punti, un tratto veloce dentro una corsa
-  /// normale di circa 1,2. Senza questo, per le prestazioni molto fuori scala
-  /// il limite sarebbe l'unico vincolo e una gara varrebbe quanto un allungo.
-  static const double maxUpStep = 1.5;
-  static const double maxDownStep = 1.0;
+  /// Per un tratto dentro una corsa resta stretto: e' li' che serve. Per una
+  /// gara e' largo abbastanza da non legare le mani al dato migliore che
+  /// l'app possiede.
+  static double maxUpStepFor(EstimateSource source) {
+    switch (source) {
+      case EstimateSource.race:
+        return 10.0;
+      case EstimateSource.timeTrial:
+        return 6.0;
+      case EstimateSource.userEntered:
+        return 6.0;
+      case EstimateSource.workout:
+        return 2.0;
+      default:
+        return 1.2;
+    }
+  }
+
+  static double maxDownStepFor(EstimateSource source) {
+    switch (source) {
+      case EstimateSource.race:
+        return 2.5;
+      case EstimateSource.timeTrial:
+        return 1.8;
+      default:
+        return 1.0;
+    }
+  }
+
+  /// Quanto la fatica dichiarata dice sull'affidabilita' della prestazione.
+  ///
+  /// Per un tratto dentro una corsa normale e' il segnale piu' importante:
+  /// senza sapere se stavi spingendo, quel tempo non dice niente.
+  ///
+  /// Per una gara e' una domanda senza senso, e trattare "non dichiarata"
+  /// come "forse non spingeva" era un bug vero: una gara entrava nel motore
+  /// al 60% del suo peso perche' nessuno le aveva chiesto quanto era costata.
+  /// In gara si spinge per definizione.
+  static double effortWeightFor(EstimateSource source, int? rpe) {
+    switch (source) {
+      case EstimateSource.race:
+      case EstimateSource.timeTrial:
+      case EstimateSource.userEntered:
+        return 1.0;
+      default:
+        return PerceivedEffort.reliabilityWeight(rpe);
+    }
+  }
 
   /// Quanto aumenta il passo quando piu' prestazioni di fila confermano il
   /// miglioramento. Una domenica buona puo' essere fortuna; quattro di fila
@@ -218,7 +310,7 @@ class RunIndexEngine {
     final DateTime reference = now ?? DateTime.now();
     final int days = reference.difference(sample.date).inDays;
     final double w = sample.source.reliability *
-        PerceivedEffort.reliabilityWeight(sample.rpe) *
+        effortWeightFor(sample.source, sample.rpe) *
         ageWeight(days) *
         distanceWeight(sample.meters);
     return w.clamp(0.0, 1.0);
@@ -342,23 +434,24 @@ class RunIndexEngine {
     int streak = 0;
     for (int i = 1; i < byDate.length; i++) {
       final WeightedSample s = byDate[i];
+      final EstimateSource source = s.sample.source;
       final bool improving = s.rawIndex > current;
       streak = improving ? streak + 1 : 0;
 
-      double gain = improving ? upGain : downGain;
+      double gain =
+          improving ? upGainFor(source) : downGainFor(source);
       if (improving && streak > 1) {
         gain *= 1 +
             corroborationBonus *
                 math.min(streak - 1, corroborationMaxSteps);
       }
 
-      // Il limite per singola prestazione dipende da quanto e' affidabile.
-      final double cap =
-          maxUpStep * (0.6 + 0.4 * s.sample.source.reliability);
-
+      // Quanto puo' spostare, al massimo, questa singola prestazione. Stretto
+      // per un tratto dentro una corsa, largo per una gara: vedi maxUpStepFor.
       final double delta = (s.rawIndex - current) * s.weight * gain;
-      final double capped =
-          improving ? math.min(delta, cap) : math.max(delta, -maxDownStep);
+      final double capped = improving
+          ? math.min(delta, maxUpStepFor(source))
+          : math.max(delta, -maxDownStepFor(source));
       current += capped;
     }
 
@@ -485,11 +578,21 @@ class RunIndexEngine {
     // Quanto e' recente: si dimezza ogni due mesi.
     final double recency = math.pow(0.5, idleDays / 60.0).toDouble();
 
-    // Quanto sono d'accordo: si guarda la dispersione pesata attorno al
-    // valore stimato. Prestazioni che si contraddicono abbassano la fiducia.
+    // Quanto sono d'accordo fra loro.
+    //
+    // ATTENZIONE A COSA CONTA COME DISACCORDO. Una corsa lenta non contraddice
+    // una gara: era lenta di proposito. Il motore lo dice gia' altrove ("non
+    // si scende perche' hai corso piano"), ma qui lo contraddiceva: bastava
+    // un'uscita tranquilla in archivio per far crollare la fiducia in un 10 km
+    // corso in gara. Quindi entrano nel conto solo le prestazioni che dicono
+    // qualcosa, cioe' quelle piu' veloci della stima, piu' quelle affidabili
+    // in entrambe le direzioni - una gara andata male e' un disaccordo vero.
     double variance = 0;
     double weightSum = 0;
     for (final WeightedSample s in samples) {
+      final bool counts = s.rawIndex > current ||
+          s.sample.source.reliability >= 0.8;
+      if (!counts) continue;
       variance += s.weight * math.pow(s.rawIndex - current, 2).toDouble();
       weightSum += s.weight;
     }
