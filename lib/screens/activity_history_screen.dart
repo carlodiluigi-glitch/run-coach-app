@@ -98,7 +98,7 @@ class _ActivityTile extends StatelessWidget {
               Expanded(
                 child: _Cell(
                   label: 'Distanza',
-                  value: formatDistanceKmWithUnit(activity.distanceMeters),
+                  value: formatDistanceWithUnit(activity.distanceMeters),
                 ),
               ),
               Expanded(

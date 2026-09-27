@@ -7,6 +7,37 @@ import '../utils/id_generator.dart';
 /// Tipo di attivita' registrata.
 enum ActivityType { free, workout }
 
+/// Cosa era davvero questa uscita, secondo chi l'ha corsa.
+///
+/// PERCHE' SERVE DICHIARARLO
+/// -------------------------
+/// Il motore di forma pesa una prestazione in base a quanto e' affidabile, e
+/// un tratto veloce dentro una corsa qualsiasi vale 0,45: giusto, perche' non
+/// si sa se l'atleta stava spingendo o se era una discesa.
+///
+/// Il problema e' che senza questo campo una gara CORSA CON L'APP valeva 0,45
+/// mentre la stessa gara DIGITATA A MANO nel profilo valeva 1,00. Cioe' il
+/// dato misurato dal GPS contava meno di quello battuto sulla tastiera, che
+/// e' esattamente al contrario di come dovrebbe essere.
+enum EffortKind { race, timeTrial }
+
+extension EffortKindInfo on EffortKind {
+  String get label => this == EffortKind.race ? 'Gara' : 'Test';
+
+  String get description => this == EffortKind.race
+      ? 'Una gara vera: vale il massimo per la stima della forma.'
+      : 'Una prova tirata a fondo da solo: vale quasi quanto una gara.';
+
+  String get storageKey => name;
+
+  static EffortKind? fromStorage(String? value) {
+    for (final EffortKind k in EffortKind.values) {
+      if (k.name == value) return k;
+    }
+    return null;
+  }
+}
+
 extension ActivityTypeLabel on ActivityType {
   String get label => this == ActivityType.free ? 'Corsa libera' : 'Allenamento';
 
@@ -62,6 +93,7 @@ class RunningActivity {
     this.note,
     this.feedback,
     this.plannedSessionKey,
+    this.declared,
     // --- Campi predisposti per il futuro (mai inventati) ---
     this.dynamics,
     this.heartRateAverage,
@@ -108,6 +140,12 @@ class RunningActivity {
   /// mentre la data no. Serve a confrontare previsto ed effettivo.
   final String? plannedSessionKey;
 
+  /// Gara o test, se l'atleta l'ha dichiarato. `null` = uscita normale.
+  ///
+  /// Non si deduce da solo e non si indovina: lo dice l'atleta dal dettaglio
+  /// dell'attivita'. Vedi [EffortKind].
+  final EffortKind? declared;
+
   // ---- Predisposizione funzioni future -------------------------------------
   /// Cadenza, lunghezza passo, oscillazione verticale. `null` se non misurate.
   final RunningDynamics? dynamics;
@@ -132,6 +170,9 @@ class RunningActivity {
   /// Fatica percepita, se dichiarata.
   int? get rpe => feedback?.rpe;
 
+  /// `true` se l'atleta ha dichiarato che era una gara o un test.
+  bool get isDeclaredEffort => declared != null;
+
   RunningActivity copyWith({
     String? name,
     String? shoeId,
@@ -139,6 +180,8 @@ class RunningActivity {
     String? note,
     SessionFeedback? feedback,
     String? plannedSessionKey,
+    EffortKind? declared,
+    bool clearDeclared = false,
   }) =>
       RunningActivity(
         id: id,
@@ -154,6 +197,7 @@ class RunningActivity {
         note: note ?? this.note,
         feedback: feedback ?? this.feedback,
         plannedSessionKey: plannedSessionKey ?? this.plannedSessionKey,
+        declared: clearDeclared ? null : (declared ?? this.declared),
         dynamics: dynamics,
         heartRateAverage: heartRateAverage,
         heartRateMax: heartRateMax,
@@ -176,6 +220,7 @@ class RunningActivity {
         'note': note,
         'feedback': feedback?.toJson(),
         'plannedSessionKey': plannedSessionKey,
+        'declared': declared?.storageKey,
         'dynamics': dynamics?.toJson(),
         'heartRateAverage': heartRateAverage,
         'heartRateMax': heartRateMax,
@@ -221,6 +266,7 @@ class RunningActivity {
       feedback:
           rawFeedback == null ? null : SessionFeedback.fromJson(rawFeedback),
       plannedSessionKey: json['plannedSessionKey'] as String?,
+      declared: EffortKindInfo.fromStorage(json['declared'] as String?),
       dynamics:
           rawDynamics == null ? null : RunningDynamics.fromJson(rawDynamics),
       heartRateAverage: (json['heartRateAverage'] as num?)?.toInt(),

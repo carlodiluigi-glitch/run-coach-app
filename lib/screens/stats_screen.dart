@@ -77,7 +77,7 @@ class StatsScreen extends StatelessWidget {
                 Expanded(
                   child: MetricCard(
                     label: 'Corsa piu lunga',
-                    value: formatDistanceKm(stats.longestRunMeters),
+                    value: formatDistance(stats.longestRunMeters),
                     unit: 'km',
                     valueFontSize: 30,
                   ),

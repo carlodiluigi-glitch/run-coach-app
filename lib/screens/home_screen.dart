@@ -416,7 +416,7 @@ class _LastActivityCard extends StatelessWidget {
             children: <Widget>[
               _MiniMetric(
                 label: 'Distanza',
-                value: formatDistanceKmWithUnit(last.distanceMeters),
+                value: formatDistanceWithUnit(last.distanceMeters),
               ),
               _MiniMetric(
                 label: 'Tempo',

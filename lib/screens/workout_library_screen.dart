@@ -136,7 +136,7 @@ class _WorkoutCard extends StatelessWidget {
             ],
           ),
           Text(
-            '${workout.totalSteps} fasi - stima ${formatDistanceKmWithUnit(workout.estimatedMeters, decimals: 1)} / ${formatDurationShort(workout.estimatedSeconds)}',
+            '${workout.totalSteps} fasi - stima ${formatDistanceWithUnit(workout.estimatedMeters, decimals: 1)} / ${formatDurationShort(workout.estimatedSeconds)}',
             style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 14),
           ),
           const SizedBox(height: 8),

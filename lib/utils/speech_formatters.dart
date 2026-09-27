@@ -14,7 +14,15 @@
 ///
 /// Tutte le funzioni sono pure: nessuna dipendenza da Flutter o dai plugin,
 /// quindi sono testabili con `flutter test`.
+///
+/// Come per lo schermo, i numeri arrivano in metri e in secondi al chilometro
+/// e vengono convertiti qui secondo l'unita' scelta: il coach dice "al
+/// miglio" se e' quello che l'atleta ha chiesto, ma dentro l'app resta tutto
+/// metrico.
 library;
+
+import '../models/user_settings.dart';
+import 'units.dart';
 
 /// Numeri da zero a venti scritti in lettere: la sintesi vocale li pronuncia
 /// meglio delle cifre quando sono isolati (es. "quattrocento metri").
@@ -80,33 +88,42 @@ String spokenDuration(int totalSeconds) {
 
 /// Distanza parlata: `400` -> "quattrocento metri",
 /// `8540` -> "otto chilometri e cinquecento metri", `2000` -> "due chilometri".
-String spokenDistance(double meters) {
+String spokenDistance(double meters, {UnitSystem? units}) {
   if (meters.isNaN || meters.isInfinite || meters < 0) return 'zero metri';
 
-  if (meters < 1000) {
+  final UnitSystem u = units ?? activeUnits;
+
+  if (meters < shortDistanceLimitMeters) {
     final int rounded = meters.round();
     return '$rounded metr${rounded == 1 ? 'o' : 'i'}';
   }
 
-  final int km = meters ~/ 1000;
-  // I metri residui si arrotondano ai cento: "e cinquecento metri" e' piu'
-  // naturale di "e cinquecentoquarantadue metri".
-  final int restMeters = ((meters % 1000) / 100).round() * 100;
-
-  final String kmPart = km == 1 ? 'un chilometro' : '$km chilometri';
-  if (restMeters <= 0) return kmPart;
-  if (restMeters >= 1000) {
-    final int nextKm = km + 1;
-    return nextKm == 1 ? 'un chilometro' : '$nextKm chilometri';
+  final double per = u.metersPerUnit;
+  final int whole = (meters ~/ per).toInt();
+  // Il resto si arrotonda ai cento metri: "e cinquecento metri" e' piu'
+  // naturale di "e cinquecentoquarantadue metri". In miglia si arrotonda al
+  // decimo, che e' come si parla ("otto virgola tre miglia").
+  if (u.isImperial) {
+    final double value = u.distanceFrom(meters);
+    final String text = value.toStringAsFixed(1).replaceAll('.', ',');
+    return value < 1.05 && value > 0.95 ? 'un miglio' : '$text miglia';
   }
-  return '$kmPart e $restMeters metri';
+
+  final int restMeters = ((meters % per) / 100).round() * 100;
+  final String wholePart = whole == 1 ? u.spokenOne : '$whole ${u.spokenMany}';
+  if (restMeters <= 0) return wholePart;
+  if (restMeters >= per) {
+    final int next = whole + 1;
+    return next == 1 ? u.spokenOne : '$next ${u.spokenMany}';
+  }
+  return '$wholePart e $restMeters metri';
 }
 
 /// Passo parlato: `323` -> "cinque e ventitre al chilometro".
 ///
 /// Restituisce `null` quando il passo non e' attendibile: in quel caso il
 /// coach semplicemente non lo annuncia, invece di dire un numero inventato.
-String? spokenPace(double? secondsPerKm) {
+String? spokenPace(double? secondsPerKm, {UnitSystem? units}) {
   if (secondsPerKm == null ||
       secondsPerKm.isNaN ||
       secondsPerKm.isInfinite ||
@@ -114,26 +131,28 @@ String? spokenPace(double? secondsPerKm) {
       secondsPerKm > 3599) {
     return null;
   }
-  final int total = secondsPerKm.round();
+  final UnitSystem u = units ?? activeUnits;
+  final int total = u.paceFrom(secondsPerKm).round();
   final int minutes = total ~/ 60;
   final int seconds = total % 60;
 
   if (seconds == 0) {
-    return '$minutes minuti netti al chilometro';
+    return '$minutes minuti netti ${u.spokenPer}';
   }
   // "cinque e ventitre" e' il modo in cui un corridore legge 5:23.
-  return '$minutes e ${seconds.toString().padLeft(2, '0')} al chilometro';
+  return '$minutes e ${seconds.toString().padLeft(2, '0')} ${u.spokenPer}';
 }
 
-/// Velocita' parlata in km/h, con una cifra decimale letta con la virgola.
-String spokenSpeedKmh(double? metersPerSecond) {
+/// Velocita' parlata, con una cifra decimale letta con la virgola.
+String spokenSpeed(double? metersPerSecond, {UnitSystem? units}) {
   if (metersPerSecond == null ||
       metersPerSecond.isNaN ||
       metersPerSecond.isInfinite ||
       metersPerSecond <= 0) {
     return 'velocita non disponibile';
   }
-  final double kmh = metersPerSecond * 3.6;
-  final String text = kmh.toStringAsFixed(1).replaceAll('.', ',');
-  return '$text chilometri orari';
+  final UnitSystem u = units ?? activeUnits;
+  final String text =
+      u.speedFrom(metersPerSecond).toStringAsFixed(1).replaceAll('.', ',');
+  return '$text ${u.spokenSpeed}';
 }

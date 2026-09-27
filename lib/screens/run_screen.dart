@@ -181,7 +181,7 @@ class _RunScreenState extends State<RunScreen> {
                 const SizedBox(height: 4),
                 Text(
                   '${workout.totalSteps} fasi  ·  stima '
-                  '${formatDistanceKmWithUnit(workout.estimatedMeters, decimals: 1)} '
+                  '${formatDistanceWithUnit(workout.estimatedMeters, decimals: 1)} '
                   'in ${formatDurationShort(workout.estimatedSeconds)}',
                   style: AppText.caption.copyWith(color: p.inkFaint),
                 ),
@@ -345,7 +345,7 @@ class _RunScreenState extends State<RunScreen> {
                   Expanded(
                     child: BigMetric(
                       label: 'Distanza',
-                      value: formatDistanceKm(run.distanceMeters),
+                      value: formatDistance(run.distanceMeters),
                       unit: 'km',
                       size: 34,
                     ),

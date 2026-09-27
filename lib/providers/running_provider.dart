@@ -313,7 +313,12 @@ class RunningProvider extends ChangeNotifier {
     // dell'allenamento, quindi non ne prende l'etichetta: e' solo la coda
     // della corsa.
     if (currentLapDistance >= 100 || currentLapSeconds >= 30) {
-      _closeLap(manual: false, announce: false, stepLabel: _finalLapLabel());
+      _closeLap(
+        manual: false,
+        announce: false,
+        stepLabel: _finalLapLabel(),
+        stepKind: _finalLapKind(),
+      );
     }
 
     await _coach.speak(_coach.phrases.stopped(), priority: SpeechPriority.high);
@@ -355,7 +360,11 @@ class RunningProvider extends ChangeNotifier {
   void manualLap() {
     if (_state != RunState.running) return;
     if (currentLapDistance < 5) return;
-    _closeLap(manual: true, stepLabel: currentStep?.label);
+    _closeLap(
+      manual: true,
+      stepLabel: currentStep?.label,
+      stepKind: currentStep?.step.type.storageKey,
+    );
     notifyListeners();
   }
 
@@ -525,6 +534,13 @@ class RunningProvider extends ChangeNotifier {
   /// Se l'allenamento e' finito lo spezzone non appartiene a nessuna fase:
   /// sono i metri fatti dopo, e non deve chiamarsi "Ripetuta". Se invece ci si
   /// ferma a meta' di una fase, quello e' un pezzo di quella fase.
+  /// Tipo della fase in corso alla chiusura, in forma non traducibile.
+  String? _finalLapKind() {
+    final WorkoutEngine? engine = _engine;
+    if (engine == null || engine.isEmpty || engine.isFinished) return null;
+    return currentStep?.step.type.storageKey;
+  }
+
   String? _finalLapLabel() {
     final WorkoutEngine? engine = _engine;
     if (engine == null || engine.isEmpty || engine.isFinished) return null;
@@ -545,6 +561,7 @@ class RunningProvider extends ChangeNotifier {
       manual: false,
       announce: false,
       stepLabel: completed.label,
+      stepKind: completed.step.type.storageKey,
     );
     if (lap == null) return;
 
@@ -577,6 +594,7 @@ class RunningProvider extends ChangeNotifier {
   Lap? _closeLap({
     required bool manual,
     required String? stepLabel,
+    String? stepKind,
     double? exactDistance,
     bool announce = true,
   }) {
@@ -595,6 +613,7 @@ class RunningProvider extends ChangeNotifier {
       totalTimeSeconds: totalSeconds,
       manual: manual,
       stepLabel: stepLabel,
+      stepKind: stepKind,
     );
     _laps.add(lap);
 

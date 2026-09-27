@@ -35,6 +35,7 @@ class AudioCoachService {
   double _speechRate = 0.5;
 
   CoachPhrases _phrases = CoachPhrases(CoachPersonality.normal);
+  String _athleteName = '';
 
   /// Ultimo stato di ritmo annunciato e quando.
   PaceStatus _lastPaceStatus = PaceStatus.unknown;
@@ -68,8 +69,16 @@ class AudioCoachService {
     _volume = settings.coachVolume.clamp(0.0, 1.0).toDouble();
     _speechRate = settings.speechRate.clamp(0.1, 1.0).toDouble();
     _paceCooldownSeconds = settings.paceAlertCooldownSeconds;
-    if (_phrases.personality != settings.coachPersonality) {
-      _phrases = CoachPhrases(settings.coachPersonality);
+    // Si ricostruisce anche quando cambia il nome: le frasi di partenza se
+    // lo portano dentro, e restare con quello vecchio vorrebbe dire salutare
+    // la persona sbagliata.
+    if (_phrases.personality != settings.coachPersonality ||
+        _athleteName != settings.userName) {
+      _athleteName = settings.userName;
+      _phrases = CoachPhrases(
+        settings.coachPersonality,
+        athleteName: settings.userName,
+      );
     }
     if (!_enabled) {
       await stop();

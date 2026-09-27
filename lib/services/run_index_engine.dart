@@ -3,7 +3,9 @@ import 'dart:math' as math;
 import '../models/athlete_profile.dart';
 import '../models/effort.dart';
 import '../models/estimate.dart';
+import '../models/lap.dart';
 import '../models/running_activity.dart';
+import '../models/workout_step.dart';
 import 'fitness_service.dart';
 import 'records_service.dart';
 
@@ -278,6 +280,44 @@ class RunIndexEngine {
   /// una prova nuova, non estrapolata all'infinito.
   static const double maxDecayPoints = 6.0;
 
+  // ------------------------------------------------------------- ripetute
+  /// Lavoro minimo perche' una serie di ripetute dica qualcosa.
+  static const double minRepWorkMeters = 1800;
+
+  /// Sotto questa distanza, e sotto questa durata, una singola ripetuta non
+  /// entra nel conto.
+  ///
+  /// Non e' pignoleria: le ripetute brevi si corrono a un ritmo piu' veloce
+  /// di quello da 3000 (sono lavoro di velocita', non di potenza aerobica).
+  /// Riportare un 10x400 al passo dei 3000 gonfierebbe l'indice di sei punti.
+  /// Due minuti e' il limite sotto cui Daniels stesso non parla piu' di
+  /// ripetute aerobiche.
+  static const double minRepMeters = 600;
+  static const int minRepSeconds = 120;
+
+  /// Oltre questa durata una ripetuta non e' piu' lavoro "da 3000".
+  ///
+  /// Daniels e' esplicito: le ripetute aerobiche non passano i cinque
+  /// minuti, perche' oltre non si tiene il ritmo di gara sui 3000. Un
+  /// 2x15 minuti non e' una seduta di ripetute, e' una seduta di soglia - e
+  /// va convertita in modo completamente diverso, vedi [_sampleFromReps].
+  ///
+  /// Senza questo limite il motore leggeva un 2x15 a ritmo soglia come se
+  /// fosse ritmo 3000 e ne ricavava indice 41 invece di 45: cioe' una seduta
+  /// fatta bene ABBASSAVA la stima.
+  static const int maxIntervalSeconds = 360;
+
+  /// Lavoro minimo perche' una seduta di soglia dica qualcosa.
+  static const int minThresholdSeconds = 1200;
+
+  /// Quanto possono essere diverse fra loro, in passo. Oltre questo scarto
+  /// non e' una serie tenuta a un ritmo solo, e' un progressivo o una serie
+  /// finita male: la media non significherebbe niente.
+  static const double maxRepSpread = 0.12;
+
+  /// La distanza a cui si riporta la serie. Vedi [_sampleFromReps].
+  static const double repEquivalentMeters = 3000;
+
   /// Distanze su cui si cerca il tratto migliore dentro ogni corsa.
   static const List<double> segmentDistances = <double>[
     1500,
@@ -336,9 +376,21 @@ class RunIndexEngine {
       }
       if (activity.route.length < 2) continue;
 
-      final EstimateSource source = activity.type == ActivityType.workout
-          ? EstimateSource.workout
-          : EstimateSource.runSegment;
+      // Se l'atleta ha dichiarato che era una gara o un test, quella parola
+      // vale piu' di qualunque euristica: la stessa prestazione passa da 0,45
+      // a 1,00. Prima non c'era modo di dirlo, e una gara corsa con l'app
+      // contava meno della stessa gara digitata a mano nel profilo.
+      final EffortKind? declared = activity.declared;
+      EstimateSource source;
+      if (declared == EffortKind.race) {
+        source = EstimateSource.race;
+      } else if (declared == EffortKind.timeTrial) {
+        source = EstimateSource.timeTrial;
+      } else if (activity.type == ActivityType.workout) {
+        source = EstimateSource.workout;
+      } else {
+        source = EstimateSource.runSegment;
+      }
 
       for (final double meters in segmentDistances) {
         if (activity.distanceMeters < meters) continue;
@@ -356,9 +408,131 @@ class RunIndexEngine {
           label: _distanceLabel(meters),
         ));
       }
+
+      final PerformanceSample? reps = _sampleFromReps(activity);
+      if (reps != null) out.add(reps);
+
+      // In una gara conta la gara intera, non il tratto migliore: se la
+      // distanza non e' una di quelle standard (una 12 km, una 15 km) senza
+      // questo pezzo andrebbe persa.
+      if (declared != null &&
+          activity.distanceMeters >= minUsableMeters &&
+          activity.durationSeconds > 0) {
+        out.add(PerformanceSample(
+          meters: activity.distanceMeters,
+          seconds: activity.durationSeconds,
+          date: activity.startTime,
+          source: source,
+          rpe: activity.rpe,
+          activityId: activity.id,
+          label: '${_distanceLabel(activity.distanceMeters)} '
+              '(${declared.label.toLowerCase()})',
+        ));
+      }
     }
 
     return out;
+  }
+
+  /// Una serie di ripetute vale come prestazione sui 3000 metri.
+  ///
+  /// PERCHE' SERVIVA
+  /// ---------------
+  /// L'indice cerca tratti CONTINUI da 1500 metri in su. In una seduta di
+  /// ripetute ogni tratto abbastanza lungo si porta dentro i recuperi, quindi
+  /// il passo esce lento e viene buttato via; e una singola ripetuta da 1000
+  /// metri sta sotto il minimo. Risultato: un 6x1000 a 4:18 - che e' una
+  /// prova seria - non contava niente. I parziali venivano salvati, mostrati
+  /// in tabella, e poi ignorati.
+  ///
+  /// COME SI CONVERTE, SENZA INVENTARE FISIOLOGIA
+  /// -------------------------------------------
+  /// Non si puo' prendere una ripetuta da 1000 in 4:18 e trattarla come una
+  /// gara sui 1000: con il recupero in mezzo si va piu' forte di quanto si
+  /// andrebbe di fila, e l'indice uscirebbe gonfiato.
+  ///
+  /// Si usa invece una **definizione**, non una costante inventata: il ritmo
+  /// ripetute e', per definizione, il ritmo di gara sui 3000 metri. Quindi
+  /// una serie tenuta a un ritmo costante, per almeno 1800 metri di lavoro
+  /// vero, dice che quel passo e' il passo da 3000 dell'atleta. La serie
+  /// viene riportata li': 3000 metri a quel ritmo.
+  ///
+  /// E' volutamente prudente. Chi corre le ripetute a ritmo 5 km invece che a
+  /// ritmo 3 km viene sottostimato un po' - il che e' l'errore giusto da
+  /// fare, perche' l'altro manda ad allenarsi troppo forte.
+  ///
+  /// Pesa come seduta di allenamento (0,65): piu' di un tratto dentro una
+  /// corsa normale, meno di una gara. In allenamento quasi nessuno arriva
+  /// fino in fondo come in gara.
+  PerformanceSample? _sampleFromReps(RunningActivity activity) {
+    final String repKind = StepType.interval.storageKey;
+
+    double meters = 0;
+    int seconds = 0;
+    int count = 0;
+    double fastest = double.infinity;
+    double slowest = 0;
+    int shortest = 1 << 30;
+    int longest = 0;
+
+    for (final Lap lap in activity.laps) {
+      if (lap.stepKind != repKind) continue;
+      if (lap.distanceMeters < minRepMeters) continue;
+      if (lap.durationSeconds < minRepSeconds) continue;
+      final double? pace = lap.paceSecondsPerKm;
+      if (pace == null || pace <= 0) continue;
+
+      meters += lap.distanceMeters;
+      seconds += lap.durationSeconds;
+      count += 1;
+      if (pace < fastest) fastest = pace;
+      if (pace > slowest) slowest = pace;
+      if (lap.durationSeconds < shortest) shortest = lap.durationSeconds;
+      if (lap.durationSeconds > longest) longest = lap.durationSeconds;
+    }
+
+    if (count < 1 || seconds <= 0) return null;
+    if (fastest <= 0 || !fastest.isFinite) return null;
+    // Ritmi troppo diversi fra loro: e' un progressivo, la media non
+    // significa niente.
+    if ((slowest - fastest) / fastest > maxRepSpread) return null;
+
+    final double pace = seconds / (meters / 1000.0);
+
+    // ------------------------------------------------ frazioni lunghe: soglia
+    // Il ritmo soglia e', per definizione, il ritmo che si terrebbe per un'ora
+    // esatta. Quindi da mezz'ora di lavoro a quel ritmo si ricava direttamente
+    // la distanza che l'atleta coprirebbe in un'ora: e' la definizione, non
+    // una conversione.
+    if (shortest >= maxIntervalSeconds) {
+      if (seconds < minThresholdSeconds) return null;
+      final double hourMeters = 3600.0 / (pace / 1000.0);
+      if (hourMeters < minUsableMeters) return null;
+      return PerformanceSample(
+        meters: hourMeters,
+        seconds: 3600,
+        date: activity.startTime,
+        source: EstimateSource.workout,
+        rpe: activity.rpe,
+        activityId: activity.id,
+        label: '${(seconds / 60).round()} minuti di soglia',
+      );
+    }
+
+    // ------------------------------------------- ripetute vere: ritmo 3000
+    // Una ripetuta sola e' un episodio, non una serie.
+    if (count < 2 || meters < minRepWorkMeters) return null;
+    if (longest > maxIntervalSeconds) return null;
+    return PerformanceSample(
+      meters: repEquivalentMeters,
+      seconds: (repEquivalentMeters / 1000.0 * pace).round(),
+      date: activity.startTime,
+      source: EstimateSource.workout,
+      rpe: activity.rpe,
+      activityId: activity.id,
+      label: '$count ripetute (${(meters / 1000).toStringAsFixed(1)} km di '
+          'lavoro)',
+    );
   }
 
   /// Prestazioni ricavate dai personal best dichiarati nel profilo.

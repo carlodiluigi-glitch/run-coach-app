@@ -19,18 +19,18 @@ void main() {
     });
   });
 
-  group('formatDistanceKm', () {
+  group('formatDistance', () {
     test('due decimali', () {
-      expect(formatDistanceKm(8543.2), '8.54');
+      expect(formatDistance(8543.2), '8.54');
     });
 
     test('valori negativi o non validi diventano zero', () {
-      expect(formatDistanceKm(-10), '0.00');
-      expect(formatDistanceKm(double.nan), '0.00');
+      expect(formatDistance(-10), '0.00');
+      expect(formatDistance(double.nan), '0.00');
     });
 
     test('con unita', () {
-      expect(formatDistanceKmWithUnit(8543.2), '8.54 km');
+      expect(formatDistanceWithUnit(8543.2), '8.54 km');
     });
   });
 

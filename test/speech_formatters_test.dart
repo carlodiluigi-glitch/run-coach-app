@@ -78,14 +78,14 @@ void main() {
     });
   });
 
-  group('spokenSpeedKmh', () {
+  group('spokenSpeed', () {
     test('usa la virgola decimale', () {
-      expect(spokenSpeedKmh(4.0), '14,4 chilometri orari');
+      expect(spokenSpeed(4.0), '14,4 chilometri orari');
     });
 
     test('velocita non disponibile', () {
-      expect(spokenSpeedKmh(null), 'velocita non disponibile');
-      expect(spokenSpeedKmh(0), 'velocita non disponibile');
+      expect(spokenSpeed(null), 'velocita non disponibile');
+      expect(spokenSpeed(0), 'velocita non disponibile');
     });
   });
 }

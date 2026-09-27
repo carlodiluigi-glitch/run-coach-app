@@ -12,6 +12,7 @@ class Lap {
     required this.totalTimeSeconds,
     this.manual = false,
     this.stepLabel,
+    this.stepKind,
   });
 
   /// Numero progressivo del lap (parte da 1).
@@ -33,6 +34,19 @@ class Lap {
   /// (es. "Ripetuta 3/10"). Nullo per la corsa libera.
   final String? stepLabel;
 
+  /// Che TIPO di fase era, in forma non traducibile: `interval`, `recovery`,
+  /// `warmup`...
+  ///
+  /// L'etichetta qui sopra e' scritta per essere letta da una persona, quindi
+  /// e' in italiano e un giorno sara' tradotta. Chi deve RAGIONARE sui
+  /// parziali - il motore di forma, che cerca le ripetute vere dentro una
+  /// seduta - non puo' dipendere dalla parola "Ripetuta": si romperebbe alla
+  /// prima traduzione. Per questo il tipo viaggia a parte.
+  ///
+  /// Nullo per i giri automatici, per la corsa libera e per tutti i parziali
+  /// salvati prima che questo campo esistesse.
+  final String? stepKind;
+
   /// Passo del lap in secondi per chilometro. `null` se non calcolabile.
   double? get paceSecondsPerKm =>
       paceFromDistanceAndTime(distanceMeters, durationSeconds);
@@ -44,6 +58,7 @@ class Lap {
         'totalTimeSeconds': totalTimeSeconds,
         'manual': manual,
         'stepLabel': stepLabel,
+        'stepKind': stepKind,
       };
 
   factory Lap.fromJson(Map<String, dynamic> json) => Lap(
@@ -53,5 +68,6 @@ class Lap {
         totalTimeSeconds: (json['totalTimeSeconds'] as num?)?.toInt() ?? 0,
         manual: json['manual'] as bool? ?? false,
         stepLabel: json['stepLabel'] as String?,
+        stepKind: json['stepKind'] as String?,
       );
 }

@@ -115,11 +115,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const SectionTitle('Unita di misura'),
             AppCard(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              child: _OptionTile(
-                selected: settings.units == UnitSystem.metric,
-                title: 'Metrico (km)',
-                subtitle: 'Unica unita disponibile in questa versione.',
-                onTap: () => provider.setUnits(UnitSystem.metric),
+              child: Column(
+                children: <Widget>[
+                  _OptionTile(
+                    selected: settings.units == UnitSystem.metric,
+                    title: 'Chilometri',
+                    subtitle: 'Distanze in km, passo in min/km.',
+                    onTap: () => provider.setUnits(UnitSystem.metric),
+                  ),
+                  _OptionTile(
+                    selected: settings.units == UnitSystem.imperial,
+                    title: 'Miglia',
+                    subtitle: 'Distanze in mi, passo in min/mi. Le ripetute '
+                        'restano in metri: in pista sono metriche ovunque.',
+                    onTap: () => provider.setUnits(UnitSystem.imperial),
+                  ),
+                ],
+              ),
+            ),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(4, 8, 4, 0),
+              child: Text(
+                'Le corse gia\' salvate non vengono toccate: dentro l\'app '
+                'resta tutto in metri, cambia solo come viene scritto.',
+                style: TextStyle(fontSize: 12),
               ),
             ),
 

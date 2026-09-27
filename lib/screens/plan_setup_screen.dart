@@ -4,8 +4,9 @@ import 'package:provider/provider.dart';
 import '../app/tokens.dart';
 import '../models/training_plan.dart';
 import '../providers/activity_provider.dart';
+import '../models/estimate.dart';
 import '../providers/plan_provider.dart';
-import '../services/fitness_service.dart';
+import '../services/run_index_engine.dart';
 import '../services/stats_service.dart';
 import '../widgets/app_card.dart';
 import '../widgets/inset_list.dart';
@@ -20,8 +21,6 @@ class PlanSetupScreen extends StatefulWidget {
 }
 
 class _PlanSetupScreenState extends State<PlanSetupScreen> {
-  static const FitnessService _fitness = FitnessService();
-
   RaceGoal _goal = RaceGoal.tenK;
   int _weeks = RaceGoal.tenK.defaultWeeks;
   int _days = 4;
@@ -43,9 +42,18 @@ class _PlanSetupScreenState extends State<PlanSetupScreen> {
       if (suggested > 5) _startKm = double.parse(suggested.toStringAsFixed(0));
     }
 
-    final FitnessEstimate estimate =
-        _fitness.estimateFromRecords(activities.records);
-    final bool ready = !estimate.isEmpty;
+    // I passi del piano devono venire dallo STESSO indice che si vede nella
+    // schermata Forma.
+    //
+    // Prima questa schermata usava una stima vecchia, ricavata solo dai
+    // record misurati col GPS: non sapeva niente dei personali dichiarati a
+    // mano ne' delle gare. Risultato: la Forma diceva 45,4 e il piano veniva
+    // costruito su 36, cioe' con i ritmi di un altro atleta. Due numeri per
+    // la stessa cosa nella stessa app, e quello sbagliato era proprio quello
+    // che decideva gli allenamenti.
+    final RunIndexResult forma = activities.runIndex;
+    final Estimate<double>? indice = forma.index;
+    final bool ready = indice != null;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Nuovo piano')),
@@ -67,7 +75,7 @@ class _PlanSetupScreenState extends State<PlanSetupScreen> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        estimate.missingReason,
+                        forma.explanation,
                         style: AppText.body.copyWith(color: p.inkSoft),
                       ),
                     ),
@@ -199,7 +207,9 @@ class _PlanSetupScreenState extends State<PlanSetupScreen> {
             SizedBox(
               height: 54,
               child: FilledButton(
-                onPressed: (ready && !_saving) ? () => _create(estimate) : null,
+                onPressed: (ready && !_saving)
+                    ? () => _create(indice!.value)
+                    : null,
                 style: FilledButton.styleFrom(
                   backgroundColor: p.accent,
                   foregroundColor: p.onAccent,
@@ -213,8 +223,9 @@ class _PlanSetupScreenState extends State<PlanSetupScreen> {
               const SizedBox(height: 10),
               Text(
                 'Le sedute useranno i passi del tuo indice di forma '
-                '${estimate.vdot.toStringAsFixed(1)}. Se migliori, potrai '
-                'rifare il piano con i passi aggiornati.',
+                '${indice!.value.toStringAsFixed(1)} (fiducia '
+                '${indice.confidenceLabel}). Se migliori, potrai rifare il '
+                'piano con i passi aggiornati.',
                 style: AppText.caption.copyWith(color: p.inkFaint),
               ),
             ],
@@ -224,7 +235,7 @@ class _PlanSetupScreenState extends State<PlanSetupScreen> {
     );
   }
 
-  Future<void> _create(FitnessEstimate estimate) async {
+  Future<void> _create(double vdot) async {
     setState(() => _saving = true);
 
     final PlanProvider plans = context.read<PlanProvider>();
@@ -236,7 +247,7 @@ class _PlanSetupScreenState extends State<PlanSetupScreen> {
       weeks: _weeks,
       daysPerWeek: _days,
       startWeeklyKm: _startKm,
-      vdot: estimate.vdot,
+      vdot: vdot,
     );
 
     final bool ok = await plans.create(config);

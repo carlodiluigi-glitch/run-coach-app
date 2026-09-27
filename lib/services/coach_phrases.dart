@@ -13,11 +13,24 @@ import '../models/user_settings.dart';
 /// contiene insulti o contenuti discriminatori: il "Sergente" e' duro e
 /// ironico, mai offensivo.
 class CoachPhrases {
-  CoachPhrases(this.personality, {Random? random})
+  CoachPhrases(this.personality, {Random? random, this.athleteName = ''})
       : _random = random ?? Random();
 
   final CoachPersonality personality;
+
+  /// Il nome dell'atleta, se l'ha dato. Vuoto se ha preferito non dirlo.
+  ///
+  /// Viene usato **solo alla partenza**. Un coach che ti chiama per nome a
+  /// ogni chilometro diventa insopportabile dopo dieci minuti: il nome serve
+  /// a far capire che sta parlando a te, e per quello basta una volta.
+  final String athleteName;
+
   final Random _random;
+
+  /// ", Carlo" - oppure niente, se il nome non c'e'. Si incolla dentro la
+  /// frase, non dopo: "Partenza, Carlo." suona come una persona, "Partenza.
+  /// Carlo." suona come un elenco.
+  String get _vocativo => athleteName.trim().isEmpty ? '' : ', ${athleteName.trim()}';
 
   String _pick(List<String> options) {
     if (options.isEmpty) return '';
@@ -42,21 +55,23 @@ class CoachPhrases {
 
   // ------------------------------------------------------------------ avvio
   String start() => _pick(_byPersonality(
-        normal: <String>['Partenza.'],
+        normal: <String>['Partenza$_vocativo.'],
         motivational: <String>[
-          'Partenza! Buon allenamento.',
-          'Si parte. Goditela.',
+          'Partenza$_vocativo! Buon allenamento.',
+          'Si parte$_vocativo. Goditela.',
         ],
         sergeant: <String>[
-          'Si parte. Niente scuse.',
-          'Partenza. Voglio vedere impegno.',
+          'Si parte$_vocativo. Niente scuse.',
+          'Partenza$_vocativo. Voglio vedere impegno.',
         ],
       ));
 
   String freeRunStart() => _pick(_byPersonality(
-        normal: <String>['Corsa libera avviata.'],
-        motivational: <String>['Corsa libera. Divertiti e resta sciolto.'],
-        sergeant: <String>['Corsa libera. Vediamo cosa sai fare.'],
+        normal: <String>['Corsa libera avviata$_vocativo.'],
+        motivational: <String>[
+          'Corsa libera$_vocativo. Divertiti e resta sciolto.'
+        ],
+        sergeant: <String>['Corsa libera$_vocativo. Vediamo cosa sai fare.'],
       ));
 
   String paused() => 'Allenamento in pausa.';

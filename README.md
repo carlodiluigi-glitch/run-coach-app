@@ -651,6 +651,139 @@ qualita': nessun punteggio lo puo' compensare. Un algoritmo che manda a fare
 ripetute su un ginocchio che tira fa un danno che nessun guadagno di forma
 ripaga.
 
+### Le ripetute contano
+
+L'indice cerca tratti **continui** da 1500 metri in su. In una seduta a
+intervalli ogni tratto abbastanza lungo si porta dentro i recuperi, quindi il
+passo esce lento e viene buttato via; e una singola ripetuta da 1000 metri sta
+sotto il minimo. Risultato: un **6x1000 a 4:18** - che e' una prova seria -
+non contava niente. I parziali venivano salvati, mostrati in tabella, e poi
+ignorati dal motore.
+
+Non si puo' pero' prendere una ripetuta da 1000 in 4:18 e trattarla come una
+gara sui 1000: con il recupero in mezzo si va piu' forte di quanto si andrebbe
+di fila, e l'indice uscirebbe gonfiato.
+
+La conversione usa una **definizione**, non una costante inventata: il ritmo
+ripetute e', per definizione, il ritmo di gara sui 3000 metri. Quindi una
+serie tenuta a ritmo costante, con almeno **1800 metri di lavoro vero**, dice
+che quel passo e' il passo da 3000 dell'atleta, e viene riportata li'.
+
+| serie | equivalente | indice |
+|---|---|---|
+| 6x1000 a 4:18 | 3000 in 12:54 | 44,1 |
+| 4x1000 a 4:10 | 3000 in 12:30 | 45,7 |
+| 8x800 a 4:05 | 3000 in 12:15 | 46,7 |
+| 10x400 a 3:50 | — | scartata |
+
+Le condizioni, tutte necessarie: almeno **due** ripetute (un episodio non fa
+una serie), ognuna fra **due e sei minuti**, e uno scarto di passo fra la piu'
+veloce e la piu' lenta **entro il 12%** - oltre, e' un progressivo e la media
+non significa niente.
+
+I due limiti di durata hanno ognuno la sua storia, e sono due errori trovati
+prima di spedirli:
+
+- **sotto i due minuti** le ripetute si corrono a ritmo velocita', non a ritmo
+  3000. Un 10x400 riportato ai 3000 gonfiava l'indice di sei punti;
+- **sopra i sei minuti** non sono piu' ripetute. E' venuto fuori da una
+  domanda: *"2 per 15 minuti come ripetute possono andare?"*. No - e non
+  perche' sia una brutta seduta, ma perche' quindici minuti a ritmo 3000 non
+  esistono: quel ritmo si tiene per dodici minuti in tutto, in gara. Un 2x15
+  e' lavoro di **soglia**, e la vecchia regola lo leggeva come ritmo 3000
+  ricavandone indice 41 invece di 45: una seduta fatta bene **abbassava** la
+  stima.
+
+#### E le frazioni lunghe sono soglia
+
+Per le frazioni oltre i sei minuti la conversione e' un'altra, e anche questa
+e' una definizione e non un'invenzione: il **ritmo soglia** e' il ritmo che si
+terrebbe per **un'ora esatta**. Quindi da mezz'ora di lavoro a quel ritmo si
+ricava direttamente la distanza che l'atleta coprirebbe in un'ora.
+
+| seduta | equivalente | indice |
+|---|---|---|
+| 2x15 min a 4:34 | 13.136 m in un'ora | 45,4 |
+| 30 min di fila a 4:34 | 13.136 m in un'ora | 45,4 |
+| 8 min a 4:34 | — | scartata (troppo poco) |
+
+Servono almeno **venti minuti** di lavoro complessivo. Non serve che siano
+frazionati: trenta minuti di fila a ritmo soglia sono la prova piu' pulita che
+esista per quel ritmo.
+
+Una seduta **mista** - ripetute corte piu' un blocco lungo - non viene
+convertita: non e' ne' l'una ne' l'altra cosa, e indovinare sarebbe peggio che
+tacere.
+
+Pesa **0,65**, come seduta di allenamento: piu' di un tratto dentro una corsa
+normale, meno di una gara.
+
+Per riconoscere le ripetute senza dipendere dalla parola "Ripetuta", ogni
+parziale porta con se' il **tipo** della fase in forma non traducibile
+(`interval`, `recovery`, ...) accanto all'etichetta leggibile. Cercare la
+stringa italiana si sarebbe rotto alla prima traduzione.
+
+### Gara o test, dichiarati sull'attivita'
+
+C'era un'assurdita': una gara **corsa con l'app** valeva 0,45, mentre la
+stessa gara **digitata a mano** nel profilo valeva 1,00. Il dato misurato dal
+GPS contava meno di quello battuto sulla tastiera.
+
+Adesso dal dettaglio di un'attivita' si puo' dichiarare che era una **gara**
+(1,00) o un **test** (0,85). E' una dichiarazione, non una deduzione: una
+corsa tirata puo' essere una gara o solo una giornata buona, e la differenza
+la sa solo chi l'ha corsa. Per le uscite dichiarate entra nel conto anche la
+**distanza intera**, non solo i tratti standard: una 12 km di gara altrimenti
+andrebbe persa.
+
+## Chilometri o miglia
+
+L'interruttore esisteva nelle impostazioni fin dall'inizio e veniva pure
+salvato, ma **non lo leggeva nessuno**: si poteva scegliere "Imperiale" e
+l'app continuava tranquillamente a scrivere chilometri.
+
+Ora funziona, e la scelta si fa al **primo avvio** insieme al nome - vedere le
+distanze nell'unita' sbagliata fa sembrare l'app rotta prima ancora di aver
+corso.
+
+La regola che non si tocca: **dentro l'app tutto resta in metri e in secondi
+al chilometro**. Il GPS misura in metri, lo storico e' salvato in metri, il
+motore ragiona in metri. Le miglia esistono solo nell'ultimo centimetro,
+quando un numero viene scritto sullo schermo o detto ad alta voce. E' il
+motivo per cui si puo' cambiare unita' quando si vuole senza rovinare niente:
+se l'unita' finisse dentro i file, il primo cambio trasformerebbe dieci
+chilometri in dieci miglia e lo storico sarebbe da buttare.
+
+Le distanze corte restano in **metri** in tutti e due i sistemi: in pista si
+corrono i 400, non le 437 iarde, ed e' metrico anche negli Stati Uniti.
+
+La conversione vive in [`lib/utils/units.dart`](lib/utils/units.dart). L'unita'
+attiva e' una variabile di modulo e non un parametro passato a mano in tutti e
+57 i punti che formattano numeri: 57 punti sono 57 occasioni di dimenticarsene,
+e una dimenticanza non darebbe errore, darebbe solo un numero sbagliato - il
+tipo di bug peggiore. Chi vuole essere esplicito, i test per primi, puo'
+sempre passarla come parametro.
+
+## La lingua, piu' avanti
+
+Le frasi italiane scritte dentro il codice sono **oltre mille, in 54 file**.
+Tradurle adesso vorrebbe dire scriverle due volte, perche' le frasi del motore
+adattivo - quelle che spiegheranno *perche'* propone un allenamento - non
+esistono ancora.
+
+Quindi si traduce alla fine. Per evitare che quel giorno diventi una caccia al
+tesoro, c'e' [`tool/estrai_frasi.py`](tool/estrai_frasi.py): produce l'elenco
+completo con file, riga e testo, in un colpo solo. Non c'e' niente da tenere
+aggiornato a mano.
+
+La convenzione intanto e' una sola, e vale da subito: **mai costruire una
+frase incollando pezzi**.
+
+```dart
+'Calcolato su ' + n + ' prestazioni'   // NO: altrove l'ordine cambia
+'Calcolato su $n prestazioni'          // SI: e' una frase sola
+```
+
 ### Valori empirici
 
 Tutte le costanti tarabili sono raccolte in cima ai rispettivi motori e

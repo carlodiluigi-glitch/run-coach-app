@@ -113,6 +113,20 @@ class _SplashScreenState extends State<SplashScreen> {
                               ),
                             ),
                             const SizedBox(height: 16),
+                            // La riga di paternita' sta qui, subito sotto il
+                            // nome, e non in fondo allo schermo: in fondo era
+                            // piccola e scolorita, cioe' illeggibile. E' un
+                            // sottotitolo, non una nota a pie' di pagina.
+                            Text(
+                              RunCoachApp.credit,
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                                letterSpacing: 0.4,
+                                color: p.inkSoft,
+                              ),
+                            ),
+                            const SizedBox(height: 30),
                             Text(
                               hasName
                                   ? settings.settings.greeting
@@ -126,15 +140,6 @@ class _SplashScreenState extends State<SplashScreen> {
                             ),
                           ],
                         ),
-                      ),
-                    ),
-                    Text(
-                      RunCoachApp.credit,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        letterSpacing: 0.3,
-                        color: p.inkFaint,
                       ),
                     ),
                   ],

@@ -2,7 +2,15 @@
 ///
 /// Tutte le funzioni sono "pure" (nessuna dipendenza da Flutter o da plugin)
 /// cosi' possono essere testate con `flutter test` senza inizializzare nulla.
+///
+/// Distanze, passi e velocita' arrivano sempre in **metri e secondi al
+/// chilometro** - e' l'unita' interna dell'app - e vengono convertite qui,
+/// nell'ultimo momento utile, secondo l'unita' scelta dall'utente. Vedi
+/// `units.dart` per il perche'.
 library;
+
+import '../models/user_settings.dart';
+import 'units.dart';
 
 /// Placeholder mostrato quando il dato non e' ancora disponibile.
 const String kEmptyPace = '--:--';
@@ -40,31 +48,34 @@ String formatDurationShort(int seconds) {
   return '${hours}h ${_two(restMinutes)}min';
 }
 
-/// Converte metri in chilometri con [decimals] decimali (default 2).
+/// Distanza nell'unita' scelta, con [decimals] decimali (default 2).
 ///
-/// Esempio: `8543.2` -> `8.54`
-String formatDistanceKm(double meters, {int decimals = 2}) {
+/// `8543.2` -> `8.54` in chilometri, `5.31` in miglia.
+String formatDistance(double meters, {int decimals = 2, UnitSystem? units}) {
   if (meters.isNaN || meters.isInfinite || meters < 0) {
     return (0.0).toStringAsFixed(decimals);
   }
-  return (meters / 1000.0).toStringAsFixed(decimals);
+  return (units ?? activeUnits).distanceFrom(meters).toStringAsFixed(decimals);
 }
 
-/// Come [formatDistanceKm] ma con l'unita': `8.54 km`.
-String formatDistanceKmWithUnit(double meters, {int decimals = 2}) =>
-    '${formatDistanceKm(meters, decimals: decimals)} km';
+/// Come [formatDistance] ma con l'unita' scritta: `8.54 km`, `5.31 mi`.
+String formatDistanceWithUnit(double meters,
+        {int decimals = 2, UnitSystem? units}) =>
+    '${formatDistance(meters, decimals: decimals, units: units)} '
+    '${(units ?? activeUnits).distanceUnit}';
 
-/// Formatta una distanza scegliendo automaticamente metri o chilometri.
+/// Distanza scegliendo da sola fra metri e unita' lunga.
 ///
-/// Sotto i 1000 m mostra i metri interi (utile per le ripetute: `400 m`).
-String formatDistanceAuto(double meters) {
+/// Sotto i mille metri restano metri interi (`400 m`) in tutti e due i
+/// sistemi: le ripetute in pista sono metriche ovunque.
+String formatDistanceAuto(double meters, {UnitSystem? units}) {
   if (meters.isNaN || meters.isInfinite) {
     return kEmptyValue;
   }
-  if (meters < 1000) {
+  if (meters < shortDistanceLimitMeters) {
     return '${meters.round()} m';
   }
-  return formatDistanceKmWithUnit(meters);
+  return formatDistanceWithUnit(meters, units: units);
 }
 
 /// Formatta un passo espresso in secondi per chilometro come `m:ss`.
@@ -72,7 +83,7 @@ String formatDistanceAuto(double meters) {
 /// Restituisce `--:--` quando il dato non e' attendibile (null, zero, valori
 /// assurdi). Serve per evitare divisioni per zero e numeri impossibili quando
 /// il GPS non ha ancora dati sufficienti.
-String formatPace(double? secondsPerKm) {
+String formatPace(double? secondsPerKm, {UnitSystem? units}) {
   if (secondsPerKm == null ||
       secondsPerKm.isNaN ||
       secondsPerKm.isInfinite ||
@@ -80,38 +91,44 @@ String formatPace(double? secondsPerKm) {
       secondsPerKm > 3599) {
     return kEmptyPace;
   }
-  final int total = secondsPerKm.round();
+  final int total = (units ?? activeUnits).paceFrom(secondsPerKm).round();
   final int minutes = total ~/ 60;
   final int seconds = total % 60;
   return '$minutes:${_two(seconds)}';
 }
 
-/// Come [formatPace] ma con l'unita': `5:23 /km`.
-String formatPaceWithUnit(double? secondsPerKm) => '${formatPace(secondsPerKm)} /km';
+/// Come [formatPace] ma con l'unita': `5:23 /km`, `8:40 /mi`.
+String formatPaceWithUnit(double? secondsPerKm, {UnitSystem? units}) =>
+    '${formatPace(secondsPerKm, units: units)} '
+    '${(units ?? activeUnits).paceUnit}';
 
-/// Formatta un intervallo di passo target: `4:00-4:10 /km`.
-String formatPaceRange(double? fastestSecPerKm, double? slowestSecPerKm) {
+/// Intervallo di passo: `4:00-4:10 /km`.
+String formatPaceRange(double? fastestSecPerKm, double? slowestSecPerKm,
+    {UnitSystem? units}) {
   if (fastestSecPerKm == null && slowestSecPerKm == null) {
     return kEmptyValue;
   }
   if (fastestSecPerKm != null && slowestSecPerKm != null) {
-    return '${formatPace(fastestSecPerKm)}-${formatPace(slowestSecPerKm)} /km';
+    return '${formatPace(fastestSecPerKm, units: units)}'
+        '-${formatPace(slowestSecPerKm, units: units)} '
+        '${(units ?? activeUnits).paceUnit}';
   }
   if (fastestSecPerKm != null) {
-    return 'max ${formatPaceWithUnit(fastestSecPerKm)}';
+    return 'max ${formatPaceWithUnit(fastestSecPerKm, units: units)}';
   }
-  return 'min ${formatPaceWithUnit(slowestSecPerKm)}';
+  return 'min ${formatPaceWithUnit(slowestSecPerKm, units: units)}';
 }
 
-/// Velocita' in km/h a partire da m/s.
-String formatSpeedKmh(double? metersPerSecond) {
+/// Velocita' a partire da metri al secondo: `12.4 km/h` oppure `7.7 mph`.
+String formatSpeed(double? metersPerSecond, {UnitSystem? units}) {
   if (metersPerSecond == null ||
       metersPerSecond.isNaN ||
       metersPerSecond.isInfinite ||
       metersPerSecond < 0) {
     return kEmptyValue;
   }
-  return '${(metersPerSecond * 3.6).toStringAsFixed(1)} km/h';
+  final UnitSystem u = units ?? activeUnits;
+  return '${u.speedFrom(metersPerSecond).toStringAsFixed(1)} ${u.speedUnit}';
 }
 
 /// Converte un passo (sec/km) nella velocita' corrispondente (m/s).

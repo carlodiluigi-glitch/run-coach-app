@@ -107,7 +107,7 @@ class RecordsScreen extends StatelessWidget {
                     label: 'Corsa piu lunga',
                     value: records.longestRun == null
                         ? kEmptyValue
-                        : formatDistanceKm(
+                        : formatDistance(
                             records.longestRun!.distanceMeters,
                             decimals: 1,
                           ),

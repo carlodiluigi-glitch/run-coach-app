@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../models/user_settings.dart';
 import '../services/audio_coach_service.dart';
 import '../services/storage_service.dart';
+import '../utils/units.dart';
 
 /// Stato delle impostazioni utente, persistite su file.
 class SettingsProvider extends ChangeNotifier {
@@ -25,6 +26,7 @@ class SettingsProvider extends ChangeNotifier {
 
   Future<void> load() async {
     _settings = await _storage.loadSettings();
+    activeUnits = _settings.units;
     _loaded = true;
     _errorMessage = _storage.lastError;
     await _coach.applySettings(_settings);
@@ -33,6 +35,9 @@ class SettingsProvider extends ChangeNotifier {
 
   Future<void> update(UserSettings next) async {
     _settings = next;
+    // Chi formatta i numeri legge da qui: va aggiornata prima di ridisegnare,
+    // altrimenti lo schermo si ricostruisce con l'unita' vecchia.
+    activeUnits = next.units;
     notifyListeners();
     final bool ok = await _storage.saveSettings(next);
     _errorMessage = ok ? null : _storage.lastError;
@@ -47,8 +52,15 @@ class SettingsProvider extends ChangeNotifier {
   ///
   /// Nome e "benvenuto fatto" vengono scritti insieme: due salvataggi di fila
   /// potrebbero lasciare il file a meta' se l'app viene chiusa nel mezzo.
-  Future<void> completeWelcome({String name = ''}) =>
-      update(_settings.copyWith(userName: name.trim(), welcomeDone: true));
+  Future<void> completeWelcome({
+    String name = '',
+    UnitSystem units = UnitSystem.metric,
+  }) =>
+      update(_settings.copyWith(
+        userName: name.trim(),
+        units: units,
+        welcomeDone: true,
+      ));
 
   Future<void> setAudioCoachEnabled(bool enabled) =>
       update(_settings.copyWith(audioCoachEnabled: enabled));

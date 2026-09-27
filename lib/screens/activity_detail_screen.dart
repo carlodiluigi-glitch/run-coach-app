@@ -95,7 +95,7 @@ class ActivityDetailScreen extends StatelessWidget {
                 Expanded(
                   child: MetricCard(
                     label: 'Distanza',
-                    value: formatDistanceKm(activity.distanceMeters),
+                    value: formatDistance(activity.distanceMeters),
                     unit: 'km',
                     valueFontSize: 28,
                   ),
@@ -168,6 +168,17 @@ class ActivityDetailScreen extends StatelessWidget {
                         : p.ink,
                     showChevron: false,
                   ),
+                AppListRow(
+                  title: 'Era una gara o un test',
+                  subtitle: activity.declared == null
+                      ? 'Se lo era, dillo: pesa piu\' del doppio nella '
+                          'stima della forma'
+                      : activity.declared!.description,
+                  value: activity.declared?.label ?? 'No',
+                  valueColor:
+                      activity.declared == null ? null : p.accent,
+                  onTap: () => _changeDeclared(context, provider, activity),
+                ),
                 if (activity.feedback != null)
                   AppListRow(
                     title: 'Fatica percepita',
@@ -263,6 +274,58 @@ class ActivityDetailScreen extends StatelessWidget {
     await provider.remove(activity.id);
     if (!context.mounted) return;
     Navigator.of(context).pop();
+  }
+
+  /// Chiede se questa uscita era una gara, un test, o niente di speciale.
+  ///
+  /// E' una dichiarazione, non una deduzione: il motore non prova a
+  /// indovinarlo dai dati. Una corsa tirata puo' essere una gara o solo una
+  /// giornata buona, e la differenza la sa solo chi l'ha corsa.
+  Future<void> _changeDeclared(
+    BuildContext context,
+    ActivityProvider provider,
+    RunningActivity activity,
+  ) async {
+    final String? choice = await showDialog<String>(
+      context: context,
+      builder: (BuildContext ctx) => SimpleDialog(
+        title: const Text('Cos\'era questa uscita?'),
+        children: <Widget>[
+          for (final EffortKind kind in EffortKind.values)
+            SimpleDialogOption(
+              onPressed: () => Navigator.of(ctx).pop(kind.storageKey),
+              child: ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(kind.label),
+                subtitle: Text(kind.description),
+                trailing: activity.declared == kind
+                    ? const Icon(Icons.check)
+                    : null,
+              ),
+            ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.of(ctx).pop('__none__'),
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Niente di speciale'),
+              subtitle: const Text(
+                  'Un\'uscita normale: conta come tutte le altre.'),
+              trailing:
+                  activity.declared == null ? const Icon(Icons.check) : null,
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (choice == null) return;
+    if (choice == '__none__') {
+      await provider.update(activity.copyWith(clearDeclared: true));
+      return;
+    }
+    final EffortKind? kind = EffortKindInfo.fromStorage(choice);
+    if (kind == null) return;
+    await provider.update(activity.copyWith(declared: kind));
   }
 
   Future<void> _changeShoe(
