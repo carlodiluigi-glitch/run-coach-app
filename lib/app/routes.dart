@@ -7,6 +7,7 @@ import '../screens/fitness_screen.dart';
 import '../screens/home_screen.dart';
 import '../screens/plan_screen.dart';
 import '../screens/plan_setup_screen.dart';
+import '../screens/profile_screen.dart';
 import '../screens/records_screen.dart';
 import '../screens/run_screen.dart';
 import '../screens/settings_screen.dart';
@@ -46,6 +47,9 @@ class AppRoutes {
 
   /// Creazione di un nuovo piano.
   static const String planSetup = '/plan-setup';
+
+  /// Profilo dell'atleta e personali dichiarati.
+  static const String profile = '/profile';
 
   /// Generatore delle rotte con gestione degli argomenti.
   static Route<dynamic> onGenerateRoute(RouteSettings routeSettings) {
@@ -142,6 +146,12 @@ class AppRoutes {
       case planSetup:
         return MaterialPageRoute<void>(
           builder: (_) => const PlanSetupScreen(),
+          settings: routeSettings,
+        );
+
+      case profile:
+        return MaterialPageRoute<void>(
+          builder: (_) => const ProfileScreen(),
           settings: routeSettings,
         );
 

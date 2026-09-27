@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:path_provider/path_provider.dart';
 
+import '../models/athlete_profile.dart';
 import '../models/running_activity.dart';
 import '../models/running_shoe.dart';
 import '../models/training_plan.dart';
@@ -30,6 +31,7 @@ class StorageService {
   static const String workoutsFileName = 'workouts.json';
   static const String activitiesFileName = 'activities.json';
   static const String planFileName = 'plan.json';
+  static const String profileFileName = 'profile.json';
 
   final Directory? _overrideDirectory;
   Directory? _directory;
@@ -182,6 +184,30 @@ class StorageService {
 
   Future<bool> savePlanConfig(PlanConfig config) =>
       _writeRaw(planFileName, jsonEncode(config.toJson()));
+
+  // ------------------------------------------------------------------ atleta
+  /// Profilo dell'atleta: eta', anni di corsa e personali dichiarati.
+  ///
+  /// Sta in un file suo e non dentro le impostazioni perche' e' un dato di
+  /// allenamento, non una preferenza: il motore di forma lo legge a ogni
+  /// calcolo, e i personali dichiarati pesano piu' di qualunque corsa
+  /// registrata.
+  Future<AthleteProfile> loadAthleteProfile() async {
+    final String? raw = await _readRaw(profileFileName);
+    if (raw == null) return const AthleteProfile();
+    try {
+      final Object? decoded = jsonDecode(raw);
+      if (decoded is Map) {
+        return AthleteProfile.fromJson(decoded.cast<String, dynamic>());
+      }
+    } catch (error) {
+      lastError = 'Profilo non leggibile: $error';
+    }
+    return const AthleteProfile();
+  }
+
+  Future<bool> saveAthleteProfile(AthleteProfile profile) =>
+      _writeRaw(profileFileName, jsonEncode(profile.toJson()));
 
   /// Cancella il piano attivo.
   Future<bool> deletePlanConfig() async {

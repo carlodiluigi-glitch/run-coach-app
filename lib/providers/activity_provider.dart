@@ -50,6 +50,7 @@ class ActivityProvider extends ChangeNotifier {
 
   Future<void> load() async {
     _activities = await _storage.loadActivities();
+    _athleteProfile = await _storage.loadAthleteProfile();
     _recordsCache = null;
     _runIndexCache = null;
     _zonesCache = null;
@@ -155,11 +156,23 @@ class ActivityProvider extends ChangeNotifier {
   /// dichiarati a mano.
   AthleteProfile get athleteProfile => _athleteProfile;
 
-  set athleteProfile(AthleteProfile profile) {
+  /// Sostituisce il profilo e lo salva su disco.
+  ///
+  /// L'indice di forma viene buttato via: un personale dichiarato cambia la
+  /// stima subito, senza aspettare la prossima corsa. E' il motivo per cui
+  /// questa schermata esiste.
+  Future<bool> updateAthleteProfile(AthleteProfile profile) async {
     _athleteProfile = profile;
     _runIndexCache = null;
     _zonesCache = null;
     notifyListeners();
+
+    final bool ok = await _storage.saveAthleteProfile(profile);
+    if (!ok) {
+      _errorMessage = _storage.lastError;
+      notifyListeners();
+    }
+    return ok;
   }
 
   /// Indice di forma calcolato sullo storico piu' i personali dichiarati.

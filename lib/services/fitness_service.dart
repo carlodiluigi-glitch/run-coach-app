@@ -145,8 +145,8 @@ class FitnessService {
       return null;
     }
 
-    final double easySlow = _paceFromOxygenFraction(vdot, 0.55);
-    final double easyFast = _paceFromOxygenFraction(vdot, 0.62);
+    final double easySlow = easyPaceSlowest(vdot);
+    final double easyFast = easyPaceFastest(vdot);
     if (easySlow <= 0 || easyFast <= 0) return null;
 
     return TrainingPaces(
@@ -190,6 +190,48 @@ class FitnessService {
     if (velocity <= 0) return 0;
     return 1000.0 / velocity * 60.0;
   }
+
+  /// A che frazione del proprio consumo massimo si corre il lento.
+  ///
+  /// PERCHE' NON E' UN NUMERO FISSO
+  /// ------------------------------
+  /// La prima versione usava due frazioni fisse (0,55 e 0,62) per tutti. Il
+  /// risultato: per un atleta da indice 36 il lento usciva mezzo minuto al
+  /// chilometro piu' lento del dovuto, mentre per uno da indice 65 era
+  /// giusto. Non era un errore di arrotondamento, era il modello sbagliato.
+  ///
+  /// Il motivo e' fisiologico: piu' uno e' allenato, piu' il suo lento e'
+  /// una percentuale BASSA del suo massimo. Un principiante che corre piano
+  /// sta gia' al 72% del suo consumo; un atleta evoluto allo stesso sforzo
+  /// percepito sta al 62%. Il lento non e' "una percentuale", e' "lo sforzo
+  /// che puoi sostenere chiacchierando", e quella percentuale cambia.
+  ///
+  /// I due coefficienti sono ricavati per regressione dai passi lenti della
+  /// tabella di Daniels fra indice 30 e 65: lo scarto medio e' di 2,5
+  /// secondi al chilometro, il massimo di 5. Fuori da quell'intervallo la
+  /// retta viene tagliata, per non estrapolare all'infinito.
+  ///
+  /// [fast] sceglie l'estremo veloce della fascia invece di quello lento.
+  double easyOxygenFraction(double vdot, {required bool fast}) {
+    if (fast) {
+      final double raw = 0.812 - 0.00291 * vdot;
+      if (raw < 0.50) return 0.50;
+      if (raw > 0.78) return 0.78;
+      return raw;
+    }
+    final double raw = 0.712 - 0.00254 * vdot;
+    if (raw < 0.45) return 0.45;
+    if (raw > 0.70) return 0.70;
+    return raw;
+  }
+
+  /// Estremo veloce della fascia del lento, in secondi al chilometro.
+  double easyPaceFastest(double vdot) =>
+      _paceFromOxygenFraction(vdot, easyOxygenFraction(vdot, fast: true));
+
+  /// Estremo lento della fascia del lento, in secondi al chilometro.
+  double easyPaceSlowest(double vdot) =>
+      _paceFromOxygenFraction(vdot, easyOxygenFraction(vdot, fast: false));
 
   /// Costruisce un passo con una banda di tolleranza stretta ma umana.
   ///

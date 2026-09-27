@@ -242,14 +242,17 @@ class AthleteProfile {
     int? maxHeartRate,
     int? inactiveSinceWeeks,
     bool clearInactive = false,
+    bool clearBirthYear = false,
+    bool clearRunningYears = false,
     List<PersonalBest>? personalBests,
   }) =>
       AthleteProfile(
-        birthYear: birthYear ?? this.birthYear,
+        birthYear: clearBirthYear ? null : (birthYear ?? this.birthYear),
         sex: sex ?? this.sex,
         heightCm: heightCm ?? this.heightCm,
         weightKg: weightKg ?? this.weightKg,
-        runningYears: runningYears ?? this.runningYears,
+        runningYears:
+            clearRunningYears ? null : (runningYears ?? this.runningYears),
         availableDays: availableDays ?? this.availableDays,
         restingHeartRate: restingHeartRate ?? this.restingHeartRate,
         maxHeartRate: maxHeartRate ?? this.maxHeartRate,

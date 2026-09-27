@@ -179,6 +179,22 @@ class FitnessScreen extends StatelessWidget {
             Text('Forma', style: AppText.largeTitle.copyWith(color: p.ink)),
             const SizedBox(height: 16),
             ...children,
+
+            // Sempre in fondo, anche quando la stima non c'e': se l'indice
+            // e' piu' basso di quello che l'atleta sa di valere, questa e'
+            // la strada per dirlo al motore.
+            const SizedBox(height: 18),
+            InsetList(
+              children: <Widget>[
+                AppListRow(
+                  title: 'Profilo e personali',
+                  subtitle: 'L\'indice non ti rende giustizia? Dichiara le '
+                      'tue gare: pesano piu\' di qualsiasi corsa registrata.',
+                  onTap: () =>
+                      Navigator.of(context).pushNamed(AppRoutes.profile),
+                ),
+              ],
+            ),
           ],
         ),
       ),

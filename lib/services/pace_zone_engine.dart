@@ -209,12 +209,12 @@ class PaceZoneEngine {
     final double intervalPace = threeKTime / 3.0;
     final double repetitionPace = fifteenTime / 1.5;
 
-    // Il lento nasce dal costo di ossigeno, fra il 55% e il 62% dell'indice:
-    // e' l'unica zona definita da una fascia fisiologica invece che da una
-    // gara equivalente, perche' "il passo che terresti per sempre" non e' una
-    // gara.
-    final double easySlow = _paceForOxygenFraction(vdot, 0.55);
-    final double easyFast = _paceForOxygenFraction(vdot, 0.62);
+    // Il lento nasce dal costo di ossigeno: e' l'unica zona definita da una
+    // fascia fisiologica invece che da una gara equivalente, perche' "il
+    // passo che terresti per sempre" non e' una gara. La frazione non e'
+    // fissa, cambia con il livello: vedi FitnessService.easyOxygenFraction.
+    final double easySlow = fitness.easyPaceSlowest(vdot);
+    final double easyFast = fitness.easyPaceFastest(vdot);
     if (easySlow <= 0 || easyFast <= 0) return null;
 
     final double easyStretch = 5 * (stretch - 1);
@@ -270,11 +270,5 @@ class PaceZoneEngine {
     };
 
     return TrainingZones(zones: zones, confidence: confidence);
-  }
-
-  double _paceForOxygenFraction(double vdot, double fraction) {
-    final double velocity = fitness.velocityForOxygen(fraction * vdot);
-    if (velocity <= 0) return 0;
-    return 1000.0 / velocity * 60.0;
   }
 }

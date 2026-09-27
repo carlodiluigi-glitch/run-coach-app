@@ -426,11 +426,23 @@ che e' anche il modo in cui si spiegano a parole.
 
 | Passo | Cos'e' | VDOT 50 |
 |---|---|---|
-| Lento (E) | fra il 55% e il 62% del costo di ossigeno | 5:38 - 6:12 /km |
+| Lento (E) | una frazione del costo di ossigeno che cambia col livello | 5:19 - 5:54 /km |
 | Medio (M) | il passo della tua maratona | 4:31 /km |
 | Soglia (T) | il passo che terresti per un'ora esatta | 4:13 /km |
 | Ripetute (I) | il passo dei tuoi 3000 metri | 3:51 /km |
 | Veloci (R) | il passo dei tuoi 1500 metri | 3:36 /km |
+
+Il lento merita una nota. La prima versione usava due frazioni fisse (0,55 e
+0,62) per tutti, e su un atleta da indice 36 sbagliava di quasi un minuto al
+chilometro; su uno da indice 65 era giusto. Non era un arrotondamento, era il
+modello sbagliato: **piu' uno e' allenato, piu' il suo lento e' una
+percentuale bassa del proprio massimo**. Un principiante che corre piano sta
+gia' al 72% del suo consumo, un atleta evoluto allo stesso sforzo percepito
+sta al 62%. Ora la frazione e' una retta ricavata per regressione dai passi
+lenti della tabella di riferimento fra indice 30 e 65: scarto medio 2,5
+secondi al chilometro, massimo 5. Il test
+[`fitness_service_test.dart`](test/fitness_service_test.dart) lo verifica a
+ogni livello, non solo su quello comodo.
 
 ### Il piano
 
@@ -515,6 +527,29 @@ se' **valore, confidenza, fonte e data**. Se un dato non c'e', il campo e'
 La confidenza non e' decorativa: **cambia il comportamento del motore**. Con
 pochi dati le fasce di ritmo si allargano, invece di fingere una precisione
 che non c'e'. Si stringono da sole man mano che arrivano prestazioni.
+
+### Il profilo: dire al motore quello che l'archivio non dimostra
+
+Il motore sa solo quello che ha misurato. Se l'unica corsa registrata era
+tranquilla, l'indice dice che l'atleta va piano, perche' piano ha corso: non
+ha modo di sapere che e' capace di molto di piu'. Non lo inventa, e fa bene.
+
+La schermata **Profilo e personali**
+([`profile_screen.dart`](lib/screens/profile_screen.dart)) e' la via d'uscita.
+L'atleta dichiara le sue prestazioni migliori - distanza, tempo, data, e se
+erano in gara o in allenamento - e quelle entrano nel calcolo con il peso che
+meritano: **1,00 se in gara, 0,85 se in test**, contro lo 0,45 di un tratto
+veloce dentro una corsa normale. L'indice si aggiorna subito, senza aspettare
+la prossima uscita.
+
+La data conta davvero: un personale di un anno fa pesa poco, e un personale
+senza data viene trattato come vecchio di un anno. Meglio prudenti che
+ottimisti.
+
+Nella stessa schermata ci sono eta', anni di corsa, giorni disponibili e stop
+recenti. Quelli **non toccano i ritmi** - due persone con la stessa
+prestazione si allenano agli stessi passi - ma decidono quanto in fretta
+alzare il carico. Il profilo vive in `profile.json`, accanto agli altri dati.
 
 ### RunIndexEngine: l'indice di forma
 

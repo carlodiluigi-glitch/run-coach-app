@@ -225,4 +225,65 @@ void main() {
       expect(marathon.seconds, closeTo(hms(3, 10, 49), 240));
     });
   });
+
+  // -------------------------------------------------------------- il lento
+  //
+  // La prima versione usava due frazioni fisse di consumo (0,55 e 0,62) per
+  // tutti, e su un atleta da indice 36 sbagliava di quasi un minuto al
+  // chilometro. Questo gruppo e' la rete che impedisce di tornarci: confronta
+  // la fascia del lento con la tabella di riferimento su tutto l'arco dei
+  // livelli, non solo su quello comodo.
+  group('fascia del lento', () {
+    // indice: (estremo veloce, estremo lento) in secondi al km
+    const Map<int, List<int>> tabella = <int, List<int>>{
+      30: <int>[447, 494],
+      35: <int>[406, 449],
+      40: <int>[372, 413],
+      45: <int>[346, 383],
+      50: <int>[323, 358],
+      55: <int>[304, 337],
+      60: <int>[288, 319],
+      65: <int>[273, 303],
+    };
+
+    test('combacia con la tabella a ogni livello', () {
+      tabella.forEach((int vdot, List<int> attesi) {
+        final double veloce = service.easyPaceFastest(vdot.toDouble());
+        final double lento = service.easyPaceSlowest(vdot.toDouble());
+        // Otto secondi al km: la tabella stessa e' arrotondata.
+        expect(veloce, closeTo(attesi[0], 8),
+            reason: 'indice $vdot, estremo veloce');
+        expect(lento, closeTo(attesi[1], 8),
+            reason: 'indice $vdot, estremo lento');
+      });
+    });
+
+    test('il lento e\' piu\' lento del medio a ogni livello', () {
+      for (final double vdot in <double>[30, 36, 42, 50, 58, 65]) {
+        final TrainingPaces? paces = service.pacesFor(vdot);
+        expect(paces, isNotNull, reason: 'indice $vdot');
+        expect(paces!.easy.fastestSecPerKm > paces.marathon.secondsPerKm,
+            isTrue,
+            reason: 'indice $vdot: il lento non puo\' essere piu\' veloce '
+                'del medio');
+        expect(paces.easy.slowestSecPerKm > paces.easy.fastestSecPerKm, isTrue,
+            reason: 'indice $vdot');
+      }
+    });
+
+    test('la frazione cala man mano che il livello sale', () {
+      // E' il cuore della correzione: la percentuale del massimo a cui si
+      // corre il lento NON e' la stessa per tutti.
+      final double basso = service.easyOxygenFraction(32, fast: true);
+      final double alto = service.easyOxygenFraction(62, fast: true);
+      expect(basso > alto, isTrue, reason: 'basso $basso, alto $alto');
+    });
+
+    test('fuori scala non si estrapola all\'infinito', () {
+      expect(service.easyOxygenFraction(5, fast: true), 0.78);
+      expect(service.easyOxygenFraction(200, fast: true), 0.50);
+      expect(service.easyOxygenFraction(5, fast: false), 0.70);
+      expect(service.easyOxygenFraction(200, fast: false), 0.45);
+    });
+  });
 }

@@ -143,10 +143,21 @@ class HomeScreen extends StatelessWidget {
                 ),
                 AppListRow(
                   leading: IconSquare(
+                    icon: Icons.person_rounded,
+                    color: p.green,
+                  ),
+                  title: 'Profilo e personali',
+                  subtitle: 'Cosa sai fare: serve al motore per non sbagliare',
+                  onTap: () =>
+                      Navigator.of(context).pushNamed(AppRoutes.profile),
+                ),
+                AppListRow(
+                  leading: IconSquare(
                     icon: Icons.emoji_events_rounded,
                     color: p.orange,
                   ),
                   title: 'Record personali',
+                  subtitle: 'Quelli misurati dall\'app durante le corse',
                   onTap: () =>
                       Navigator.of(context).pushNamed(AppRoutes.records),
                 ),
