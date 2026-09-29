@@ -1,8 +1,12 @@
 import 'package:flutter/foundation.dart';
 
 import '../models/athlete_profile.dart';
+import '../models/daily_checkin.dart';
 import '../models/running_activity.dart';
 import '../services/pace_zone_engine.dart';
+import '../services/readiness_engine.dart';
+import '../services/session_classifier.dart';
+import '../services/training_load_engine.dart';
 import '../services/records_service.dart';
 import '../services/run_index_engine.dart';
 import '../services/stats_service.dart';
@@ -10,6 +14,9 @@ import '../services/storage_service.dart';
 import 'shoe_provider.dart';
 
 /// Storico delle attivita' salvate.
+/// Il motore adattivo vive qui perche' qui ci sono gia' lo storico, le zone e
+/// la cache: aggiungere un provider solo per il carico vorrebbe dire ricalcolare
+/// le stesse cose in due posti e tenerle allineate a mano.
 class ActivityProvider extends ChangeNotifier {
   ActivityProvider({
     required StorageService storage,
@@ -35,6 +42,14 @@ class ActivityProvider extends ChangeNotifier {
   TrainingZones? _zonesCache;
   AthleteProfile _athleteProfile = const AthleteProfile();
 
+  static const TrainingLoadEngine _loadEngine = TrainingLoadEngine();
+  static const ReadinessEngine _readinessEngine = ReadinessEngine();
+  static const SessionClassifier _classifier = SessionClassifier();
+  TrainingLoadState? _loadCache;
+  Readiness? _readinessCache;
+
+  List<DailyCheckIn> _checkIns = <DailyCheckIn>[];
+
   List<RunningActivity> _activities = <RunningActivity>[];
   bool _loaded = false;
   String? _errorMessage;
@@ -51,8 +66,11 @@ class ActivityProvider extends ChangeNotifier {
   Future<void> load() async {
     _activities = await _storage.loadActivities();
     _athleteProfile = await _storage.loadAthleteProfile();
+    _checkIns = await _storage.loadCheckIns();
     _recordsCache = null;
     _runIndexCache = null;
+    _loadCache = null;
+    _readinessCache = null;
     _zonesCache = null;
     _loaded = true;
     _errorMessage = _storage.lastError;
@@ -71,6 +89,8 @@ class ActivityProvider extends ChangeNotifier {
     _activities = <RunningActivity>[activity, ..._activities];
     _recordsCache = null;
     _runIndexCache = null;
+    _loadCache = null;
+    _readinessCache = null;
     _zonesCache = null;
     _sort();
     notifyListeners();
@@ -96,6 +116,8 @@ class ActivityProvider extends ChangeNotifier {
     _activities = next;
     _recordsCache = null;
     _runIndexCache = null;
+    _loadCache = null;
+    _readinessCache = null;
     _zonesCache = null;
     _sort();
     notifyListeners();
@@ -126,6 +148,8 @@ class ActivityProvider extends ChangeNotifier {
     _activities = _activities.where((RunningActivity a) => a.id != id).toList();
     _recordsCache = null;
     _runIndexCache = null;
+    _loadCache = null;
+    _readinessCache = null;
     _zonesCache = null;
     notifyListeners();
 
@@ -164,6 +188,8 @@ class ActivityProvider extends ChangeNotifier {
   Future<bool> updateAthleteProfile(AthleteProfile profile) async {
     _athleteProfile = profile;
     _runIndexCache = null;
+    _loadCache = null;
+    _readinessCache = null;
     _zonesCache = null;
     notifyListeners();
 
@@ -190,6 +216,92 @@ class ActivityProvider extends ChangeNotifier {
   /// Zone di allenamento ricavate dall'indice. `null` se non stimabile.
   TrainingZones? get trainingZones =>
       _zonesCache ??= _paceZoneEngine.zonesFor(runIndex.index);
+
+  // ------------------------------------------------------ motore adattivo
+  /// Carico, fatica e condizione di oggi.
+  TrainingLoadState get trainingLoad =>
+      _loadCache ??= _loadEngine.stateFor(_activities, trainingZones);
+
+  /// Il carico di una singola seduta, per mostrarlo nel dettaglio attivita'.
+  double? loadOf(RunningActivity activity) {
+    final TrainingZones? zones = trainingZones;
+    if (zones == null) return null;
+    return _loadEngine.loadOf(activity, zones);
+  }
+
+  /// I check-in del mattino, dal piu' recente.
+  List<DailyCheckIn> get checkIns => List<DailyCheckIn>.unmodifiable(_checkIns);
+
+  /// Il check-in di oggi, se e' stato fatto.
+  DailyCheckIn? get todayCheckIn {
+    final DateTime oggi = DateTime.now();
+    for (final DailyCheckIn c in _checkIns) {
+      if (c.date.year == oggi.year &&
+          c.date.month == oggi.month &&
+          c.date.day == oggi.day) {
+        return c;
+      }
+    }
+    return null;
+  }
+
+  /// Salva (o sostituisce) il check-in di un giorno.
+  Future<bool> saveCheckIn(DailyCheckIn checkIn) async {
+    final DateTime giorno = DateTime(
+      checkIn.date.year,
+      checkIn.date.month,
+      checkIn.date.day,
+    );
+    _checkIns = <DailyCheckIn>[
+      checkIn,
+      ..._checkIns.where((DailyCheckIn c) =>
+          !(c.date.year == giorno.year &&
+              c.date.month == giorno.month &&
+              c.date.day == giorno.day)),
+    ]..sort((DailyCheckIn a, DailyCheckIn b) => b.date.compareTo(a.date));
+
+    _readinessCache = null;
+    notifyListeners();
+
+    final bool ok = await _storage.saveCheckIns(_checkIns);
+    if (!ok) {
+      _errorMessage = _storage.lastError;
+      notifyListeners();
+    }
+    return ok;
+  }
+
+  /// Quanto sei pronto oggi, con il perche'.
+  Readiness get readiness {
+    final Readiness? cached = _readinessCache;
+    if (cached != null) return cached;
+
+    return _readinessCache = _readinessEngine.compute(
+      load: trainingLoad,
+      checkIn: todayCheckIn,
+      lastQualityAt: _lastQualityAt(),
+    );
+  }
+
+  /// L'ultima seduta riconosciuta come dura dal classificatore.
+  ///
+  /// Si guardano solo gli ultimi giorni: piu' indietro non serve a niente e
+  /// classificare un tracciato costa, perche' va riletto punto per punto.
+  DateTime? _lastQualityAt() {
+    final TrainingZones? zones = trainingZones;
+    if (zones == null) return null;
+
+    final DateTime limite =
+        DateTime.now().subtract(const Duration(days: 5));
+    DateTime? ultima;
+    for (final RunningActivity a in _activities) {
+      if (a.startTime.isBefore(limite)) continue;
+      final SessionAnalysis analisi = _classifier.analyse(a, zones);
+      if (!analisi.intensity.countsAsQuality) continue;
+      if (ultima == null || a.startTime.isAfter(ultima)) ultima = a.startTime;
+    }
+    return ultima;
+  }
 
   List<DistanceRecord> recordsHeldBy(String activityId) => records.byDistance
       .where((DistanceRecord r) => r.activityId == activityId)

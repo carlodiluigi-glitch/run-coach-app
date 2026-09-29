@@ -4,11 +4,13 @@ import 'package:provider/provider.dart';
 import '../app/app.dart';
 import '../app/routes.dart';
 import '../app/tokens.dart';
+import '../models/daily_checkin.dart';
 import '../models/running_activity.dart';
 import '../models/training_plan.dart';
 import '../providers/activity_provider.dart';
 import '../providers/plan_provider.dart';
 import '../providers/settings_provider.dart';
+import '../services/readiness_engine.dart';
 import '../services/stats_service.dart';
 import '../utils/formatters.dart';
 import '../widgets/app_card.dart';
@@ -71,6 +73,9 @@ class HomeScreen extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 14),
+
+            // ------------------------------------------------- prontezza
+            const _ReadinessCard(),
 
             // -------------------------------------------- questa settimana
             _WeekCard(stats: stats),
@@ -211,6 +216,140 @@ class HomeScreen extends StatelessWidget {
 ///
 /// Il confronto con la media e' piu' utile di un totale secco: dice se stai
 /// facendo piu' o meno del solito, che e' la domanda vera.
+/// Quanto sei pronto oggi, e cosa vuol dire per la seduta in programma.
+///
+/// PERCHE' STA IN CIMA ALLA HOME
+/// -----------------------------
+/// Perche' e' la domanda che uno si fa aprendo l'app la mattina. E perche' se
+/// il motore ha qualcosa da dire - "ieri hai tirato, oggi tieniti facile" -
+/// deve dirlo prima che tu esca di casa, non dopo.
+///
+/// Il numero non compare mai da solo: sotto c'e' sempre il primo motivo per
+/// cui e' quello che e'. Un punteggio che non si puo' contestare e' un
+/// oracolo, e un oracolo non si corregge.
+class _ReadinessCard extends StatelessWidget {
+  const _ReadinessCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final AppPalette p = AppPalette.of(context);
+    final ActivityProvider activities = context.watch<ActivityProvider>();
+
+    // Senza zone non c'e' carico, e senza carico la prontezza sarebbe solo il
+    // check-in: si mostra lo stesso, ma solo se il check-in c'e'.
+    final bool haCarico = activities.trainingZones != null &&
+        !activities.trainingLoad.isEmpty;
+    final DailyCheckIn? oggi = activities.todayCheckIn;
+    if (!haCarico && oggi == null) return const SizedBox.shrink();
+
+    final Readiness r = activities.readiness;
+
+    Color colore() {
+      switch (r.band) {
+        case ReadinessBand.ready:
+          return p.green;
+        case ReadinessBand.normal:
+          return p.blue;
+        case ReadinessBand.easy:
+          return p.orange;
+        case ReadinessBand.rest:
+          return p.red;
+      }
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: AppCard(
+        onTap: () => Navigator.of(context).pushNamed(AppRoutes.checkIn),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: <Widget>[
+                Text(
+                  'PRONTEZZA',
+                  style: AppText.label.copyWith(color: p.inkFaint),
+                ),
+                const Spacer(),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: colore().withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(AppRadius.pill),
+                  ),
+                  child: Text(
+                    r.band.label,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: colore(),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: <Widget>[
+                Text(
+                  '${r.score}',
+                  style: AppText.number(40, color: colore()),
+                ),
+                const SizedBox(width: 6),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Text(
+                    'su 100  ·  fiducia ${r.confidenceLabel}',
+                    style: AppText.caption.copyWith(color: p.inkFaint),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              r.reasons.first,
+              style: AppText.body.copyWith(
+                color: r.blockedByPain ? p.red : p.inkSoft,
+              ),
+            ),
+            if (r.reasons.length > 1) ...<Widget>[
+              const SizedBox(height: 4),
+              Text(
+                r.reasons[1],
+                style: AppText.caption.copyWith(color: p.inkFaint),
+              ),
+            ],
+            const SizedBox(height: 12),
+            Row(
+              children: <Widget>[
+                Icon(
+                  oggi == null ? Icons.add_circle_outline : Icons.edit_outlined,
+                  size: 16,
+                  color: p.accent,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  oggi == null
+                      ? 'Fai il check-in di stamattina'
+                      : 'Modifica il check-in di oggi',
+                  style: AppText.caption.copyWith(
+                    color: p.accent,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _WeekCard extends StatelessWidget {
   const _WeekCard({required this.stats});
 
@@ -440,6 +579,37 @@ class _TodayCard extends StatelessWidget {
 
   final PlannedSession session;
 
+  /// L'avviso da mostrare sulla seduta di oggi, se ce n'e' uno.
+  ///
+  /// Due sole regole, le piu' nette:
+  ///
+  ///  - **dolore dichiarato** -> la qualita' non si fa. Non e' un consiglio.
+  ///  - **prontezza bassa** -> la qualita' si sposta di un giorno, che costa
+  ///    quasi niente e cambia parecchio.
+  ///
+  /// Su una seduta facile non si dice niente: un lento si corre anche stanchi,
+  /// ed e' anzi il modo giusto di passare una giornata storta.
+  String? _avviso(BuildContext context) {
+    if (!session.isQuality) return null;
+    final Readiness r = context.watch<ActivityProvider>().readiness;
+
+    if (r.blockedByPain) {
+      return 'Hai dichiarato un dolore. Oggi era in programma una seduta di '
+          'qualita\': falla diventare un lento, o riposa. Le ripetute su un '
+          'fastidio fanno un danno che nessun allenamento ripaga.';
+    }
+    if (!r.band.allowsQuality) {
+      return 'Prontezza ${r.score} su 100: ${r.reasons.first.toLowerCase()}. '
+          'Se puoi, sposta questa seduta a domani e oggi corri facile: un '
+          'giorno di ritardo non cambia niente, una qualita\' fatta male '
+          'costa una settimana.';
+    }
+    return null;
+  }
+
+  bool _avvisoGrave(BuildContext context) =>
+      context.watch<ActivityProvider>().readiness.blockedByPain;
+
   @override
   Widget build(BuildContext context) {
     final AppPalette p = AppPalette.of(context);
@@ -472,6 +642,49 @@ class _TodayCard extends StatelessWidget {
             session.detail,
             style: AppText.caption.copyWith(color: p.inkSoft),
           ),
+
+          // LA REAZIONE DEL MOTORE
+          //
+          // Il programma e' stato scritto settimane fa. Se oggi non sei nelle
+          // condizioni di farlo, dirlo QUI - sulla scheda della seduta, prima
+          // che tu esca - e' l'unico momento in cui serve a qualcosa.
+          //
+          // Non cambia il piano e non toglie il pulsante: l'ultima parola e'
+          // dell'atleta. Dice quello che sa e lascia decidere.
+          if (_avviso(context) != null) ...<Widget>[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.fromLTRB(11, 10, 11, 10),
+              decoration: BoxDecoration(
+                color: _avvisoGrave(context)
+                    ? p.red.withValues(alpha: 0.12)
+                    : p.orange.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(AppRadius.small + 2),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Icon(
+                    _avvisoGrave(context)
+                        ? Icons.report_gmailerrorred_outlined
+                        : Icons.info_outline,
+                    size: 17,
+                    color: _avvisoGrave(context) ? p.red : p.orange,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _avviso(context)!,
+                      style: AppText.caption.copyWith(
+                        color: _avvisoGrave(context) ? p.red : p.orange,
+                        height: 1.35,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           if (session.kind != SessionKind.race) ...<Widget>[
             const SizedBox(height: 12),
             SizedBox(

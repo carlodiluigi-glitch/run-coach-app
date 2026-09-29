@@ -513,6 +513,12 @@ sabato.
 Sotto i tre giorni il piano non si costruisce: non basta a tenere separati un
 lungo, una qualita' e un lento.
 
+I giorni dichiarati si ricordano nelle **impostazioni**, non dentro il piano.
+Prima vivevano solo nel piano, e bastava cancellarlo perche' la settimana
+tornasse allo schema standard - lungo di domenica - che e' esattamente quello
+che questa funzione esiste per non fare. La settimana di una persona non e' una
+proprieta' del suo allenamento.
+
 #### Da quanti km si parte
 
 Il punto di partenza del piano si proponeva dalla media delle ultime quattro
@@ -669,8 +675,9 @@ solo.
 | `SessionClassifier` | cosa e' stata **davvero** una seduta | fatto |
 | Giorni e tempo disponibile | il calendario segue il tempo che hai | fatto |
 | Raccolta fatica percepita | domanda a fine corsa | fatto |
-| `TrainingLoadEngine` | carico per intensita', non per chilometri | da fare |
-| `FatigueEngine` / `ReadinessEngine` | fatica residua, prontezza 0-100 | da fare |
+| Check-in del mattino | sonno, gambe, voglia, dolore | fatto |
+| `TrainingLoadEngine` | carico per intensita', non per chilometri | fatto |
+| `FatigueEngine` / `ReadinessEngine` | fatica residua, prontezza 0-100 | fatto |
 | `WorkoutDecisionEngine` | sceglie la seduta di oggi | da fare |
 | `RiskEngine` | filtro di sicurezza prima di confermare | da fare |
 | `AdaptationEngine` | impara dalla risposta individuale | da fare |
@@ -841,6 +848,89 @@ Conseguenza accettata: un 8x200 non conta come qualita', perche' duecento metri
 veloci durano quaranta secondi. E' corretto - le ripetute brevi servono alla
 meccanica di corsa e non devono stancare - ma e' una scelta, non un caso.
 Un 10x400 invece conta, perche' un 400 dura piu' di un minuto.
+
+### Il carico: quanto e' costata una seduta
+
+Dieci chilometri lenti e dieci di ripetute sono la stessa riga sul diario e due
+cose diverse nelle gambe. Contare i chilometri fa sembrare uguale una settimana
+da 60 km tutti lenti e una da 60 km con due sedute dure dentro: la prima si
+regge per mesi, la seconda ti rompe.
+
+Il carico si misura in **sforzo**. Per ogni finestra del tracciato si guarda
+quanto si andava forte rispetto al proprio passo di soglia, e il tempo viene
+pesato per il **quadrato** di quel rapporto. Il quadrato non e' un'invenzione:
+e' la forma con cui il costo di una corsa cresce rispetto alla velocita', la
+stessa usata dal TSS di Coggan - il metodo piu' collaudato per misurare il
+carico senza cardiofrequenzimetro.
+
+L'unita' e' tarata cosi': **100 punti = un'ora esatta a ritmo soglia**. Un'ora
+di lento ne fa circa 70, mezz'ora di ripetute circa 57 - meno tempo, piu'
+carico, che e' esattamente quello che i chilometri non sanno dire.
+
+C'e' un tetto all'intensita' di una singola finestra (1,35 volte il passo di
+soglia). Serve perche' il quadrato amplifica gli errori grandi: senza il tetto,
+un salto del GPS trasformerebbe un lento in una seduta durissima.
+
+### Fatica e condizione: sette giorni contro ventotto
+
+Due medie esponenziali del carico giornaliero:
+
+- **fatica**, costante di 7 giorni: quanto sei stanco adesso;
+- **condizione**, costante di 28 giorni: quanto sei allenato.
+
+La differenza e' la **freschezza**, il loro rapporto dice se il carico sta
+salendo piu' in fretta di quanto il corpo si adatti (sopra 1,3) o se si sta
+scaricando (sotto 0,8).
+
+Sono i valori del modello di Banister, che usa 7 e 42: qui il lungo e'
+accorciato a 28 perche' un'app usata da chi corre da poco deve rispondere in un
+mese, non in sei settimane, altrimenti per tutto il primo periodo racconta solo
+che sei fermo.
+
+Si cammina giorno per giorno, riposi compresi: e' nei giorni di riposo che la
+fatica scende, e una media fatta solo sui giorni in cui hai corso direbbe che
+sei sempre stanco uguale.
+
+**Con meno di quattro settimane di storico il motore lo dice**, invece di dare
+numeri che non significano niente.
+
+### Il check-in del mattino
+
+Tre domande - sonno, gambe, voglia - su una scala da 1 a 5, piu' il dolore.
+Dieci secondi. Un questionario lungo si compila due volte e poi si salta, e un
+dato mediocre raccolto tutti i giorni vale infinitamente piu' di un dato
+perfetto raccolto tre volte.
+
+Le gambe pesano doppio: si corre bene anche dopo una notte storta, molto meno
+con le gambe piene.
+
+### La prontezza: 0-100, con i motivi
+
+Quattro voci: la freschezza (45%), il check-in (40%), quanto e' passato
+dall'ultima seduta dura (15%), e il dolore - che non e' una percentuale.
+
+Il numero **non compare mai da solo**: sotto c'e' sempre il primo motivo per
+cui e' quello che e'. Un punteggio che non si puo' contestare e' un oracolo, e
+un oracolo non si corregge.
+
+Un difetto trovato scrivendo i test: il recupero vale 1 quando non hai fatto
+niente di duro di recente, e da solo portava il punteggio a **100 su 100** per
+chi aveva appena installato l'app. Massima prontezza perche' non si sapeva
+niente. Adesso, se mancano sia la freschezza sia il check-in, la risposta e'
+"normale" e sta in mezzo: 55, con fiducia bassa e scritto perche'.
+
+### Le due reazioni immediate
+
+Sulla scheda della seduta di oggi, in Home, prima che tu esca di casa:
+
+- **dolore dichiarato** -> la qualita' non si fa. Non e' un consiglio.
+- **prontezza bassa** su una seduta di qualita' -> sposta a domani e oggi corri
+  facile. Un giorno di ritardo non cambia niente, una qualita' fatta male costa
+  una settimana.
+
+Su una seduta facile non si dice niente: un lento si corre anche stanchi, ed e'
+anzi il modo giusto di passare una giornata storta. E il pulsante per partire
+resta sempre: l'app dice quello che sa, l'ultima parola e' dell'atleta.
 
 ### Il dolore non e' un segnale come gli altri
 

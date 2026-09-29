@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/workout.dart';
+import '../screens/checkin_screen.dart';
 import '../screens/activity_detail_screen.dart';
 import '../screens/activity_history_screen.dart';
 import '../screens/fitness_screen.dart';
@@ -50,6 +51,9 @@ class AppRoutes {
 
   /// Profilo dell'atleta e personali dichiarati.
   static const String profile = '/profile';
+
+  /// Il check-in del mattino: come stai, in tre domande.
+  static const String checkIn = '/check-in';
 
   /// Generatore delle rotte con gestione degli argomenti.
   static Route<dynamic> onGenerateRoute(RouteSettings routeSettings) {
@@ -122,6 +126,12 @@ class AppRoutes {
       case records:
         return MaterialPageRoute<void>(
           builder: (_) => const RecordsScreen(),
+          settings: routeSettings,
+        );
+
+      case checkIn:
+        return MaterialPageRoute<void>(
+          builder: (_) => const CheckInScreen(),
           settings: routeSettings,
         );
 

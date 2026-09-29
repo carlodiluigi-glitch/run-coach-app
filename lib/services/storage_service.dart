@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 
 import '../models/athlete_profile.dart';
+import '../models/daily_checkin.dart';
 import '../models/running_activity.dart';
 import '../models/running_shoe.dart';
 import '../models/training_plan.dart';
@@ -32,6 +33,7 @@ class StorageService {
   static const String activitiesFileName = 'activities.json';
   static const String planFileName = 'plan.json';
   static const String profileFileName = 'profile.json';
+  static const String checkInsFileName = 'checkins.json';
 
   final Directory? _overrideDirectory;
   Directory? _directory;
@@ -208,6 +210,44 @@ class StorageService {
 
   Future<bool> saveAthleteProfile(AthleteProfile profile) =>
       _writeRaw(profileFileName, jsonEncode(profile.toJson()));
+
+  // ----------------------------------------------------------- check-in
+  /// I check-in del mattino, uno per giorno.
+  ///
+  /// Si tengono solo gli ultimi [checkInsToKeep] giorni: oltre non servono a
+  /// nessun conto, e un file che cresce per sempre su un telefono e' un
+  /// problema che arriva sempre, solo piu' tardi.
+  static const int checkInsToKeep = 120;
+
+  Future<List<DailyCheckIn>> loadCheckIns() async {
+    final String? raw = await _readRaw(checkInsFileName);
+    if (raw == null) return <DailyCheckIn>[];
+    try {
+      final Object? decoded = jsonDecode(raw);
+      if (decoded is List) {
+        return decoded
+            .whereType<Map<dynamic, dynamic>>()
+            .map((Map<dynamic, dynamic> e) =>
+                DailyCheckIn.fromJson(e.cast<String, dynamic>()))
+            .toList();
+      }
+    } catch (error) {
+      lastError = 'Check-in non leggibili: $error';
+    }
+    return <DailyCheckIn>[];
+  }
+
+  Future<bool> saveCheckIns(List<DailyCheckIn> checkIns) {
+    final List<DailyCheckIn> ordinati = List<DailyCheckIn>.from(checkIns)
+      ..sort((DailyCheckIn a, DailyCheckIn b) => b.date.compareTo(a.date));
+    final List<DailyCheckIn> tenuti = ordinati.length > checkInsToKeep
+        ? ordinati.sublist(0, checkInsToKeep)
+        : ordinati;
+    return _writeRaw(
+      checkInsFileName,
+      jsonEncode(tenuti.map((DailyCheckIn c) => c.toJson()).toList()),
+    );
+  }
 
   /// Cancella il piano attivo.
   Future<bool> deletePlanConfig() async {
