@@ -1,3 +1,4 @@
+import 'weekly_availability.dart';
 import 'workout.dart';
 import '../utils/id_generator.dart';
 
@@ -390,6 +391,7 @@ class PlanConfig {
     required this.daysPerWeek,
     required this.startWeeklyKm,
     required this.vdot,
+    this.availability,
     List<RaceEvent>? races,
     DateTime? createdAt,
   })  : id = id ?? IdGenerator.newId('plan'),
@@ -403,7 +405,24 @@ class PlanConfig {
   final DateTime startDate;
 
   final int weeks;
+
+  /// Quanti giorni a settimana. Resta per i piani vecchi e come riassunto:
+  /// la verita' su QUALI giorni e con quanto tempo sta in [availability].
   final int daysPerWeek;
+
+  /// I giorni disponibili e il tempo che c'e' su ognuno.
+  ///
+  /// `null` nei piani creati prima di questa impostazione: in quel caso il
+  /// generatore ricade sullo schema fisso di prima, cosi' un piano vecchio
+  /// riaperto oggi resta identico a com'era.
+  final WeeklyAvailability? availability;
+
+  /// I giorni e i tempi da usare per generare: sempre qualcosa di valido.
+  WeeklyAvailability get effectiveAvailability {
+    final WeeklyAvailability? declared = availability;
+    if (declared != null && !declared.isEmpty) return declared;
+    return WeeklyAvailability.fromDaysPerWeek(daysPerWeek);
+  }
 
   /// Chilometri settimanali di partenza: da qui il piano cresce.
   final double startWeeklyKm;
@@ -435,6 +454,7 @@ class PlanConfig {
     int? daysPerWeek,
     double? startWeeklyKm,
     double? vdot,
+    WeeklyAvailability? availability,
     List<RaceEvent>? races,
   }) =>
       PlanConfig(
@@ -445,6 +465,7 @@ class PlanConfig {
         daysPerWeek: daysPerWeek ?? this.daysPerWeek,
         startWeeklyKm: startWeeklyKm ?? this.startWeeklyKm,
         vdot: vdot ?? this.vdot,
+        availability: availability ?? this.availability,
         races: races ?? List<RaceEvent>.from(this.races),
         createdAt: createdAt,
       );
@@ -455,6 +476,7 @@ class PlanConfig {
         'startDate': startDate.toIso8601String(),
         'weeks': weeks,
         'daysPerWeek': daysPerWeek,
+        if (availability != null) 'availability': availability!.toJson(),
         'startWeeklyKm': startWeeklyKm,
         'vdot': vdot,
         'createdAt': createdAt.toIso8601String(),
@@ -464,6 +486,8 @@ class PlanConfig {
   factory PlanConfig.fromJson(Map<String, dynamic> json) {
     final List<dynamic> rawRaces =
         (json['races'] as List<dynamic>?) ?? <dynamic>[];
+    final Map<dynamic, dynamic>? rawAvailability =
+        json['availability'] as Map<dynamic, dynamic>?;
     return PlanConfig(
       id: json['id'] as String?,
       goal: RaceGoalInfo.fromStorage(json['goal'] as String?),
@@ -472,6 +496,10 @@ class PlanConfig {
               DateTime.now(),
       weeks: (json['weeks'] as num?)?.toInt() ?? 8,
       daysPerWeek: (json['daysPerWeek'] as num?)?.toInt() ?? 4,
+      availability: rawAvailability == null
+          ? null
+          : WeeklyAvailability.fromJson(
+              rawAvailability.cast<String, dynamic>()),
       startWeeklyKm: (json['startWeeklyKm'] as num?)?.toDouble() ?? 20.0,
       vdot: (json['vdot'] as num?)?.toDouble() ?? 0.0,
       createdAt: DateTime.tryParse(json['createdAt'] as String? ?? ''),

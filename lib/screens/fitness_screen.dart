@@ -130,6 +130,11 @@ class FitnessScreen extends StatelessWidget {
           ],
         ),
 
+        if (result.samples.isNotEmpty) ...<Widget>[
+          const SectionTitle('Su cosa e\' basato'),
+          _EvidenceList(samples: result.samples),
+        ],
+
         if (result.profileBias != null) ...<Widget>[
           const SectionTitle('Che tipo di corridore sei'),
           _BiasCard(bias: result.profileBias!),
@@ -265,6 +270,147 @@ class _IndexCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// L'elenco delle prestazioni su cui l'indice e' costruito.
+///
+/// PERCHE' ESISTE QUESTA SEZIONE
+/// -----------------------------
+/// Un numero senza le sue prove e' un oracolo, e un oracolo non si puo'
+/// correggere. Se l'indice dice 45,4 e l'atleta pensa di valere 47, l'unica
+/// domanda utile e' "su cosa ti stai basando?". Qui c'e' la risposta, riga per
+/// riga: la prestazione, quando, quanto pesa, e che indice suggerirebbe da
+/// sola.
+///
+/// Toccando una riga si apre la corsa da cui viene, quando ce n'e' una: i
+/// personali dichiarati a mano non hanno una corsa dietro.
+class _EvidenceList extends StatelessWidget {
+  const _EvidenceList({required this.samples});
+
+  final List<WeightedSample> samples;
+
+  /// Quante righe mostrare. Oltre la decima si entra nella coda di
+  /// prestazioni che pesano quasi zero: allungare la lista non informa, fa
+  /// solo scorrere.
+  static const int maxRighe = 10;
+
+  String _quando(int ageDays) {
+    if (ageDays <= 0) return 'oggi';
+    if (ageDays == 1) return 'ieri';
+    if (ageDays < 14) return '$ageDays giorni fa';
+    if (ageDays < 60) return '${(ageDays / 7).round()} settimane fa';
+    return '${(ageDays / 30).round()} mesi fa';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final AppPalette p = AppPalette.of(context);
+    final List<WeightedSample> mostrate =
+        samples.length > maxRighe ? samples.sublist(0, maxRighe) : samples;
+
+    final int nascoste = samples.length - mostrate.length;
+    final String coda = nascoste == 0
+        ? ''
+        : 'Ci sono anche $nascoste prove piu\' leggere, non elencate. ';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        InsetList(
+          children: <Widget>[
+            for (final WeightedSample s in mostrate)
+              AppListRow(
+                title: s.sample.label ??
+                    formatDistanceWithUnit(s.sample.meters),
+                subtitle: '${formatDuration(Duration(seconds: s.sample.seconds))}'
+                    '  ·  ${s.sample.source.label}  ·  '
+                    '${_quando(s.ageDays)}',
+                onTap: s.sample.activityId == null
+                    ? null
+                    : () => Navigator.of(context).pushNamed(
+                          AppRoutes.activityDetail,
+                          arguments: s.sample.activityId,
+                        ),
+                showChevron: s.sample.activityId != null,
+                trailing: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Text(
+                      s.rawIndex.toStringAsFixed(1),
+                      style: AppText.number(16, color: p.ink),
+                    ),
+                    const SizedBox(height: 5),
+                    _WeightBar(weight: s.weight),
+                  ],
+                ),
+              ),
+          ],
+        ),
+        Padding(
+          padding: const EdgeInsets.only(left: 4, top: 8),
+          child: Text(
+            'Il numero e\' l\'indice che quella prova, da sola, '
+            'suggerirebbe. La barra sotto e\' quanto pesa: scende con il '
+            'tempo e con l\'incertezza di come e\' stata misurata. $coda'
+            'L\'indice non e\' la media di questi numeri: e\' dove sono '
+            'arrivate, una conferma alla volta.',
+            style: AppText.caption.copyWith(color: p.inkFaint),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Barretta che mostra il peso di una prestazione, da 0 a 1.
+class _WeightBar extends StatelessWidget {
+  const _WeightBar({required this.weight});
+
+  final double weight;
+
+  static const double fullWidth = 46;
+
+  @override
+  Widget build(BuildContext context) {
+    final AppPalette p = AppPalette.of(context);
+    final double fraction = weight.clamp(0.0, 1.0);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        SizedBox(
+          width: fullWidth,
+          height: 4,
+          child: Stack(
+            children: <Widget>[
+              Container(
+                decoration: BoxDecoration(
+                  color: p.separator,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              FractionallySizedBox(
+                widthFactor: fraction < 0.04 ? 0.04 : fraction,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: p.accent,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 3),
+        Text(
+          'peso ${(fraction * 100).round()}%',
+          style: AppText.caption.copyWith(color: p.inkFaint, fontSize: 11),
+        ),
+      ],
     );
   }
 }

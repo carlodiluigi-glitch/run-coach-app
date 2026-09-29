@@ -35,6 +35,7 @@ class SessionAnalysis {
   const SessionAnalysis({
     required this.intensity,
     required this.qualityMinutes,
+    required this.hardMinutes,
     required this.timeInZone,
     required this.totalMinutes,
     required this.averagePaceSecPerKm,
@@ -43,8 +44,11 @@ class SessionAnalysis {
 
   final SessionIntensity intensity;
 
-  /// Minuti corsi a passo di soglia o piu' veloce.
+  /// Minuti corsi a passo di soglia o piu' veloce, in tratti continui.
   final double qualityMinutes;
+
+  /// Minuti corsi a passo di maratona o piu' veloce, in tratti continui.
+  final double hardMinutes;
 
   /// Minuti passati in ciascuna zona.
   final Map<TrainingZone, double> timeInZone;
@@ -63,11 +67,7 @@ class SessionAnalysis {
   /// Quota di tempo passata a passo di medio o piu' veloce.
   double get hardFraction {
     if (totalMinutes <= 0) return 0;
-    double sum = 0;
-    for (final MapEntry<TrainingZone, double> entry in timeInZone.entries) {
-      if (entry.key.isQuality) sum += entry.value;
-    }
-    return sum / totalMinutes;
+    return hardMinutes / totalMinutes;
   }
 }
 
@@ -93,11 +93,33 @@ class SessionAnalysis {
 ///
 /// Senza tracciato si ripiega sul passo medio: meno preciso, ma meglio di
 /// niente e dichiarato come tale nella spiegazione.
+///
+/// PERCHE' LE FINESTRE NON BASTANO DA SOLE
+/// ---------------------------------------
+/// Una finestra di venti secondi copre circa cento metri. Fra il passo del
+/// lento (5:00 al km) e il passo di soglia (4:34) ci sono sei metri di
+/// differenza su una finestra: meno dell'errore del GPS. Quindi su una corsa
+/// tranquilla e regolare qualche finestra cade per caso nella zona della
+/// soglia, e sommandole veniva fuori "7 minuti a soglia o piu' veloce:
+/// seduta impegnativa" per un lento fatto a 5:20.
+///
+/// La correzione: il tempo di qualita' si conta solo a **blocchi continui di
+/// almeno un minuto**. Il rumore del GPS e' sparso - una finestra qui, una
+/// la', mai tre di fila - mentre il lavoro vero e' continuo: un mille a 4:18
+/// sono tredici finestre attaccate. Le finestre restano di venti secondi,
+/// perche' servono per vedere le ripetute; cambia solo come si sommano.
 class SessionClassifier {
   const SessionClassifier();
 
   /// Durata delle finestre di analisi, in secondi.
   static const int windowSeconds = 20;
+
+  /// Quanto deve durare un tratto continuo perche' conti come qualita'.
+  ///
+  /// Un minuto e' il compromesso: sotto c'e' solo rumore, e non esiste
+  /// ripetuta utile piu' corta di un minuto (400 metri a ritmo 1500 sono
+  /// circa settanta secondi).
+  static const int minQualityBlockSeconds = 60;
 
   /// Minuti di soglia o piu' veloce oltre i quali la seduta e' dura.
   /// VALORI EMPIRICI, TARABILI.
@@ -114,13 +136,15 @@ class SessionClassifier {
     final double? averagePace = activity.averagePaceSecondsPerKm;
 
     final Map<TrainingZone, double> timeInZone = <TrainingZone, double>{};
+    List<_Window> windows = const <_Window>[];
     bool fromRoute = false;
 
     if (activity.route.length >= 3) {
-      final Map<TrainingZone, double>? measured =
-          _timeInZoneFromRoute(activity, zones);
-      if (measured != null && measured.isNotEmpty) {
-        timeInZone.addAll(measured);
+      final List<_Window> measured = _windowsFromRoute(activity, zones);
+      final Map<TrainingZone, double> perZone = _timeInZone(measured);
+      if (perZone.isNotEmpty) {
+        windows = measured;
+        timeInZone.addAll(perZone);
         fromRoute = true;
       }
     }
@@ -131,6 +155,7 @@ class SessionClassifier {
         return SessionAnalysis(
           intensity: SessionIntensity.easy,
           qualityMinutes: 0,
+          hardMinutes: 0,
           timeInZone: const <TrainingZone, double>{},
           totalMinutes: totalMinutes,
           averagePaceSecPerKm: averagePace,
@@ -141,11 +166,17 @@ class SessionClassifier {
       timeInZone[zones.zoneFor(averagePace)] = totalMinutes;
     }
 
-    // Minuti a soglia o piu' veloce.
-    double qualityMinutes = 0;
-    for (final MapEntry<TrainingZone, double> entry in timeInZone.entries) {
-      if (_isThresholdOrFaster(entry.key)) qualityMinutes += entry.value;
-    }
+    // Minuti di lavoro, contati a blocchi continui.
+    //
+    // Senza tracciato non ci sono blocchi da guardare: c'e' un solo passo,
+    // quello medio, e se e' passo di soglia allora l'intera seduta e' un
+    // blocco continuo.
+    final double qualityMinutes = fromRoute
+        ? _minutiInBlocchi(windows, _isThresholdOrFaster)
+        : _minutiPerZona(timeInZone, _isThresholdOrFaster);
+    final double hardMinutes = fromRoute
+        ? _minutiInBlocchi(windows, (TrainingZone z) => z.isQuality)
+        : _minutiPerZona(timeInZone, (TrainingZone z) => z.isQuality);
 
     double measuredTotal = 0;
     for (final double minutes in timeInZone.values) {
@@ -155,6 +186,7 @@ class SessionClassifier {
     final SessionAnalysis draft = SessionAnalysis(
       intensity: SessionIntensity.easy,
       qualityMinutes: qualityMinutes,
+      hardMinutes: hardMinutes,
       timeInZone: timeInZone,
       totalMinutes: measuredTotal > 0 ? measuredTotal : totalMinutes,
       averagePaceSecPerKm: averagePace,
@@ -166,6 +198,7 @@ class SessionClassifier {
     return SessionAnalysis(
       intensity: intensity,
       qualityMinutes: qualityMinutes,
+      hardMinutes: hardMinutes,
       timeInZone: timeInZone,
       totalMinutes: draft.totalMinutes,
       averagePaceSecPerKm: averagePace,
@@ -221,12 +254,16 @@ class SessionClassifier {
     }
   }
 
-  Map<TrainingZone, double>? _timeInZoneFromRoute(
+  /// Divide il tracciato in finestre, **in ordine di tempo**.
+  ///
+  /// L'ordine e' la parte importante: e' quello che permette di distinguere un
+  /// minuto di lavoro continuo da tre finestre veloci sparse in mezz'ora.
+  List<_Window> _windowsFromRoute(
     RunningActivity activity,
     TrainingZones zones,
   ) {
     final List<RoutePoint> route = activity.route;
-    final Map<TrainingZone, double> out = <TrainingZone, double>{};
+    final List<_Window> out = <_Window>[];
 
     int windowStart = 0;
     double windowMeters = 0;
@@ -244,21 +281,78 @@ class SessionClassifier {
           route[i].elapsedSeconds - route[windowStart].elapsedSeconds;
       if (elapsed < windowSeconds) continue;
 
+      TrainingZone? zone;
       if (windowMeters > 5 && elapsed > 0) {
         final double pace = elapsed / (windowMeters / 1000.0);
         // Passi impossibili (GPS ballerino, semaforo, pausa non registrata)
         // vengono scartati invece di finire in una zona a caso.
         if (pace > 100 && pace < 1500) {
-          final TrainingZone zone = zones.zoneFor(pace);
-          out[zone] = (out[zone] ?? 0) + elapsed / 60.0;
+          zone = zones.zoneFor(pace);
         }
       }
+      // zone == null: finestra buttata. Resta nella lista come buco, cosi'
+      // una pausa interrompe il blocco invece di saldare insieme due tratti
+      // veloci lontani fra loro.
+      out.add(_Window(zone, elapsed.toDouble()));
 
       windowStart = i;
       windowMeters = 0;
     }
 
-    return out.isEmpty ? null : out;
+    return out;
+  }
+
+  Map<TrainingZone, double> _timeInZone(List<_Window> windows) {
+    final Map<TrainingZone, double> out = <TrainingZone, double>{};
+    for (final _Window w in windows) {
+      final TrainingZone? zone = w.zone;
+      if (zone == null) continue;
+      out[zone] = (out[zone] ?? 0) + w.seconds / 60.0;
+    }
+    return out;
+  }
+
+  /// Somma solo i tratti **continui** lunghi almeno un minuto in cui la zona
+  /// soddisfa [vale].
+  ///
+  /// I blocchi piu' corti non vengono accorciati: vengono buttati. Un tratto
+  /// veloce di quaranta secondi dentro un lento non e' mezzo allenamento, e'
+  /// un cavalcavia o un incrocio.
+  double _minutiInBlocchi(
+    List<_Window> windows,
+    bool Function(TrainingZone) vale,
+  ) {
+    double totale = 0;
+    double blocco = 0;
+
+    void chiudi() {
+      if (blocco >= minQualityBlockSeconds) totale += blocco;
+      blocco = 0;
+    }
+
+    for (final _Window w in windows) {
+      final TrainingZone? zone = w.zone;
+      if (zone != null && vale(zone)) {
+        blocco += w.seconds;
+      } else {
+        chiudi();
+      }
+    }
+    chiudi();
+
+    return totale / 60.0;
+  }
+
+  /// Versione senza tracciato: non ci sono blocchi, solo zone.
+  double _minutiPerZona(
+    Map<TrainingZone, double> timeInZone,
+    bool Function(TrainingZone) vale,
+  ) {
+    double totale = 0;
+    for (final MapEntry<TrainingZone, double> e in timeInZone.entries) {
+      if (vale(e.key)) totale += e.value;
+    }
+    return totale;
   }
 
   SessionIntensity _classify(SessionAnalysis a) {
@@ -307,4 +401,16 @@ class SessionClassifier {
 
     return buffer.toString();
   }
+}
+
+/// Una finestra di analisi: la zona in cui e' caduta e quanto e' durata.
+///
+/// [zone] a `null` vuol dire finestra scartata (passo impossibile, pausa,
+/// GPS perso). Resta nella lista perche' serve come interruzione: due tratti
+/// veloci separati da una pausa non sono un unico blocco.
+class _Window {
+  const _Window(this.zone, this.seconds);
+
+  final TrainingZone? zone;
+  final double seconds;
 }

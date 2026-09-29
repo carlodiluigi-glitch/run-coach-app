@@ -1,10 +1,36 @@
 import 'dart:math' as math;
 
 import '../models/training_plan.dart';
+import '../models/weekly_availability.dart';
 import '../models/workout.dart';
 import '../models/workout_step.dart';
 import '../utils/formatters.dart';
 import 'fitness_service.dart';
+
+/// Il calendario di una settimana: dove va il lungo, dove va la qualita'.
+class WeekSchedule {
+  const WeekSchedule({
+    required this.runDays,
+    required this.longDay,
+    required this.qualityDays,
+  });
+
+  /// Giorni in cui si corre. 1 = lunedi'.
+  final List<int> runDays;
+
+  /// Giorno del lungo.
+  final int longDay;
+
+  /// Giorni di qualita', in ordine.
+  final List<int> qualityDays;
+
+  /// I giorni che restano: corse lente.
+  List<int> get easyDays => runDays
+      .where((int d) => d != longDay && !qualityDays.contains(d))
+      .toList();
+
+  bool get isEmpty => runDays.isEmpty;
+}
 
 /// Generatore di piani di allenamento.
 ///
@@ -40,26 +66,100 @@ class PlanService {
 
   final FitnessService fitness;
 
-  /// Giorni della settimana in cui si corre, secondo quanti giorni hai.
+  /// Giorni preferiti per la qualita' a parita' di tempo disponibile.
   ///
-  /// Le sedute di qualita' cadono sempre di martedi' e giovedi' e il lungo di
-  /// domenica: schema fisso di proposito, perche' un piano si segue solo se e'
-  /// prevedibile. 1 = lunedi', 7 = domenica.
-  static List<int> runDaysFor(int daysPerWeek) {
-    switch (daysPerWeek) {
-      case 3:
-        return <int>[2, 4, 7];
-      case 4:
-        return <int>[2, 4, 6, 7];
-      case 5:
-        return <int>[2, 3, 4, 6, 7];
-      default:
-        return <int>[1, 2, 3, 4, 6, 7];
+  /// Martedi' e giovedi' non hanno niente di fisiologico: sono la tradizione,
+  /// e la tradizione vale come spareggio quando due giorni offrono lo stesso
+  /// tempo. Il criterio vero e' quanto tempo c'e'.
+  static const List<int> qualityDayPreference = <int>[2, 4];
+
+  /// Decide il calendario della settimana a partire dal tempo disponibile.
+  ///
+  /// LE REGOLE, IN ORDINE DI IMPORTANZA
+  /// ----------------------------------
+  /// 1. Si corre solo nei giorni dichiarati.
+  /// 2. Il lungo va dove c'e' piu' tempo. E' l'unica seduta che non si puo'
+  ///    comprimere: un lungo da 18 km non entra in un'ora, e farlo a pezzi
+  ///    non e' la stessa cosa.
+  /// 3. La qualita' non va mai il giorno prima del lungo. Il lungo e' la
+  ///    seduta piu' importante della settimana: arrivarci con le gambe piene
+  ///    la rovina.
+  /// 4. Due sedute di qualita' non vanno mai attaccate. L'adattamento avviene
+  ///    nel recupero: due giorni forti di fila sono un giorno forte e un
+  ///    giorno sprecato.
+  /// 5. Fra i giorni che restano, la qualita' va dove c'e' piu' tempo: e' la
+  ///    seduta che ne chiede di piu' fra riscaldamento, lavoro e defaticamento.
+  ///
+  /// La settimana e' circolare: la domenica e il lunedi' sono attaccati, e il
+  /// conto lo tiene presente - altrimenti un lungo il lunedi' si porterebbe
+  /// dietro una qualita' la domenica sera.
+  ///
+  /// Se le regole non permettono di piazzare tutte le sedute di qualita'
+  /// richieste, se ne piazzano meno. Non si rompe una regola per far quadrare
+  /// un numero.
+  WeekSchedule scheduleFor(
+    WeeklyAvailability availability, {
+    required int qualityWanted,
+  }) {
+    final List<int> runDays = availability.runDays;
+    if (runDays.isEmpty) {
+      return const WeekSchedule(
+        runDays: <int>[],
+        longDay: 7,
+        qualityDays: <int>[],
+      );
     }
+
+    final int longDay = availability.longestDay ?? runDays.last;
+    final int dayBeforeLong = longDay == 1 ? 7 : longDay - 1;
+    final int dayAfterLong = longDay == 7 ? 1 : longDay + 1;
+
+    final List<int> candidates = runDays
+        .where((int d) => d != longDay && d != dayBeforeLong)
+        .toList()
+      ..sort((int a, int b) {
+        final int byTime =
+            availability.minutesOn(b).compareTo(availability.minutesOn(a));
+        if (byTime != 0) return byTime;
+        final int pa = _classicRank(a);
+        final int pb = _classicRank(b);
+        if (pa != pb) return pa.compareTo(pb);
+        return a.compareTo(b);
+      });
+
+    final List<int> picked = <int>[];
+    // Due passate. La prima evita anche il giorno DOPO il lungo; se non
+    // bastano i giorni, la seconda lo concede - correre forte il giorno dopo
+    // un lungo e' meno grave che arrivare al lungo stanchi.
+    for (int pass = 0; pass < 2 && picked.length < qualityWanted; pass++) {
+      for (final int day in candidates) {
+        if (picked.length >= qualityWanted) break;
+        if (picked.contains(day)) continue;
+        if (pass == 0 && day == dayAfterLong) continue;
+        if (picked.any((int q) => _adjacent(q, day))) continue;
+        picked.add(day);
+      }
+    }
+    picked.sort();
+
+    return WeekSchedule(
+      runDays: runDays,
+      longDay: longDay,
+      qualityDays: picked,
+    );
   }
 
-  /// Giorni preferiti per la qualita', in ordine.
-  static const List<int> qualityDayPreference = <int>[2, 4];
+  static int _classicRank(int weekday) {
+    final int index = qualityDayPreference.indexOf(weekday);
+    return index < 0 ? qualityDayPreference.length : index;
+  }
+
+  /// Due giorni attaccati, tenendo conto che la settimana gira.
+  static bool _adjacent(int a, int b) {
+    if (a == b) return true;
+    final int diff = (a - b).abs();
+    return diff == 1 || diff == 6;
+  }
 
   /// Genera il piano. `null` se la forma non e' stimabile.
   TrainingPlan? generate(PlanConfig config) {
@@ -68,7 +168,6 @@ class PlanService {
 
     final int weeks =
         config.weeks.clamp(config.goal.minWeeks, config.goal.maxWeeks);
-    final int days = config.daysPerWeek.clamp(3, 6);
 
     final List<PlanPhase> phases = phasesFor(weeks, config.goal);
     final List<double> volumes = volumesFor(
@@ -86,7 +185,6 @@ class PlanService {
         targetKm: volumes[i],
         config: config,
         paces: paces,
-        days: days,
         isDownWeek: _isDownWeek(i, phases[i]),
       ));
     }
@@ -234,14 +332,12 @@ class PlanService {
     required double targetKm,
     required PlanConfig config,
     required TrainingPaces paces,
-    required int days,
     required bool isDownWeek,
   }) {
     final DateTime weekStart = _dayOnly(
       config.startDate.add(Duration(days: index * 7)),
     );
-    final List<int> runDays = runDaysFor(days);
-    final int longDay = runDays.last;
+    final WeeklyAvailability availability = config.effectiveAvailability;
 
     int qualityWanted;
     switch (phase) {
@@ -259,21 +355,42 @@ class PlanService {
         qualityWanted = 0;
         break;
     }
-    if (days <= 3) qualityWanted = math.min(qualityWanted, 1);
+    if (availability.dayCount <= 3) qualityWanted = math.min(qualityWanted, 1);
     if (isDownWeek) qualityWanted = math.min(qualityWanted, 1);
 
-    final List<int> qualityDays = <int>[];
-    for (final int day in qualityDayPreference) {
-      if (qualityDays.length >= qualityWanted) break;
-      if (runDays.contains(day) && day != longDay) qualityDays.add(day);
+    final WeekSchedule schedule =
+        scheduleFor(availability, qualityWanted: qualityWanted);
+    final List<int> qualityDays = schedule.qualityDays;
+    final int longDay = schedule.longDay;
+
+    // ------------------------------------------------- quanto ci sta davvero
+    //
+    // Il tempo dichiarato e' un tetto, non un suggerimento. Un piano che
+    // chiede 18 km il giorno in cui hai un'ora e mezza a passo lento chiede
+    // una cosa che non ci sta, e un piano che chiede l'impossibile viene
+    // abbandonato entro la seconda settimana.
+    final double easyPaceSec = paces.easy.slowestSecPerKm;
+    double kmIn(int minutes) => minutes * 60.0 / easyPaceSec;
+
+    double capacityKm = 0;
+    for (final int day in schedule.runDays) {
+      capacityKm += kmIn(availability.minutesOn(day));
     }
+
+    // Il volume della settimana non puo' superare il tempo che c'e'. Si tiene
+    // un margine del 5%: il tempo dichiarato e' il massimo, non la norma.
+    final double usableKm = capacityKm * 0.95;
+    final bool volumeLimitedByTime = targetKm > usableKm && usableKm > 0;
+    final double weekKm = volumeLimitedByTime ? usableKm : targetKm;
 
     // ------------------------------------------------------------- lungo
     final double longFraction = _longFraction(phase);
-    double longKm = targetKm * longFraction;
+    double longKm = weekKm * longFraction;
     final double capKm = config.goal.longRunCapMeters / 1000.0;
     if (longKm > capKm) longKm = capKm;
-    if (longKm < 5) longKm = math.min(5.0, targetKm * 0.5);
+    final double longTimeCapKm = kmIn(availability.minutesOn(longDay));
+    if (longKm > longTimeCapKm) longKm = longTimeCapKm;
+    if (longKm < 5) longKm = math.min(5.0, weekKm * 0.5);
 
     // ---------------------------------------------------------- qualita'
     final List<PlannedSession> sessions = <PlannedSession>[];
@@ -288,6 +405,7 @@ class PlanService {
         paces: paces,
         vdot: config.vdot,
         weekNumber: index + 1,
+        budgetSeconds: availability.minutesOn(qualityDays[slot]) * 60,
       );
       final double km = (built.workout.estimatedMeters) / 1000.0;
       qualityKm += km;
@@ -303,25 +421,37 @@ class PlanService {
     }
 
     // -------------------------------------------------------------- lenti
-    final List<int> easyDays = runDays
-        .where((int d) => d != longDay && !qualityDays.contains(d))
-        .toList();
+    //
+    // I chilometri che restano si dividono in proporzione al tempo: chi ha
+    // un'ora corre di piu' di chi ha mezz'ora, invece di dare a tutti la
+    // stessa cifra e sforare dove il tempo non c'e'.
+    final List<int> easyDays = schedule.easyDays;
+    final double remainingKm =
+        math.max(0.0, weekKm - longKm - qualityKm);
 
-    double remainingKm = targetKm - longKm - qualityKm;
-    double perEasyKm =
-        easyDays.isEmpty ? 0 : remainingKm / easyDays.length;
-    if (perEasyKm < 3) perEasyKm = 3;
-    if (perEasyKm > 18) perEasyKm = 18;
+    int easyMinutes = 0;
+    for (final int day in easyDays) {
+      easyMinutes += availability.minutesOn(day);
+    }
 
     for (final int day in easyDays) {
+      final int minutes = availability.minutesOn(day);
+      double km = easyMinutes <= 0
+          ? 0
+          : remainingKm * (minutes / easyMinutes);
+      final double dayCapKm = kmIn(minutes);
+      if (km > dayCapKm) km = dayCapKm;
+      if (km > 18) km = 18;
+      if (km < 3) km = math.min(3.0, dayCapKm);
+
       sessions.add(PlannedSession(
         date: _dateOf(weekStart, day),
         kind: SessionKind.easy,
-        title: 'Lento ${perEasyKm.toStringAsFixed(0)} km',
+        title: 'Lento ${km.toStringAsFixed(0)} km',
         detail: 'Passo ${formatPaceWithUnit(paces.easy.slowestSecPerKm)} - '
             '${formatPaceWithUnit(paces.easy.fastestSecPerKm)}. '
             'Se fai fatica a parlare, stai andando troppo forte.',
-        distanceMeters: perEasyKm * 1000,
+        distanceMeters: km * 1000,
       ));
     }
 
@@ -337,13 +467,22 @@ class PlanService {
     sessions.sort((PlannedSession a, PlannedSession b) =>
         a.date.compareTo(b.date));
 
+    final List<String> note = <String>[];
+    if (isDownWeek) {
+      note.add('Settimana di scarico: il volume scende del 25%');
+    }
+    if (volumeLimitedByTime) {
+      note.add('Volume tenuto a ${weekKm.toStringAsFixed(0)} km: e\' quanto '
+          'ci sta nel tempo che hai dichiarato');
+    }
+
     return PlanWeek(
       number: index + 1,
       phase: phase,
       startDate: weekStart,
-      targetKm: targetKm,
+      targetKm: weekKm,
       sessions: sessions,
-      note: isDownWeek ? 'Settimana di scarico: il volume scende del 25%' : null,
+      note: note.isEmpty ? null : note.join('. '),
     );
   }
 
@@ -383,8 +522,10 @@ class PlanService {
     required TrainingPaces paces,
     required double vdot,
     required int weekNumber,
+    int? budgetSeconds,
   }) {
     final String idBase = 'plan-w$weekNumber-q$slot';
+    final double easySec = paces.easy.slowestSecPerKm;
 
     switch (phase) {
       case PlanPhase.base:
@@ -392,25 +533,41 @@ class PlanService {
         // In costruzione si tocca il veloce senza farne una seduta dura: il
         // corpo impara a muoversi in fretta mentre il motore cresce piano.
         if (weekIndex.isEven) {
-          final int reps = 8;
+          final _Fitted fit = _fit(
+            wantedReps: 8,
+            minReps: 4,
+            repSeconds: 120,
+            warmupSeconds: 720,
+            cooldownSeconds: 480,
+            budgetSeconds: budgetSeconds,
+          );
+          final int reps = fit.reps;
           return _QualitySession(
             kind: SessionKind.fartlek,
             title: 'Fartlek $reps x 1 minuto',
-            detail: 'Un minuto veloce, uno lento, otto volte. '
+            detail: 'Un minuto veloce, uno lento, $reps volte. '
                 'Senza guardare il passo: a sensazione, forte ma controllato.',
             workout: _buildWorkout(
               id: idBase,
               name: 'Fartlek $reps x 1\'',
               paces: paces,
-              warmupSeconds: 720,
+              warmupSeconds: fit.warmupSeconds,
               repeat: reps,
               work: _timeStep(StepType.interval, 60, paces.interval),
               recovery: _timeStep(StepType.recovery, 60, paces.easy),
-              cooldownSeconds: 480,
+              cooldownSeconds: fit.cooldownSeconds,
             ),
           );
         }
-        final int reps = 8;
+        final _Fitted fit = _fit(
+          wantedReps: 8,
+          minReps: 4,
+          repSeconds: 0.2 * paces.repetition.secondsPerKm + 90,
+          warmupSeconds: 1200,
+          cooldownSeconds: 600,
+          budgetSeconds: budgetSeconds,
+        );
+        final int reps = fit.reps;
         return _QualitySession(
           kind: SessionKind.repetitions,
           title: 'Allunghi $reps x 200 m',
@@ -421,11 +578,11 @@ class PlanService {
             id: idBase,
             name: 'Allunghi $reps x 200 m',
             paces: paces,
-            warmupSeconds: 1200,
+            warmupSeconds: fit.warmupSeconds,
             repeat: reps,
             work: _distanceStep(StepType.interval, 200, paces.repetition),
             recovery: _timeStep(StepType.recovery, 90, paces.easy),
-            cooldownSeconds: 600,
+            cooldownSeconds: fit.cooldownSeconds,
           ),
         );
         }
@@ -435,7 +592,15 @@ class PlanService {
         if (slot == 0) {
           // La soglia e' il lavoro che sposta di piu' il risultato su
           // qualunque distanza dai 5 km in su.
-          final int reps = (3 + weekIndex ~/ 3).clamp(3, 5);
+          final _Fitted fit = _fit(
+            wantedReps: (3 + weekIndex ~/ 3).clamp(3, 5),
+            minReps: 2,
+            repSeconds: 1.6 * paces.threshold.secondsPerKm + 90,
+            warmupSeconds: 900,
+            cooldownSeconds: 600,
+            budgetSeconds: budgetSeconds,
+          );
+          final int reps = fit.reps;
           return _QualitySession(
             kind: SessionKind.threshold,
             title: 'Soglia $reps x 1600 m',
@@ -446,15 +611,23 @@ class PlanService {
               id: idBase,
               name: 'Soglia $reps x 1600 m',
               paces: paces,
-              warmupSeconds: 900,
+              warmupSeconds: fit.warmupSeconds,
               repeat: reps,
               work: _distanceStep(StepType.interval, 1600, paces.threshold),
               recovery: _timeStep(StepType.recovery, 90, paces.easy),
-              cooldownSeconds: 600,
+              cooldownSeconds: fit.cooldownSeconds,
             ),
           );
         }
-        final int reps = (4 + weekIndex ~/ 3).clamp(4, 6);
+        final _Fitted fit = _fit(
+          wantedReps: (4 + weekIndex ~/ 3).clamp(4, 6),
+          minReps: 3,
+          repSeconds: paces.interval.secondsPerKm + 0.4 * easySec,
+          warmupSeconds: 900,
+          cooldownSeconds: 600,
+          budgetSeconds: budgetSeconds,
+        );
+        final int reps = fit.reps;
         return _QualitySession(
           kind: SessionKind.intervals,
           title: 'Ripetute $reps x 1000 m',
@@ -465,11 +638,11 @@ class PlanService {
             id: idBase,
             name: 'Ripetute $reps x 1000 m',
             paces: paces,
-            warmupSeconds: 900,
+            warmupSeconds: fit.warmupSeconds,
             repeat: reps,
             work: _distanceStep(StepType.interval, 1000, paces.interval),
             recovery: _distanceStep(StepType.recovery, 400, paces.easy),
-            cooldownSeconds: 600,
+            cooldownSeconds: fit.cooldownSeconds,
           ),
         );
         }
@@ -482,9 +655,18 @@ class PlanService {
             goal: goal,
             paces: paces,
             vdot: vdot,
+            budgetSeconds: budgetSeconds,
           );
         }
-        final int reps = 4;
+        final _Fitted fit = _fit(
+          wantedReps: 4,
+          minReps: 2,
+          repSeconds: 2 * paces.threshold.secondsPerKm + 120,
+          warmupSeconds: 900,
+          cooldownSeconds: 600,
+          budgetSeconds: budgetSeconds,
+        );
+        final int reps = fit.reps;
         return _QualitySession(
           kind: SessionKind.threshold,
           title: 'Soglia $reps x 2000 m',
@@ -494,18 +676,26 @@ class PlanService {
             id: idBase,
             name: 'Soglia $reps x 2000 m',
             paces: paces,
-            warmupSeconds: 900,
+            warmupSeconds: fit.warmupSeconds,
             repeat: reps,
             work: _distanceStep(StepType.interval, 2000, paces.threshold),
             recovery: _timeStep(StepType.recovery, 120, paces.easy),
-            cooldownSeconds: 600,
+            cooldownSeconds: fit.cooldownSeconds,
           ),
         );
         }
 
       case PlanPhase.taper:
         {
-        const int reps = 6;
+        final _Fitted fit = _fit(
+          wantedReps: 6,
+          minReps: 4,
+          repSeconds: 0.4 * paces.repetition.secondsPerKm + 0.4 * easySec,
+          warmupSeconds: 900,
+          cooldownSeconds: 600,
+          budgetSeconds: budgetSeconds,
+        );
+        final int reps = fit.reps;
         return _QualitySession(
           kind: SessionKind.repetitions,
           title: 'Richiamo $reps x 400 m',
@@ -516,11 +706,11 @@ class PlanService {
             id: idBase,
             name: 'Richiamo $reps x 400 m',
             paces: paces,
-            warmupSeconds: 900,
+            warmupSeconds: fit.warmupSeconds,
             repeat: reps,
             work: _distanceStep(StepType.interval, 400, paces.repetition),
             recovery: _distanceStep(StepType.recovery, 400, paces.easy),
-            cooldownSeconds: 600,
+            cooldownSeconds: fit.cooldownSeconds,
           ),
         );
         }
@@ -528,6 +718,9 @@ class PlanService {
       case PlanPhase.recovery:
         {
         // Non dovrebbe arrivarci: in recupero non si programma qualita'.
+        final int totale = budgetSeconds == null
+            ? 2700
+            : budgetSeconds.clamp(900, 2700);
         return _QualitySession(
           kind: SessionKind.easy,
           title: 'Lento',
@@ -536,7 +729,7 @@ class PlanService {
             id: idBase,
             name: 'Lento',
             paces: paces,
-            warmupSeconds: 1800,
+            warmupSeconds: totale - 900,
             repeat: 1,
             work: _timeStep(StepType.run, 600, paces.easy),
             recovery: null,
@@ -554,10 +747,20 @@ class PlanService {
     required RaceGoal goal,
     required TrainingPaces paces,
     required double vdot,
+    int? budgetSeconds,
   }) {
     final double? meters = goal.meters;
     if (meters == null) {
-      const int reps = 5;
+      final _Fitted fit = _fit(
+        wantedReps: 5,
+        minReps: 3,
+        repSeconds: paces.interval.secondsPerKm +
+            0.4 * paces.easy.slowestSecPerKm,
+        warmupSeconds: 900,
+        cooldownSeconds: 600,
+        budgetSeconds: budgetSeconds,
+      );
+      final int reps = fit.reps;
       return _QualitySession(
         kind: SessionKind.intervals,
         title: 'Ripetute $reps x 1000 m',
@@ -567,11 +770,11 @@ class PlanService {
           id: idBase,
           name: 'Ripetute $reps x 1000 m',
           paces: paces,
-          warmupSeconds: 900,
+          warmupSeconds: fit.warmupSeconds,
           repeat: reps,
           work: _distanceStep(StepType.interval, 1000, paces.interval),
           recovery: _distanceStep(StepType.recovery, 400, paces.easy),
-          cooldownSeconds: 600,
+          cooldownSeconds: fit.cooldownSeconds,
         ),
       );
     }
@@ -621,6 +824,16 @@ class PlanService {
         break;
     }
 
+    final _Fitted fit = _fit(
+      wantedReps: reps,
+      minReps: 2,
+      repSeconds: fraction / 1000.0 * racePace + recoverySeconds,
+      warmupSeconds: 900,
+      cooldownSeconds: 600,
+      budgetSeconds: budgetSeconds,
+    );
+    reps = fit.reps;
+
     return _QualitySession(
       kind: SessionKind.racePace,
       title: 'Passo gara $reps x ${formatDistanceAuto(fraction)}',
@@ -631,11 +844,11 @@ class PlanService {
         id: idBase,
         name: 'Passo gara $reps x ${formatDistanceAuto(fraction)}',
         paces: paces,
-        warmupSeconds: 900,
+        warmupSeconds: fit.warmupSeconds,
         repeat: reps,
         work: _distanceStep(StepType.interval, fraction, pace),
         recovery: _timeStep(StepType.recovery, recoverySeconds, paces.easy),
-        cooldownSeconds: 600,
+        cooldownSeconds: fit.cooldownSeconds,
       ),
     );
   }
@@ -662,6 +875,72 @@ class PlanService {
       );
 
   /// Struttura standard: riscaldamento, blocco ripetuto, defaticamento.
+  /// Riscaldamento minimo. Sotto i dieci minuti il riscaldamento non riscalda:
+  /// si arriva alla prima ripetuta freddi, che e' il modo classico di farsi
+  /// male al soleo.
+  static const int minWarmupSeconds = 600;
+
+  /// Defaticamento minimo: cinque minuti.
+  static const int minCooldownSeconds = 300;
+
+  /// Adatta una seduta al tempo che c'e'.
+  ///
+  /// L'ORDINE DEI TAGLI E' UNA SCELTA
+  /// --------------------------------
+  /// Prima si accorciano riscaldamento e defaticamento, poi si togliono
+  /// ripetizioni. Il motivo: fra "4 x 1000 con dieci minuti di riscaldamento"
+  /// e "3 x 1000 con venti" la prima allena di piu'. Il contorno serve, ma il
+  /// lavoro e' il lavoro.
+  ///
+  /// Sotto [minReps] non si scende: una seduta di due ripetute su tre non e'
+  /// una seduta ridotta, e' un'altra seduta. Se non ci sta nemmeno cosi', la
+  /// seduta resta piu' lunga del tempo dichiarato - meglio dirlo con una
+  /// seduta che sfora che fingere un allenamento che non allena.
+  _Fitted _fit({
+    required int wantedReps,
+    required int minReps,
+    required double repSeconds,
+    required int warmupSeconds,
+    required int cooldownSeconds,
+    required int? budgetSeconds,
+  }) {
+    if (budgetSeconds == null || budgetSeconds <= 0 || repSeconds <= 0) {
+      return _Fitted(
+        reps: wantedReps,
+        warmupSeconds: warmupSeconds,
+        cooldownSeconds: cooldownSeconds,
+      );
+    }
+
+    int warmup = warmupSeconds;
+    int cooldown = cooldownSeconds;
+    int reps = wantedReps;
+
+    double totale() => warmup + cooldown + reps * repSeconds;
+
+    // 1. Il contorno, a scalini di un minuto: prima il defaticamento, che e'
+    //    la parte piu' facile da recuperare camminando a casa.
+    while (totale() > budgetSeconds &&
+        (cooldown > minCooldownSeconds || warmup > minWarmupSeconds)) {
+      if (cooldown > minCooldownSeconds) {
+        cooldown = math.max(minCooldownSeconds, cooldown - 60);
+      } else {
+        warmup = math.max(minWarmupSeconds, warmup - 60);
+      }
+    }
+
+    // 2. Poi le ripetizioni.
+    while (totale() > budgetSeconds && reps > minReps) {
+      reps--;
+    }
+
+    return _Fitted(
+      reps: reps,
+      warmupSeconds: warmup,
+      cooldownSeconds: cooldown,
+    );
+  }
+
   Workout _buildWorkout({
     required String id,
     required String name,
@@ -843,6 +1122,19 @@ class PlanService {
 }
 
 /// Risultato interno: una seduta di qualita' pronta.
+/// Una seduta adattata al tempo disponibile.
+class _Fitted {
+  const _Fitted({
+    required this.reps,
+    required this.warmupSeconds,
+    required this.cooldownSeconds,
+  });
+
+  final int reps;
+  final int warmupSeconds;
+  final int cooldownSeconds;
+}
+
 class _QualitySession {
   const _QualitySession({
     required this.kind,

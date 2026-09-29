@@ -151,6 +151,29 @@ Non e' richiesto nessun *secret*, nessuna password e nessuna API key.
 
 ## Come scaricare l'APK
 
+### Dal telefono, in un tocco (Release)
+
+Ogni build su `main` che finisce bene pubblica una **Release** con l'APK
+dentro, come file singolo.
+
+1. Dal telefono, apri il repository su GitHub.
+2. Tocca **Releases** (oppure l'ultima versione indicata a destra).
+3. Tocca il file `Falcata-<versione>-build<numero>.apk`.
+4. Aprilo e installalo. La prima volta Android chiede il permesso di
+   installare da questa origine: si concede una volta sola.
+
+Niente PC, niente zip, niente Chrome che blocca il download: un `.apk` allegato
+a una Release e' un file normale, mentre l'artifact di Actions e' uno zip che
+Chrome tratta come sospetto.
+
+Il nome della Release e' `b<numero build>`, il titolo riporta la versione, e le
+note contengono il messaggio del commit: si capisce sempre quale versione si
+sta installando.
+
+### Dal PC (artifact di Actions)
+
+Resta come alternativa, per esempio per prendere anche l'APK di debug.
+
 1. Apri il repository su GitHub.
 2. Vai su **Actions**.
 3. Clicca sull'ultima esecuzione del workflow **Android APK**.
@@ -159,6 +182,10 @@ Non e' richiesto nessun *secret*, nessuna password e nessuna API key.
 5. Scarichi uno zip contenente `app-release.apk` e `app-debug.apk`.
 6. Copia l'APK sul telefono e installala (serve autorizzare
    "installazione da origini sconosciute").
+
+La Release viene pubblicata usando `gh`, la riga di comando ufficiale di
+GitHub, che e' gia' installata sui runner: nessuna action di terzi ha accesso
+in scrittura al repository.
 
 ---
 
@@ -458,8 +485,37 @@ Quattro principi, tutti documentati in letteratura:
    L'adattamento avviene nel recupero, non nel carico.
 4. **Periodizzazione**: costruzione, sviluppo, specifico, scarico.
 
-Schema settimanale fisso, perche' un piano si segue solo se e' prevedibile:
-qualita' il martedi' e il giovedi', lungo la domenica, il resto lento.
+**I giorni e il tempo li dichiari tu.** Per ogni giorno della settimana dici
+quanti minuti hai per correre; zero vuol dire riposo. Da li' il piano decide:
+
+- il **lungo** va dove c'e' piu' tempo, non la domenica per tradizione (a pari
+  tempo vince la domenica, poi il sabato);
+- la **qualita'** non cade mai il giorno prima del lungo, e due sedute di
+  qualita' non sono mai attaccate - la settimana e' circolare, quindi domenica
+  e lunedi' contano come attaccati;
+- fra i giorni che restano la qualita' va dove c'e' piu' tempo, ed e' martedi'
+  e giovedi' solo come spareggio a pari tempo;
+- i **lenti** sono lunghi in proporzione al tempo di quel giorno;
+- nessuna seduta sfora il tempo dichiarato: il lungo viene accorciato, e la
+  qualita' perde prima il contorno (riscaldamento e defaticamento, fino a un
+  minimo di 10 e 5 minuti) e poi le ripetizioni, perche' fra "4 x 1000 con
+  dieci minuti di riscaldamento" e "3 x 1000 con venti" la prima allena di
+  piu';
+- se il volume della settimana non ci sta nel tempo disponibile, il volume
+  scende e la settimana lo dichiara nella sua nota. Un piano che chiede
+  l'impossibile viene abbandonato entro la seconda settimana.
+
+Perche' serviva: i piani sono scritti per una settimana da ufficio, dove il
+fine settimana e' il momento libero. Chi lavora nella ristorazione ha la
+settimana al contrario, e un lungo da 18 km non entra nell'ora e mezza del
+sabato.
+
+Sotto i tre giorni il piano non si costruisce: non basta a tenere separati un
+lungo, una qualita' e un lento.
+
+I piani creati prima di questa impostazione non cambiano: senza tempi
+dichiarati si ricade nello schema di prima (qualita' martedi' e giovedi', lungo
+domenica).
 
 Ogni seduta di qualita' non e' una descrizione ma un **allenamento vero**, con
 riscaldamento, ripetizioni, recuperi e passi obiettivo: dal piano si preme
@@ -511,12 +567,28 @@ solo.
 | `RunIndexEngine` | indice di forma con smoothing e confidenza | fatto |
 | `PaceZoneEngine` | nove zone di allenamento come fasce | fatto |
 | `SessionClassifier` | cosa e' stata **davvero** una seduta | fatto |
+| Giorni e tempo disponibile | il calendario segue il tempo che hai | fatto |
 | Raccolta fatica percepita | domanda a fine corsa | fatto |
 | `TrainingLoadEngine` | carico per intensita', non per chilometri | da fare |
 | `FatigueEngine` / `ReadinessEngine` | fatica residua, prontezza 0-100 | da fare |
 | `WorkoutDecisionEngine` | sceglie la seduta di oggi | da fare |
 | `RiskEngine` | filtro di sicurezza prima di confermare | da fare |
 | `AdaptationEngine` | impara dalla risposta individuale | da fare |
+
+### Su cosa e' basato l'indice: l'elenco delle prove
+
+Nella schermata Forma, sotto le previsioni, c'e' l'elenco delle prestazioni su
+cui l'indice e' costruito: per ognuna il tempo, da dove viene (gara, test,
+allenamento, tratto dentro una corsa, dichiarata a mano), quanto tempo fa, che
+indice suggerirebbe **da sola**, e una barretta con il suo peso.
+
+Perche' esiste: un numero senza le sue prove e' un oracolo, e un oracolo non si
+puo' correggere. Se l'indice dice 45,4 e l'atleta pensa di valere 47, l'unica
+domanda utile e' "su cosa ti stai basando?".
+
+Toccando una riga si apre la corsa da cui viene, quando ce n'e' una: i personali
+dichiarati a mano non hanno una corsa dietro. L'indice non e' la media di quei
+numeri: e' dove sono arrivati, una conferma alla volta.
 
 ### Il principio che governa tutto: mai inventare un dato
 
@@ -643,6 +715,32 @@ Il tracciato viene diviso in finestre di venti secondi, ogni finestra viene
 assegnata a una zona, e la seduta viene classificata su quanto tempo e' stato
 passato dove. Il confronto fra previsto ed effettivo produce una nota che il
 motore usera' per decidere il giorno dopo.
+
+#### Il rumore del GPS non e' allenamento
+
+Un lento vero (parziali 5:27, 5:00, 5:20, 5:20, 5:25, 5:20, 5:24, 5:10, 5:30,
+5:18) veniva riassunto cosi': "7 minuti a soglia o piu' veloce: seduta
+impegnativa". Falso, e con conseguenze: il motore ci avrebbe costruito sopra il
+giorno dopo.
+
+Il conto: una finestra di venti secondi copre circa cento metri. Fra 5:00 e
+4:34 al chilometro, su cento metri, ci sono **sei metri** di differenza. Il GPS
+sbaglia di piu' di sei metri. Quindi su una corsa regolare qualche finestra
+cade per caso nella soglia, e sommandole veniva fuori un lavoro mai fatto.
+
+La correzione: il tempo di qualita' si conta solo a **blocchi continui di
+almeno un minuto**. Il rumore e' sparso (una finestra qui, una la', mai tre di
+fila), il lavoro e' continuo (un mille a 4:18 sono tredici finestre attaccate).
+Le finestre restano di venti secondi, perche' servono per vedere le ripetute:
+cambia solo come si sommano. Lo stesso conteggio a blocchi vale per la quota di
+tempo "sopra il lento", che era il secondo modo di sbagliare: senza nessun
+tratto di soglia, la seduta diventava "impegnativa" perche' il 52% delle
+finestre cadeva nella zona del medio.
+
+Conseguenza accettata: un 8x200 non conta come qualita', perche' duecento metri
+veloci durano quaranta secondi. E' corretto - le ripetute brevi servono alla
+meccanica di corsa e non devono stancare - ma e' una scelta, non un caso.
+Un 10x400 invece conta, perche' un 400 dura piu' di un minuto.
 
 ### Il dolore non e' un segnale come gli altri
 

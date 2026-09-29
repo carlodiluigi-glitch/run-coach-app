@@ -19,6 +19,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
 
+    # Serve per creare la Release: senza questo il token del workflow puo'
+    # solo leggere, e "gh release create" risponderebbe 403.
+    permissions:
+      contents: write
+
     steps:
       # 1) Codice sorgente
       - name: Checkout repository
@@ -87,3 +92,35 @@ jobs:
             build/app/outputs/flutter-apk/app-debug.apk
           if-no-files-found: error
           retention-days: 30
+
+      # 10) Release: l'APK diventa un file scaricabile con un tocco dal
+      #     telefono, senza PC e senza zip.
+      #
+      # PERCHE' NON UN'ACTION DI TERZI: "gh" (la riga di comando di GitHub) e'
+      # gia' installata sui runner ubuntu, quindi non serve fidarsi di codice
+      # esterno per una cosa che tocca il repository in scrittura.
+      #
+      # Il messaggio del commit passa da una variabile d'ambiente e non
+      # incollato dentro il comando: se contenesse virgolette o apici, il
+      # comando si spezzerebbe.
+      - name: Pubblica la Release
+        if: github.ref == 'refs/heads/main' && success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MESSAGGIO: ${{ github.event.head_commit.message }}
+        run: |
+          set -e
+          VERSIONE=$(grep '^version:' pubspec.yaml | sed 's/version: *//' | cut -d'+' -f1)
+          NOME="Falcata-$VERSIONE-build${{ github.run_number }}.apk"
+          cp build/app/outputs/flutter-apk/app-release.apk "$NOME"
+          NOTE="Versione $VERSIONE, build ${{ github.run_number }}.
+
+          $MESSAGGIO
+
+          Per installare: scarica il file .apk qui sotto dal telefono e
+          aprilo. Se Android chiede il permesso di installare da questa
+          origine, concedilo una volta sola."
+          gh release create "b${{ github.run_number }}" "$NOME" \
+            --title "Falcata $VERSIONE (build ${{ github.run_number }})" \
+            --notes "$NOTE" \
+            --latest

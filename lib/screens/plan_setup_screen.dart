@@ -3,9 +3,11 @@ import 'package:provider/provider.dart';
 
 import '../app/tokens.dart';
 import '../models/training_plan.dart';
+import '../models/weekly_availability.dart';
 import '../providers/activity_provider.dart';
 import '../models/estimate.dart';
 import '../providers/plan_provider.dart';
+import '../services/plan_service.dart';
 import '../services/run_index_engine.dart';
 import '../services/stats_service.dart';
 import '../widgets/app_card.dart';
@@ -21,18 +23,48 @@ class PlanSetupScreen extends StatefulWidget {
 }
 
 class _PlanSetupScreenState extends State<PlanSetupScreen> {
+  static const PlanService _planService = PlanService();
+
   RaceGoal _goal = RaceGoal.tenK;
   int _weeks = RaceGoal.tenK.defaultWeeks;
-  int _days = 4;
   double _startKm = 25;
   bool _startKmTouched = false;
   bool _saving = false;
+
+  /// I giorni e i tempi disponibili.
+  ///
+  /// Si parte da quelli del piano precedente, se c'e': la settimana di chi
+  /// corre cambia raramente, e ridichiararla ogni volta sarebbe una tassa.
+  WeeklyAvailability? _availabilityOrNull;
+
+  WeeklyAvailability get _availability =>
+      _availabilityOrNull ?? WeeklyAvailability.suggested();
+
+  set _availability(WeeklyAvailability next) => _availabilityOrNull = next;
+
+  bool _availabilityLoaded = false;
 
   @override
   Widget build(BuildContext context) {
     final AppPalette p = AppPalette.of(context);
     final ActivityProvider activities = context.watch<ActivityProvider>();
     final RunningStats stats = activities.stats;
+
+    if (!_availabilityLoaded) {
+      _availabilityLoaded = true;
+      final WeeklyAvailability? previous =
+          context.read<PlanProvider>().plan?.config.availability;
+      if (previous != null && !previous.isEmpty) {
+        _availabilityOrNull = previous;
+      }
+    }
+
+    // Il calendario si vede mentre lo si costruisce: due sedute di qualita' e'
+    // il caso piu' carico, quindi mostra dove finirebbero nel peggiore dei
+    // casi. Ricalcolato a ogni tocco, cosi' si capisce subito l'effetto di
+    // aggiungere o togliere un giorno.
+    final WeekSchedule schedule =
+        _planService.scheduleFor(_availability, qualityWanted: 2);
 
     // Il punto di partenza si propone dai chilometri che stai giá facendo:
     // costruire un piano dal nulla e' il modo migliore per abbandonarlo.
@@ -53,7 +85,11 @@ class _PlanSetupScreenState extends State<PlanSetupScreen> {
     // che decideva gli allenamenti.
     final RunIndexResult forma = activities.runIndex;
     final Estimate<double>? indice = forma.index;
-    final bool ready = indice != null;
+
+    // Sotto i tre giorni non c'e' un piano da costruire: non basta a mettere
+    // insieme un lungo, una qualita' e un lento.
+    final bool enoughDays = _availability.dayCount >= 3;
+    final bool ready = indice != null && enoughDays;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Nuovo piano')),
@@ -145,20 +181,21 @@ class _PlanSetupScreenState extends State<PlanSetupScreen> {
               ),
             ),
 
-            const SectionTitle('Giorni di corsa a settimana'),
+            const SectionTitle('Quando puoi correre'),
             AppCard(
-              child: Row(
+              padding: const EdgeInsets.fromLTRB(14, 6, 10, 6),
+              child: Column(
                 children: <Widget>[
-                  for (final int days in <int>[3, 4, 5, 6])
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 3),
-                        child: _DayChip(
-                          days: days,
-                          selected: _days == days,
-                          onTap: () => setState(() => _days = days),
-                        ),
-                      ),
+                  for (int day = 1; day <= 7; day++)
+                    _DayTimeRow(
+                      weekday: day,
+                      minutes: _availability.minutesOn(day),
+                      isLong: schedule.longDay == day &&
+                          _availability.runsOn(day),
+                      isQuality: schedule.qualityDays.contains(day),
+                      onChanged: (int minutes) => setState(() {
+                        _availability = _availability.withDay(day, minutes);
+                      }),
                     ),
                 ],
               ),
@@ -166,8 +203,7 @@ class _PlanSetupScreenState extends State<PlanSetupScreen> {
             Padding(
               padding: const EdgeInsets.only(left: 4, top: 8),
               child: Text(
-                'Qualita\' il martedi\' e il giovedi\', lungo la domenica. '
-                'Il resto sono corse lente.',
+                _scheduleExplanation(schedule),
                 style: AppText.caption.copyWith(color: p.inkFaint),
               ),
             ),
@@ -219,6 +255,15 @@ class _PlanSetupScreenState extends State<PlanSetupScreen> {
                 child: const Text('Crea il piano'),
               ),
             ),
+            if (!enoughDays) ...<Widget>[
+              const SizedBox(height: 10),
+              Text(
+                'Servono almeno tre giorni con del tempo sopra. Con due non '
+                'si tiene insieme un piano: il lungo e la qualita\' '
+                'finirebbero attaccati.',
+                style: AppText.caption.copyWith(color: p.orange),
+              ),
+            ],
             if (ready) ...<Widget>[
               const SizedBox(height: 10),
               Text(
@@ -235,6 +280,29 @@ class _PlanSetupScreenState extends State<PlanSetupScreen> {
     );
   }
 
+  /// Spiega, in una riga, dove cadranno le sedute con i giorni scelti.
+  ///
+  /// Serve perche' la regola non e' ovvia: il lungo non va la domenica per
+  /// tradizione, va dove c'e' piu' tempo. Vedendolo cambiare mentre si tocca
+  /// il piu' e il meno, la regola si capisce senza spiegarla.
+  String _scheduleExplanation(WeekSchedule schedule) {
+    if (schedule.runDays.length < 3) {
+      return 'Metti il tempo che hai, giorno per giorno. Il tempo e\' quello '
+          'per correre, non il tempo libero.';
+    }
+
+    final String lungo = WeeklyAvailability.dayName(schedule.longDay);
+    final String qualita = schedule.qualityDays.isEmpty
+        ? 'nessun giorno'
+        : schedule.qualityDays
+            .map(WeeklyAvailability.dayName)
+            .join(' e ');
+
+    return 'Il lungo cade $lungo, dove hai piu\' tempo. La qualita\' va '
+        '$qualita: mai attaccata fra loro, mai il giorno prima del lungo. '
+        'Gli altri giorni sono lenti, lunghi in proporzione al tempo che hai.';
+  }
+
   Future<void> _create(double vdot) async {
     setState(() => _saving = true);
 
@@ -245,7 +313,8 @@ class _PlanSetupScreenState extends State<PlanSetupScreen> {
       goal: _goal,
       startDate: start,
       weeks: _weeks,
-      daysPerWeek: _days,
+      daysPerWeek: _availability.dayCount,
+      availability: _availability,
       startWeeklyKm: _startKm,
       vdot: vdot,
     );
@@ -266,38 +335,103 @@ class _PlanSetupScreenState extends State<PlanSetupScreen> {
   }
 }
 
-class _DayChip extends StatelessWidget {
-  const _DayChip({
-    required this.days,
-    required this.selected,
-    required this.onTap,
+/// Una riga: il giorno e quanto tempo hai.
+///
+/// Niente slider e niente finestre: il meno sempre a sinistra, il piu' sempre
+/// a destra, il valore in mezzo. La settimana si imposta in pochi tocchi
+/// stando in piedi, che e' come verra' usata davvero.
+class _DayTimeRow extends StatelessWidget {
+  const _DayTimeRow({
+    required this.weekday,
+    required this.minutes,
+    required this.isLong,
+    required this.isQuality,
+    required this.onChanged,
   });
 
-  final int days;
-  final bool selected;
-  final VoidCallback onTap;
+  final int weekday;
+  final int minutes;
+  final bool isLong;
+  final bool isQuality;
+  final ValueChanged<int> onChanged;
 
   @override
   Widget build(BuildContext context) {
     final AppPalette p = AppPalette.of(context);
-    return Material(
-      color: selected ? p.accent : p.surfaceElevated,
-      borderRadius: BorderRadius.circular(AppRadius.small + 2),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: SizedBox(
-          height: 52,
-          child: Center(
+    final bool runs = minutes >= WeeklyAvailability.minUsefulMinutes;
+
+    String? ruolo;
+    if (isLong) {
+      ruolo = 'lungo';
+    } else if (isQuality) {
+      ruolo = 'qualita\'';
+    }
+
+    return SizedBox(
+      height: 46,
+      child: Row(
+        children: <Widget>[
+          SizedBox(
+            width: 92,
             child: Text(
-              '$days',
-              style: AppText.number(
-                20,
-                color: selected ? p.onAccent : p.ink,
+              WeeklyAvailability.dayName(weekday),
+              style: AppText.body.copyWith(
+                color: runs ? p.ink : p.inkFaint,
+                fontWeight: runs ? FontWeight.w600 : FontWeight.w400,
               ),
             ),
           ),
-        ),
+          if (ruolo != null)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+              decoration: BoxDecoration(
+                color: p.accent.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(AppRadius.pill),
+              ),
+              child: Text(
+                ruolo,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: p.accent,
+                ),
+              ),
+            ),
+          const Spacer(),
+          IconButton(
+            visualDensity: VisualDensity.compact,
+            onPressed: minutes <= 0
+                ? null
+                : () => onChanged(
+                    minutes - WeeklyAvailability.stepMinutes),
+            icon: Icon(Icons.remove_circle_outline,
+                size: 22, color: minutes <= 0 ? p.separator : p.inkSoft),
+          ),
+          SizedBox(
+            width: 62,
+            child: Text(
+              WeeklyAvailability.formatMinutes(runs ? minutes : 0),
+              textAlign: TextAlign.center,
+              style: AppText.number(
+                15,
+                color: runs ? p.ink : p.inkFaint,
+              ),
+            ),
+          ),
+          IconButton(
+            visualDensity: VisualDensity.compact,
+            onPressed: minutes >= WeeklyAvailability.maxMinutes
+                ? null
+                : () => onChanged(minutes < WeeklyAvailability.minMinutes
+                    ? WeeklyAvailability.minMinutes + 25
+                    : minutes + WeeklyAvailability.stepMinutes),
+            icon: Icon(Icons.add_circle_outline,
+                size: 22,
+                color: minutes >= WeeklyAvailability.maxMinutes
+                    ? p.separator
+                    : p.accent),
+          ),
+        ],
       ),
     );
   }
