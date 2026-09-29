@@ -39,6 +39,42 @@ class RunningStats {
   final RunningActivity? lastActivity;
 
   bool get isEmpty => totalActivities == 0;
+
+  /// Da quanti chilometri a settimana ha senso proporre di partire.
+  ///
+  /// PERCHE' NON LA MEDIA DELLE ULTIME QUATTRO SETTIMANE
+  /// ---------------------------------------------------
+  /// Perche' divide per quattro anche quando l'app e' installata da tre
+  /// giorni. A un atleta che corre 60 km a settimana proponeva 9 - e da li'
+  /// sbagliava tutto in cascata: il volume del piano, la fase di partenza
+  /// (con 9 km propone Costruzione invece di Sviluppo) e il numero di
+  /// ripetizioni, che dipende dal volume.
+  ///
+  /// Un archivio corto non e' un archivio che dice numeri bassi: e' un
+  /// archivio che non dice niente. Allora restituisce `null`, e chi chiama
+  /// deve chiederlo all'atleta invece di indovinare al ribasso.
+  ///
+  /// Quando le settimane ci sono si usa la MEDIANA, non la media: una
+  /// settimana saltata per l'influenza o per un turno pesante non deve
+  /// abbassare il punto di partenza di tutto il piano.
+  double? get suggestedWeeklyKm {
+    if (weeklyKm.length < 2) return null;
+
+    // L'ultima e' la settimana in corso: incompleta per definizione.
+    final List<double> intere = weeklyKm
+        .sublist(0, weeklyKm.length - 1)
+        .where((double km) => km > 3)
+        .toList()
+      ..sort();
+
+    if (intere.length < 3) return null;
+
+    final int meta = intere.length ~/ 2;
+    final double mediana = intere.length.isOdd
+        ? intere[meta]
+        : (intere[meta - 1] + intere[meta]) / 2;
+    return mediana < 5 ? null : mediana;
+  }
 }
 
 /// Esito dell'analisi di miglioramento.

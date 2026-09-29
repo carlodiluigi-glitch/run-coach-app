@@ -513,6 +513,23 @@ sabato.
 Sotto i tre giorni il piano non si costruisce: non basta a tenere separati un
 lungo, una qualita' e un lento.
 
+#### Da quanti km si parte
+
+Il punto di partenza del piano si proponeva dalla media delle ultime quattro
+settimane. Divideva per quattro anche con l'app installata da tre giorni: a un
+atleta da 60 km a settimana ne proponeva **9**. E non e' un numero sbagliato
+qualsiasi - da li' dipendono il volume di tutto il piano, la fase di partenza
+(sotto i 45 km propone Costruzione) e quante ripetizioni entrano in una seduta.
+
+Adesso la proposta guarda solo le **settimane intere** con delle corse dentro
+(la settimana in corso e' incompleta per definizione, quindi non conta) e ne
+prende la **mediana**, non la media: una settimana saltata per l'influenza o
+per un turno pesante non deve abbassare il punto di partenza di tutto il piano.
+
+Sotto le tre settimane utili l'app **non propone niente** e lo dice. Un archivio
+corto non e' un archivio che dice numeri bassi: e' un archivio che non dice
+niente, e tirare a indovinare al ribasso e' peggio che chiedere.
+
 #### Da dove parte il piano lo decidi tu
 
 La Costruzione serve a costruire il motore aerobico e la tolleranza al volume.

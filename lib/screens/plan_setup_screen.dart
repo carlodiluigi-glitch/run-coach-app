@@ -54,10 +54,14 @@ class _PlanSetupScreenState extends State<PlanSetupScreen> {
     final ActivityProvider activities = context.watch<ActivityProvider>();
     final RunningStats stats = activities.stats;
 
-    if (!_availabilityLoaded) {
+    // Solo quando il piano e' stato letto da disco: al primo disegno della
+    // schermata puo' non esserlo ancora, e marcare "caricato" li' vorrebbe
+    // dire perdere per sempre i giorni del piano precedente.
+    final PlanProvider plansForLoad = context.watch<PlanProvider>();
+    if (!_availabilityLoaded && plansForLoad.isLoaded) {
       _availabilityLoaded = true;
       final WeeklyAvailability? previous =
-          context.read<PlanProvider>().plan?.config.availability;
+          plansForLoad.plan?.config.availability;
       if (previous != null && !previous.isEmpty) {
         _availabilityOrNull = previous;
       }
@@ -73,13 +77,15 @@ class _PlanSetupScreenState extends State<PlanSetupScreen> {
     final PlanPhase suggerita = _suggestedStartPhase();
     final PlanPhase startPhase = _startPhaseChosen ?? suggerita;
 
-    // Il punto di partenza si propone dai chilometri che stai giá facendo:
+    // Il punto di partenza si propone dai chilometri che stai gia' facendo:
     // costruire un piano dal nulla e' il modo migliore per abbandonarlo.
-    if (!_startKmTouched) {
-      final double recent = stats.lastFourWeeksKm / 4.0;
-      final double suggested = recent > 5 ? recent : stats.weekKm;
-      if (suggested > 5) _startKm = double.parse(suggested.toStringAsFixed(0));
+    // Ma si propone solo se l'archivio ne sa abbastanza: vedi
+    // _propostaKmSettimanali.
+    final double? propostaKm = stats.suggestedWeeklyKm;
+    if (!_startKmTouched && propostaKm != null) {
+      _startKm = double.parse(propostaKm.toStringAsFixed(0));
     }
+    final bool archivioCorto = propostaKm == null;
 
     // I passi del piano devono venire dallo STESSO indice che si vede nella
     // schermata Forma.
@@ -276,7 +282,8 @@ class _PlanSetupScreenState extends State<PlanSetupScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   Text(
-                    '${_startKm.toStringAsFixed(0)} km a settimana',
+                    '${_startKm.clamp(10.0, 80.0).toStringAsFixed(0)} km '
+                    'a settimana',
                     style: AppText.title.copyWith(color: p.ink),
                   ),
                   Slider(
@@ -292,10 +299,20 @@ class _PlanSetupScreenState extends State<PlanSetupScreen> {
                     }),
                   ),
                   Text(
-                    'Il piano cresce da qui, al massimo del 55% fino al picco. '
-                    'Metti quello che fai davvero adesso, non quello che '
-                    'vorresti fare.',
-                    style: AppText.caption.copyWith(color: p.inkFaint),
+                    archivioCorto
+                        ? 'Non ho abbastanza settimane registrate per '
+                            'proporti un numero, quindi mettilo tu: quanti '
+                            'km corri di solito in una settimana. Da questo '
+                            'nascono il volume del piano e quanto lavoro '
+                            'forte ci sta dentro, quindi vale la pena '
+                            'pensarci un secondo.'
+                        : 'Proposto dalle tue settimane registrate. Il piano '
+                            'cresce da qui, al massimo del 55% fino al picco. '
+                            'Metti quello che fai davvero adesso, non quello '
+                            'che vorresti fare.',
+                    style: AppText.caption.copyWith(
+                      color: archivioCorto ? p.orange : p.inkFaint,
+                    ),
                   ),
                 ],
               ),
