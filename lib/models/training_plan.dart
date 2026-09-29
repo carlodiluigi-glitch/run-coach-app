@@ -170,8 +170,14 @@ extension PlanPhaseInfo on PlanPhase {
       case PlanPhase.peak:
         return 'Se sei gia\' in forma e manca poco alla gara: tutto sul '
             'passo di gara.';
+
+      // Scarico e recupero non sono punti di partenza (vedi [startable]), ma
+      // vanno scritti lo stesso: da Dart 3 uno switch su un enum deve coprire
+      // tutti i casi, e un "return" dopo lo switch non conta come uscita.
+      case PlanPhase.taper:
+      case PlanPhase.recovery:
+        return '';
     }
-    return '';
   }
 
   String get description {
