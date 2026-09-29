@@ -62,6 +62,26 @@ class PlanProvider extends ChangeNotifier {
     return ok;
   }
 
+  /// Riscrive le sedute del piano con un indice di forma aggiornato.
+  ///
+  /// PERCHE' NON SUCCEDE DA SOLO
+  /// ---------------------------
+  /// L'indice viene congelato alla creazione apposta: se i ritmi cambiassero
+  /// a ogni corsa non si capirebbe piu' se stai migliorando o se e' cambiato
+  /// il metro di misura. Ma su un piano che dura mesi congelarlo per sempre
+  /// e' l'errore opposto: dopo tre mesi ti allena ai ritmi di quando l'hai
+  /// creato, e diventa la cosa che ti frena.
+  ///
+  /// La via di mezzo: il piano si accorge che l'indice si e' mosso, lo dice,
+  /// e aggiorna solo se glielo chiedi. Il calendario non cambia - stessi
+  /// giorni, stesse settimane, stessa progressione: cambiano i passi e il
+  /// numero di ripetizioni.
+  Future<bool> updatePaces(double vdot) async {
+    final PlanConfig? current = _config;
+    if (current == null || vdot <= 0) return false;
+    return create(current.copyWith(vdot: vdot));
+  }
+
   /// Aggiunge una gara al piano e ne ricalcola le settimane intorno.
   Future<bool> addRace(RaceEvent race) async {
     final PlanConfig? current = _config;

@@ -169,7 +169,8 @@ class PlanService {
     final int weeks =
         config.weeks.clamp(config.goal.minWeeks, config.goal.maxWeeks);
 
-    final List<PlanPhase> phases = phasesFor(weeks, config.goal);
+    final List<PlanPhase> phases =
+        phasesFor(weeks, config.goal, startPhase: config.startPhase);
     final List<double> volumes = volumesFor(
       weeks: weeks,
       phases: phases,
@@ -197,16 +198,33 @@ class PlanService {
 
   // ------------------------------------------------------------------ fasi
   /// Divisione del piano in fasi.
-  List<PlanPhase> phasesFor(int weeks, RaceGoal goal) {
+  List<PlanPhase> phasesFor(
+    int weeks,
+    RaceGoal goal, {
+    PlanPhase startPhase = PlanPhase.base,
+  }) {
     if (weeks <= 0) return <PlanPhase>[];
 
-    // Senza una gara non c'e' niente per cui arrivare in forma un giorno
-    // preciso: si costruisce e si sviluppa, senza scarico finale.
+    // SENZA GARA NON CI SONO FASI.
+    //
+    // Una fase e' un modo di distribuire il lavoro verso una data. Senza
+    // quella data, "Costruzione" e "Sviluppo" sono due etichette: quello che
+    // conta davvero e' la rotazione dei lavori e lo scarico ogni quarta
+    // settimana, e quelli ci sono comunque.
+    //
+    // Quindi tutte le settimane sono uguali, ed e' onesto dirlo invece di
+    // fingere una periodizzazione che non porta da nessuna parte.
     if (goal == RaceGoal.fitness) {
-      final int base = math.max(1, (weeks * 0.35).round());
+      return List<PlanPhase>.filled(weeks, PlanPhase.build);
+    }
+
+    // Partire dallo Specifico: si e' gia' in forma e manca poco. Tutto sul
+    // passo di gara, con lo scarico finale.
+    if (startPhase == PlanPhase.peak) {
+      final int taperOnly = (weeks * 0.12).round().clamp(1, 3);
       return List<PlanPhase>.generate(
         weeks,
-        (int i) => i < base ? PlanPhase.base : PlanPhase.build,
+        (int i) => i < weeks - taperOnly ? PlanPhase.peak : PlanPhase.taper,
       );
     }
 
@@ -228,11 +246,21 @@ class PlanService {
       }
     }
 
-    int base = math.max(1, (remaining * 0.55).round());
-    int build = remaining - base;
-    if (build < 1) {
-      build = 1;
-      base = remaining - 1;
+    // Le settimane di Costruzione saltate non si perdono: vanno a Sviluppo,
+    // cioe' a lavoro vero. Saltare la base non accorcia il piano, lo riempie
+    // meglio.
+    int base;
+    int build;
+    if (startPhase == PlanPhase.build) {
+      base = 0;
+      build = remaining;
+    } else {
+      base = math.max(1, (remaining * 0.55).round());
+      build = remaining - base;
+      if (build < 1) {
+        build = 1;
+        base = remaining - 1;
+      }
     }
 
     final List<PlanPhase> out = <PlanPhase>[];
@@ -272,6 +300,31 @@ class PlanService {
     // e' la strada piu' breve per farsi male.
     double peakKm = math.min(start * 1.55, goal.weeklyCapKm);
     if (peakKm < start) peakKm = start;
+
+    // SENZA GARA: PROGRESSIONE A CICLI, NON A FINE PIANO.
+    //
+    // Un piano con una data sale in linea retta fino alla gara. Un piano che
+    // dura mesi non ha una retta da percorrere: ha cicli. Tre settimane di
+    // carico allo stesso volume, una di scarico, e il ciclo dopo riparte
+    // sopra il precedente.
+    //
+    // Il passo e' del 5% a ciclo, non a settimana: sono circa tre chilometri
+    // ogni quattro settimane per chi ne fa sessanta. Sembra poco ed e'
+    // esattamente il punto - il volume che cresce in fretta e' quello che
+    // porta agli infortuni, e qui non c'e' nessuna data che costringa a fare
+    // in fretta.
+    if (goal == RaceGoal.fitness) {
+      const double perCycle = 1.05;
+      final List<double> continuo = <double>[];
+      for (int i = 0; i < weeks; i++) {
+        final int cycle = i ~/ 4;
+        double value = start * math.pow(perCycle, cycle).toDouble();
+        if (value > peakKm) value = peakKm;
+        if (_isDownWeek(i, phases[i])) value *= 0.75;
+        continuo.add(double.parse(value.toStringAsFixed(1)));
+      }
+      return continuo;
+    }
 
     // Il picco si raggiunge alla fine dell'ultima settimana prima dello
     // scarico finale.
@@ -405,6 +458,7 @@ class PlanService {
         paces: paces,
         vdot: config.vdot,
         weekNumber: index + 1,
+        weekKm: weekKm,
         budgetSeconds: availability.minutesOn(qualityDays[slot]) * 60,
       );
       final double km = (built.workout.estimatedMeters) / 1000.0;
@@ -522,6 +576,7 @@ class PlanService {
     required TrainingPaces paces,
     required double vdot,
     required int weekNumber,
+    required double weekKm,
     int? budgetSeconds,
   }) {
     final String idBase = 'plan-w$weekNumber-q$slot';
@@ -589,38 +644,105 @@ class PlanService {
 
       case PlanPhase.build:
         {
+        // LA ROTAZIONE
+        //
+        // Ogni terza settimana i lavori cambiano forma, non intensita':
+        // frazioni di soglia piu' lunghe allo stesso passo, e richiami brevi
+        // al posto dei mille. Serve soprattutto ai piani senza gara, dove le
+        // settimane sono tutte uguali e ripetere le stesse due sedute per
+        // mesi smette di allenare molto prima che smetta di stancare.
+        final bool variante = weekIndex % 3 == 2;
+
         if (slot == 0) {
           // La soglia e' il lavoro che sposta di piu' il risultato su
-          // qualunque distanza dai 5 km in su.
+          // qualunque distanza dai 5 km in su: c'e' sempre, cambia solo la
+          // lunghezza delle frazioni.
+          final double frazione = variante ? 2000 : 1600;
+          final int recupero = variante ? 120 : 90;
           final _Fitted fit = _fit(
-            wantedReps: (3 + weekIndex ~/ 3).clamp(3, 5),
+            wantedReps: repsForShare(
+              weekKm: weekKm,
+              share: thresholdShareOfWeek,
+              fractionMeters: frazione,
+              minReps: 2,
+              maxReps: 6,
+            ),
             minReps: 2,
-            repSeconds: 1.6 * paces.threshold.secondsPerKm + 90,
+            repSeconds:
+                frazione / 1000.0 * paces.threshold.secondsPerKm + recupero,
+            warmupSeconds: 900,
+            cooldownSeconds: 600,
+            budgetSeconds: budgetSeconds,
+          );
+          final int reps = fit.reps;
+          final String nome =
+              'Soglia $reps x ${formatDistanceAuto(frazione)}';
+          return _QualitySession(
+            kind: SessionKind.threshold,
+            title: nome,
+            detail: 'A ${formatPaceWithUnit(paces.threshold.secondsPerKm)}, '
+                'recupero $recupero secondi. Deve essere "duro ma '
+                'sostenibile": se negli ultimi non tieni il passo, hai '
+                'iniziato troppo forte.',
+            workout: _buildWorkout(
+              id: idBase,
+              name: nome,
+              paces: paces,
+              warmupSeconds: fit.warmupSeconds,
+              repeat: reps,
+              work: _distanceStep(
+                  StepType.interval, frazione, paces.threshold),
+              recovery: _timeStep(StepType.recovery, recupero, paces.easy),
+              cooldownSeconds: fit.cooldownSeconds,
+            ),
+          );
+        }
+
+        if (variante) {
+          // Richiami brevi: non allenano il motore, allenano il gesto. Poco
+          // volume, recupero pieno, e il giorno dopo le gambe sono fresche.
+          final _Fitted fit = _fit(
+            wantedReps: repsForShare(
+              weekKm: weekKm,
+              share: repetitionShareOfWeek,
+              fractionMeters: 400,
+              minReps: 5,
+              maxReps: 10,
+            ),
+            minReps: 5,
+            repSeconds: 0.4 * paces.repetition.secondsPerKm + 0.4 * easySec,
             warmupSeconds: 900,
             cooldownSeconds: 600,
             budgetSeconds: budgetSeconds,
           );
           final int reps = fit.reps;
           return _QualitySession(
-            kind: SessionKind.threshold,
-            title: 'Soglia $reps x 1600 m',
-            detail: 'A ${formatPaceWithUnit(paces.threshold.secondsPerKm)}, '
-                'recupero 90 secondi. Deve essere "duro ma sostenibile": '
-                'se negli ultimi non tieni il passo, hai iniziato troppo forte.',
+            kind: SessionKind.repetitions,
+            title: 'Veloci $reps x 400 m',
+            detail: 'A ${formatPaceWithUnit(paces.repetition.secondsPerKm)}, '
+                'recupero 400 m lenti. Non deve stancare: se l\'ultimo e\' '
+                'piu\' lento del primo, eri troppo veloce.',
             workout: _buildWorkout(
               id: idBase,
-              name: 'Soglia $reps x 1600 m',
+              name: 'Veloci $reps x 400 m',
               paces: paces,
               warmupSeconds: fit.warmupSeconds,
               repeat: reps,
-              work: _distanceStep(StepType.interval, 1600, paces.threshold),
-              recovery: _timeStep(StepType.recovery, 90, paces.easy),
+              work: _distanceStep(StepType.interval, 400, paces.repetition),
+              recovery: _distanceStep(StepType.recovery, 400, paces.easy),
               cooldownSeconds: fit.cooldownSeconds,
             ),
           );
         }
+
         final _Fitted fit = _fit(
-          wantedReps: (4 + weekIndex ~/ 3).clamp(4, 6),
+          wantedReps: repsForShare(
+            weekKm: weekKm,
+            share: intervalShareOfWeek,
+            fractionMeters: 1000,
+            minReps: 3,
+            maxReps: 7,
+          ),
           minReps: 3,
           repSeconds: paces.interval.secondsPerKm + 0.4 * easySec,
           warmupSeconds: 900,
@@ -659,7 +781,13 @@ class PlanService {
           );
         }
         final _Fitted fit = _fit(
-          wantedReps: 4,
+          wantedReps: repsForShare(
+            weekKm: weekKm,
+            share: thresholdShareOfWeek,
+            fractionMeters: 2000,
+            minReps: 2,
+            maxReps: 5,
+          ),
           minReps: 2,
           repSeconds: 2 * paces.threshold.secondsPerKm + 120,
           warmupSeconds: 900,
@@ -875,6 +1003,41 @@ class PlanService {
       );
 
   /// Struttura standard: riscaldamento, blocco ripetuto, defaticamento.
+  // ------------------------------------------------- quanto lavoro forte
+  //
+  // QUANTA QUALITA' CI STA IN UNA SETTIMANA
+  //
+  // La prima versione faceva crescere le ripetizioni con il numero della
+  // settimana, fermandosi a un numero scelto da me (cinque frazioni di
+  // soglia, sei ripetute). Arbitrario in tutti e due i sensi: troppo per chi
+  // fa trenta chilometri, troppo poco per chi ne fa ottanta, e comunque fermo
+  // dopo due mesi.
+  //
+  // Daniels lega il lavoro forte al volume settimanale, ed e' l'unico
+  // criterio che scala da solo: la soglia non supera il 10% dei chilometri
+  // della settimana, le ripetute l'8%, le veloci il 5%. Cosi' l'intensita'
+  // cresce quando cresce il volume e si ferma dove si deve fermare - dove lo
+  // dice la fisiologia, non dove l'avevo messa io.
+  //
+  // I limiti valgono sui metri di LAVORO, recuperi esclusi.
+  static const double thresholdShareOfWeek = 0.10;
+  static const double intervalShareOfWeek = 0.08;
+  static const double repetitionShareOfWeek = 0.05;
+
+  /// Quante ripetizioni da [fractionMeters] entrano nella quota [share] del
+  /// volume settimanale, fra [minReps] e [maxReps].
+  int repsForShare({
+    required double weekKm,
+    required double share,
+    required double fractionMeters,
+    required int minReps,
+    required int maxReps,
+  }) {
+    if (weekKm <= 0 || fractionMeters <= 0) return minReps;
+    final int reps = (weekKm * 1000.0 * share / fractionMeters).floor();
+    return reps.clamp(minReps, maxReps);
+  }
+
   /// Riscaldamento minimo. Sotto i dieci minuti il riscaldamento non riscalda:
   /// si arriva alla prima ripetuta freddi, che e' il modo classico di farsi
   /// male al soleo.

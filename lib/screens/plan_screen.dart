@@ -3,7 +3,9 @@ import 'package:provider/provider.dart';
 
 import '../app/routes.dart';
 import '../app/tokens.dart';
+import '../models/estimate.dart';
 import '../models/training_plan.dart';
+import '../providers/activity_provider.dart';
 import '../providers/plan_provider.dart';
 import '../utils/formatters.dart';
 import '../widgets/app_card.dart';
@@ -89,6 +91,8 @@ class _PlanScreenState extends State<PlanScreen> {
               style: AppText.caption.copyWith(color: p.inkFaint),
             ),
             const SizedBox(height: 16),
+
+            _PaceUpdateCard(plan: plan),
 
             _WeekHeader(
               week: week,
@@ -234,6 +238,115 @@ class _PlanScreenState extends State<PlanScreen> {
 }
 
 /// Intestazione della settimana mostrata, con le frecce per scorrere.
+/// "Vali piu' di quando hai creato il piano: aggiorno i ritmi?"
+///
+/// L'indice del piano e' congelato apposta (vedi PlanProvider.updatePaces).
+/// Questa scheda e' il modo di scongelarlo senza che succeda alle spalle
+/// dell'atleta: compare solo quando lo scarto e' abbastanza grande da
+/// cambiare davvero i passi, e aggiorna solo se glielo si chiede.
+class _PaceUpdateCard extends StatelessWidget {
+  const _PaceUpdateCard({required this.plan});
+
+  final TrainingPlan plan;
+
+  /// Sotto un punto di indice i passi cambiano di pochi secondi al
+  /// chilometro: non vale la pena disturbare.
+  static const double sogliaPunti = 1.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final AppPalette p = AppPalette.of(context);
+    final Estimate<double>? adesso =
+        context.watch<ActivityProvider>().runIndex.index;
+
+    if (adesso == null) return const SizedBox.shrink();
+
+    final double vecchio = plan.config.vdot;
+    final double scarto = adesso.value - vecchio;
+    if (scarto.abs() < sogliaPunti) return const SizedBox.shrink();
+
+    // Con una stima debole non si riscrive un piano: si aspetta che si
+    // consolidi.
+    if (adesso.isWeak) return const SizedBox.shrink();
+
+    final bool salito = scarto > 0;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: AppCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Icon(
+                  salito ? Icons.trending_up : Icons.trending_down,
+                  size: 20,
+                  color: salito ? p.green : p.orange,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    salito
+                        ? 'Adesso vali ${adesso.value.toStringAsFixed(1)}, il '
+                            'piano e\' costruito su '
+                            '${vecchio.toStringAsFixed(1)}.'
+                        : 'Il tuo indice e\' sceso a '
+                            '${adesso.value.toStringAsFixed(1)}: il piano e\' '
+                            'costruito su ${vecchio.toStringAsFixed(1)}.',
+                    style: AppText.body.copyWith(color: p.ink),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              salito
+                  ? 'Le sedute stanno ancora usando i passi di allora. '
+                      'Aggiornandoli il calendario non cambia: stessi giorni, '
+                      'stesse settimane, stessa progressione. Cambiano i '
+                      'ritmi e il numero di ripetizioni.'
+                  : 'Puoi allineare i passi a quello che vali adesso. Se lo '
+                      'scarto viene da un periodo storto piu\' che da un calo '
+                      'vero, lascia stare: il piano non scende da solo.',
+              style: AppText.caption.copyWith(color: p.inkSoft),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: FilledButton(
+                    onPressed: () => _aggiorna(context, adesso.value),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: p.accent,
+                      foregroundColor: p.onAccent,
+                    ),
+                    child: const Text('Aggiorna i ritmi'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _aggiorna(BuildContext context, double vdot) async {
+    final PlanProvider plans = context.read<PlanProvider>();
+    final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
+    final bool ok = await plans.updatePaces(vdot);
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(ok
+            ? 'Ritmi aggiornati su indice ${vdot.toStringAsFixed(1)}.'
+            : plans.errorMessage ?? 'Aggiornamento non riuscito.'),
+      ),
+    );
+  }
+}
+
 class _WeekHeader extends StatelessWidget {
   const _WeekHeader({
     required this.week,

@@ -513,6 +513,89 @@ sabato.
 Sotto i tre giorni il piano non si costruisce: non basta a tenere separati un
 lungo, una qualita' e un lento.
 
+#### Da dove parte il piano lo decidi tu
+
+La Costruzione serve a costruire il motore aerobico e la tolleranza al volume.
+Prima la sua lunghezza era una percentuale fissa: su dieci settimane, quattro
+di Costruzione, sempre, che tu partissi da 25 km a settimana o da 60. E la
+Costruzione prevede fartlek e allunghi, cioe' lavori che **per scelta** non
+devono stancare. Per chi la base ce l'ha gia', e' un mese tolto al lavoro che
+sposta i tempi.
+
+Adesso, quando c'e' una gara, si sceglie da dove partire:
+
+- **Costruzione** - si rientra, si viene da uno stop, o si vogliono rifare le
+  fondamenta;
+- **Sviluppo** - si corre gia' con continuita': si entra subito su soglia e
+  ripetute;
+- **Specifico** - si e' gia' in forma e manca poco: tutto sul passo di gara.
+
+L'app propone (sopra i 45 km a settimana propone Sviluppo) ma non decide: i
+chilometri dicono che la base **c'e' stata**, non che c'e' adesso - chi rientra
+da uno stop ne faceva altrettanti prima.
+
+Le settimane della Costruzione saltata non si perdono: diventano settimane di
+Sviluppo. Saltare la base non accorcia il piano, lo riempie meglio.
+
+#### Senza gara non ci sono fasi
+
+Una fase e' un modo di distribuire il lavoro **verso una data**. Senza quella
+data, "Costruzione" e "Sviluppo" sono due etichette. Quindi il piano "Restare
+in forma" non ha fasi: tutte le settimane hanno la stessa struttura, e cambia
+quello che deve cambiare davvero.
+
+- **Cicli di quattro settimane.** Tre di carico allo stesso volume, una di
+  scarico al 75%. Il ciclo dopo riparte **sopra** il precedente: +5% a ciclo,
+  cioe' circa tre chilometri ogni quattro settimane per chi ne fa sessanta.
+  Sembra poco, ed e' il punto: il volume che cresce in fretta e' quello che
+  porta agli infortuni, e qui non c'e' nessuna data che costringa ad avere
+  fretta.
+- **I lavori ruotano.** Ogni terza settimana cambiano forma, non intensita':
+  frazioni di soglia piu' lunghe allo stesso passo (2000 invece di 1600) e
+  richiami brevi al posto dei mille. Ripetere le stesse due sedute per mesi
+  smette di allenare molto prima che smetta di stancare.
+- **Dura fino a un anno**, e la proposta di partenza e' sei mesi.
+
+#### Quanta qualita' ci sta in una settimana
+
+Prima le ripetizioni crescevano con il numero della settimana e si fermavano a
+un numero scelto da me: cinque frazioni di soglia, sei ripetute. Arbitrario in
+tutti e due i sensi - troppo per chi fa trenta chilometri, poco per chi ne fa
+ottanta, e comunque fermo dopo due mesi.
+
+Adesso il lavoro forte e' una quota del volume settimanale, come in Daniels:
+
+| Lavoro | Quota massima del volume settimanale |
+|---|---|
+| Soglia | 10% |
+| Ripetute (ritmo 3000) | 8% |
+| Veloci (ritmo 1500) | 5% |
+
+Le quote valgono sui metri di **lavoro**, recuperi esclusi. Cosi' l'intensita'
+cresce da sola quando cresce il volume, e si ferma dove lo dice la fisiologia
+invece che dove l'avevo messa io. A 73 km a settimana diventano circa 4 x 1600
+di soglia, 5 x 1000 di ripetute, 9 x 400 di veloci.
+
+Sopra le quote c'e' comunque il tetto del tempo: se la seduta non ci sta nei
+minuti dichiarati, perde prima il contorno e poi le ripetizioni.
+
+#### I ritmi seguono l'indice, ma solo se glielo chiedi
+
+L'indice viene congelato alla creazione del piano apposta: se i ritmi
+cambiassero a ogni corsa non si capirebbe piu' se stai migliorando o se e'
+cambiato il metro di misura. Su dieci settimane e' giusto. Su un piano che dura
+mesi e' l'errore opposto: dopo tre mesi ti allena ai ritmi di quando l'hai
+creato, e diventa la cosa che ti frena.
+
+La via di mezzo: quando l'indice si sposta di **almeno un punto** e la stima
+non e' debole, in cima al piano compare una scheda - "adesso vali 47, il piano
+e' costruito su 45,4" - con un pulsante per aggiornare. Il calendario non
+cambia: stessi giorni, stesse settimane, stessa progressione. Cambiano i passi
+e il numero di ripetizioni.
+
+Non succede da solo di proposito. Un piano i cui ritmi si spostano alle spalle
+dell'atleta e' un piano di cui non ci si fida.
+
 I piani creati prima di questa impostazione non cambiano: senza tempi
 dichiarati si ricade nello schema di prima (qualita' martedi' e giovedi', lungo
 domenica).

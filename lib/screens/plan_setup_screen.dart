@@ -29,6 +29,10 @@ class _PlanSetupScreenState extends State<PlanSetupScreen> {
   int _weeks = RaceGoal.tenK.defaultWeeks;
   double _startKm = 25;
   bool _startKmTouched = false;
+
+  /// Da quale fase parte il piano. `null` = non l'ha ancora scelta, quindi
+  /// vale la proposta dell'app.
+  PlanPhase? _startPhaseChosen;
   bool _saving = false;
 
   /// I giorni e i tempi disponibili.
@@ -65,6 +69,9 @@ class _PlanSetupScreenState extends State<PlanSetupScreen> {
     // aggiungere o togliere un giorno.
     final WeekSchedule schedule =
         _planService.scheduleFor(_availability, qualityWanted: 2);
+
+    final PlanPhase suggerita = _suggestedStartPhase();
+    final PlanPhase startPhase = _startPhaseChosen ?? suggerita;
 
     // Il punto di partenza si propone dai chilometri che stai giá facendo:
     // costruire un piano dal nulla e' il modo migliore per abbandonarlo.
@@ -128,7 +135,8 @@ class _PlanSetupScreenState extends State<PlanSetupScreen> {
                   AppListRow(
                     title: goal.label,
                     subtitle: goal == RaceGoal.fitness
-                        ? 'Senza gara: volume e qualita\' senza scarico finale'
+                        ? 'Senza gara: niente fasi, cicli di quattro '
+                            'settimane che crescono'
                         : 'Consigliate ${goal.defaultWeeks} settimane',
                     showChevron: false,
                     trailing: Icon(
@@ -208,6 +216,60 @@ class _PlanSetupScreenState extends State<PlanSetupScreen> {
               ),
             ),
 
+            if (_goal != RaceGoal.fitness) ...<Widget>[
+              const SectionTitle('Da dove parti'),
+              InsetList(
+                children: <Widget>[
+                  for (final PlanPhase phase in PlanPhaseInfo.startable)
+                    AppListRow(
+                      title: phase.label,
+                      subtitle: phase.startHint,
+                      showChevron: false,
+                      trailing: Icon(
+                        startPhase == phase
+                            ? Icons.radio_button_checked
+                            : Icons.radio_button_unchecked,
+                        size: 22,
+                        color: startPhase == phase ? p.accent : p.separator,
+                      ),
+                      onTap: () =>
+                          setState(() => _startPhaseChosen = phase),
+                    ),
+                ],
+              ),
+              Padding(
+                padding: const EdgeInsets.only(left: 4, top: 8),
+                child: Text(
+                  _startPhaseNote(suggerita, startPhase),
+                  style: AppText.caption.copyWith(color: p.inkFaint),
+                ),
+              ),
+            ],
+
+            if (_goal == RaceGoal.fitness) ...<Widget>[
+              const SizedBox(height: 18),
+              AppCard(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Icon(Icons.all_inclusive, size: 18, color: p.inkFaint),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Senza una gara non ci sono fasi: tutte le settimane '
+                        'hanno la stessa struttura, due qualita\' che '
+                        'ruotano e il lungo. Ogni quarta settimana si '
+                        'scarica. Non e\' una versione ridotta del piano: e\' '
+                        'che una fase serve ad arrivare in forma un giorno '
+                        'preciso, e quel giorno qui non c\'e\'.',
+                        style: AppText.caption.copyWith(color: p.inkFaint),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+
             const SectionTitle('Da quanti km parti'),
             AppCard(
               child: Column(
@@ -280,6 +342,33 @@ class _PlanSetupScreenState extends State<PlanSetupScreen> {
     );
   }
 
+  /// Quale fase proporre, guardando i chilometri dichiarati.
+  ///
+  /// E' una PROPOSTA, non una decisione: i chilometri dicono che la base c'e'
+  /// stata, non che c'e' adesso. Chi rientra da uno stop ne faceva altrettanti
+  /// prima. Per questo la riga resta toccabile.
+  PlanPhase _suggestedStartPhase() {
+    if (_startKm >= 45) return PlanPhase.build;
+    return PlanPhase.base;
+  }
+
+  String _startPhaseNote(PlanPhase suggerita, PlanPhase scelta) {
+    if (scelta == PlanPhase.base) {
+      return 'La Costruzione serve a costruire il motore e la tolleranza al '
+          'volume. Se quella base ce l\'hai gia\', e\' tempo tolto al lavoro '
+          'che sposta i tempi.';
+    }
+    if (scelta == PlanPhase.build) {
+      final String perche = suggerita == PlanPhase.build
+          ? 'Con i chilometri che fai, la base ce l\'hai. '
+          : '';
+      return '${perche}Le settimane di Costruzione non si perdono: vanno a '
+          'Sviluppo, cioe\' a soglia e ripetute.';
+    }
+    return 'Tutto sul passo della gara, con lo scarico finale. Ha senso solo '
+        'se sei gia\' in forma: qui non si costruisce niente, si affila.';
+  }
+
   /// Spiega, in una riga, dove cadranno le sedute con i giorni scelti.
   ///
   /// Serve perche' la regola non e' ovvia: il lungo non va la domenica per
@@ -315,6 +404,7 @@ class _PlanSetupScreenState extends State<PlanSetupScreen> {
       weeks: _weeks,
       daysPerWeek: _availability.dayCount,
       availability: _availability,
+      startPhase: _startPhaseChosen ?? _suggestedStartPhase(),
       startWeeklyKm: _startKm,
       vdot: vdot,
     );

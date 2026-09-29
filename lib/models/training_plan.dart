@@ -40,8 +40,12 @@ extension RaceGoalInfo on RaceGoal {
   /// Durata consigliata del piano, in settimane.
   int get defaultWeeks {
     switch (this) {
+      // Senza gara il piano non deve finire fra due mesi: la forma si
+      // costruisce a cicli di quattro settimane, e sei cicli sono il minimo
+      // per vedere qualcosa. Sei mesi e' una proposta, si allunga fino a un
+      // anno.
       case RaceGoal.fitness:
-        return 8;
+        return 26;
       case RaceGoal.fiveK:
         return 8;
       case RaceGoal.tenK:
@@ -57,14 +61,18 @@ extension RaceGoalInfo on RaceGoal {
   /// per costruire niente.
   int get minWeeks => this == RaceGoal.marathon ? 12 : 4;
 
-  int get maxWeeks => 24;
+  /// Senza gara non c'e' una data che chiuda il piano: si arriva a un anno.
+  int get maxWeeks => this == RaceGoal.fitness ? 52 : 24;
 
   /// Lunghezza massima del lungo, in metri. Oltre, si accumula fatica senza
   /// aggiungere adattamento.
   double get longRunCapMeters {
     switch (this) {
+      // Il lungo di chi non ha una gara non serve a reggere una distanza:
+      // serve a costruire. Sedici chilometri sono gia' un lungo vero, e oltre
+      // si accumula fatica che poi va pagata sulle altre sedute.
       case RaceGoal.fitness:
-        return 14000;
+        return 16000;
       case RaceGoal.fiveK:
         return 16000;
       case RaceGoal.tenK:
@@ -79,8 +87,11 @@ extension RaceGoalInfo on RaceGoal {
   /// Tetto ragionevole al volume settimanale, in chilometri.
   double get weeklyCapKm {
     switch (this) {
+      // Senza gara il piano puo' durare mesi e il volume cresce ciclo dopo
+      // ciclo: il tetto non puo' essere piu' basso di quello che tanta gente
+      // gia' fa. A fermare prima ci pensa il tempo dichiarato.
       case RaceGoal.fitness:
-        return 60;
+        return 90;
       case RaceGoal.fiveK:
         return 65;
       case RaceGoal.tenK:
@@ -119,6 +130,48 @@ extension PlanPhaseInfo on PlanPhase {
       case PlanPhase.recovery:
         return 'Recupero';
     }
+  }
+
+  /// Chiave stabile per il salvataggio: le etichette sono traducibili, le
+  /// chiavi no.
+  String get storageKey {
+    switch (this) {
+      case PlanPhase.base:
+        return 'base';
+      case PlanPhase.build:
+        return 'build';
+      case PlanPhase.peak:
+        return 'peak';
+      case PlanPhase.taper:
+        return 'taper';
+      case PlanPhase.recovery:
+        return 'recovery';
+    }
+  }
+
+  /// Le tre fasi da cui ha senso far partire un piano.
+  ///
+  /// Scarico e recupero non sono punti di partenza: sono conseguenze.
+  static const List<PlanPhase> startable = <PlanPhase>[
+    PlanPhase.base,
+    PlanPhase.build,
+    PlanPhase.peak,
+  ];
+
+  /// A chi serve partire da qui.
+  String get startHint {
+    switch (this) {
+      case PlanPhase.base:
+        return 'Se torni a correre, se vieni da uno stop, o se vuoi '
+            'rifare le fondamenta con calma.';
+      case PlanPhase.build:
+        return 'Se corri gia\' con continuita\': la base ce l\'hai, si '
+            'entra subito nel lavoro che sposta i tempi.';
+      case PlanPhase.peak:
+        return 'Se sei gia\' in forma e manca poco alla gara: tutto sul '
+            'passo di gara.';
+    }
+    return '';
   }
 
   String get description {
@@ -392,6 +445,7 @@ class PlanConfig {
     required this.startWeeklyKm,
     required this.vdot,
     this.availability,
+    this.startPhase = PlanPhase.base,
     List<RaceEvent>? races,
     DateTime? createdAt,
   })  : id = id ?? IdGenerator.newId('plan'),
@@ -409,6 +463,22 @@ class PlanConfig {
   /// Quanti giorni a settimana. Resta per i piani vecchi e come riassunto:
   /// la verita' su QUALI giorni e con quanto tempo sta in [availability].
   final int daysPerWeek;
+
+  /// Da quale fase parte il piano.
+  ///
+  /// PERCHE' SI SCEGLIE INVECE DI CALCOLARLA
+  /// ---------------------------------------
+  /// La Costruzione serve a costruire il motore aerobico e la tolleranza al
+  /// volume. Chi corre gia' 60 km a settimana quella base ce l'ha: fargliela
+  /// rifare per un mese e' tempo tolto al lavoro che sposta i tempi. Ma
+  /// nemmeno i chilometri bastano a deciderlo da soli - chi rientra da uno
+  /// stop ne faceva altrettanti prima, e non e' allenato adesso.
+  ///
+  /// Quindi l'app propone, l'atleta decide.
+  ///
+  /// Ignorato quando l'obiettivo e' [RaceGoal.fitness]: senza una data a cui
+  /// arrivare in forma, le fasi non esistono.
+  final PlanPhase startPhase;
 
   /// I giorni disponibili e il tempo che c'e' su ognuno.
   ///
@@ -455,6 +525,7 @@ class PlanConfig {
     double? startWeeklyKm,
     double? vdot,
     WeeklyAvailability? availability,
+    PlanPhase? startPhase,
     List<RaceEvent>? races,
   }) =>
       PlanConfig(
@@ -466,6 +537,7 @@ class PlanConfig {
         startWeeklyKm: startWeeklyKm ?? this.startWeeklyKm,
         vdot: vdot ?? this.vdot,
         availability: availability ?? this.availability,
+        startPhase: startPhase ?? this.startPhase,
         races: races ?? List<RaceEvent>.from(this.races),
         createdAt: createdAt,
       );
@@ -477,6 +549,7 @@ class PlanConfig {
         'weeks': weeks,
         'daysPerWeek': daysPerWeek,
         if (availability != null) 'availability': availability!.toJson(),
+        'startPhase': startPhase.storageKey,
         'startWeeklyKm': startWeeklyKm,
         'vdot': vdot,
         'createdAt': createdAt.toIso8601String(),
@@ -496,6 +569,7 @@ class PlanConfig {
               DateTime.now(),
       weeks: (json['weeks'] as num?)?.toInt() ?? 8,
       daysPerWeek: (json['daysPerWeek'] as num?)?.toInt() ?? 4,
+      startPhase: _phaseFromStorage(json['startPhase'] as String?),
       availability: rawAvailability == null
           ? null
           : WeeklyAvailability.fromJson(
@@ -510,6 +584,15 @@ class PlanConfig {
           .toList(),
     );
   }
+}
+
+/// Rilegge la fase di partenza salvata. Sconosciuta o assente: Costruzione,
+/// che e' il comportamento dei piani creati prima di questa scelta.
+PlanPhase _phaseFromStorage(String? key) {
+  for (final PlanPhase phase in PlanPhase.values) {
+    if (phase.storageKey == key) return phase;
+  }
+  return PlanPhase.base;
 }
 
 /// Il piano calcolato.
