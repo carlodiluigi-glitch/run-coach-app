@@ -4,6 +4,7 @@ import 'dart:collection';
 import 'package:flutter/foundation.dart';
 
 import '../models/lap.dart';
+import '../models/run_snapshot.dart';
 import '../models/running_activity.dart';
 import '../models/user_settings.dart';
 import '../models/workout.dart';
@@ -12,6 +13,7 @@ import '../services/audio_coach_service.dart';
 import '../services/gps_filter.dart';
 import '../services/gps_service.dart';
 import '../services/permission_service.dart';
+import '../services/storage_service.dart';
 import '../services/native_bridge.dart';
 import '../services/workout_engine.dart';
 import '../utils/formatters.dart';
@@ -35,15 +37,21 @@ class RunningProvider extends ChangeNotifier {
     required PermissionService permissionService,
     required AudioCoachService coach,
     NativeBridge? nativeBridge,
+    StorageService? storage,
   })  : _gps = gpsService,
         _permissions = permissionService,
         _coach = coach,
-        _native = nativeBridge ?? NativeBridge();
+        _native = nativeBridge ?? NativeBridge(),
+        _storage = storage;
 
   final GpsService _gps;
   final PermissionService _permissions;
   final AudioCoachService _coach;
   final NativeBridge _native;
+
+  /// Dove si scrive la corsa mentre la si registra. `null` nei test che non
+  /// hanno bisogno del disco.
+  final StorageService? _storage;
 
   // ------------------------------------------------------------------ stato
   RunState _state = RunState.idle;
@@ -68,6 +76,31 @@ class RunningProvider extends ChangeNotifier {
 
   final List<RoutePoint> _route = <RoutePoint>[];
   int _lastRoutePointSecond = -10;
+
+  // ----------------------------------------------- la corsa non si perde
+  /// Ogni quanti secondi la corsa viene scritta su disco.
+  ///
+  /// Quindici secondi e' il compromesso: nel peggiore dei casi si perdono
+  /// quindici secondi di corsa, e il telefono scrive un file ogni quindici
+  /// secondi invece che continuamente.
+  static const int snapshotEverySeconds = 15;
+
+  /// Dopo quanti secondi senza un punto GPS si considera che il telefono
+  /// abbia sospeso la registrazione.
+  ///
+  /// Trenta secondi: sotto e' un semaforo o un sottopasso, sopra e' Android
+  /// che ha messo l'app a dormire.
+  static const int gpsStallSeconds = 30;
+
+  int _lastSnapshotSecond = -999;
+  bool _snapshotInFlight = false;
+
+  /// Da quando il GPS ha smesso di mandare punti, se e' successo.
+  DateTime? _stalledSince;
+
+  /// Secondi totali in cui, durante questa corsa, non e' arrivato niente.
+  int _lostSeconds = 0;
+  bool _warnedAboutStall = false;
 
   /// Finestra scorrevole usata per il passo attuale (ultimi ~20 secondi).
   final Queue<_PaceSample> _paceWindow = Queue<_PaceSample>();
@@ -345,6 +378,8 @@ class RunningProvider extends ChangeNotifier {
     _stopTicker();
     await _stopGpsStream();
     await _native.setKeepScreenOn(false);
+    // La corsa e' stata salvata o buttata: il file di recupero non serve piu'.
+    await _storage?.clearRunSnapshot();
     _resetInternals();
     _state = RunState.idle;
     _workout = null;
@@ -394,6 +429,10 @@ class RunningProvider extends ChangeNotifier {
     _startTime = null;
     _gpsError = null;
     _rawGpsSpeed = null;
+    _lastSnapshotSecond = -999;
+    _stalledSince = null;
+    _lostSeconds = 0;
+    _warnedAboutStall = false;
   }
 
   Future<void> _startGpsStream({bool background = false}) async {
@@ -497,9 +536,93 @@ class RunningProvider extends ChangeNotifier {
     _checkAutoLap();
     _updateWorkout();
     _checkPaceAlerts();
+    _checkGpsStall();
+    _maybeSaveSnapshot();
 
     notifyListeners();
   }
+
+  // ------------------------------------------- la corsa non si perde
+  /// Scrive la corsa su disco ogni [snapshotEverySeconds].
+  ///
+  /// Non aspetta la fine della scrittura: se il disco e' lento, il
+  /// cronometro non deve rallentare. Se una scrittura e' ancora in corso si
+  /// salta il giro - il prossimo passa fra quindici secondi.
+  void _maybeSaveSnapshot() {
+    final StorageService? storage = _storage;
+    if (storage == null || _snapshotInFlight) return;
+
+    final int secondi = elapsedSeconds;
+    if (secondi - _lastSnapshotSecond < snapshotEverySeconds) return;
+    _lastSnapshotSecond = secondi;
+    _snapshotInFlight = true;
+
+    storage
+        .saveRunSnapshot(buildSnapshot())
+        .whenComplete(() => _snapshotInFlight = false);
+  }
+
+  /// La fotografia della corsa in questo istante.
+  RunSnapshot buildSnapshot() => RunSnapshot(
+        startTime: _startTime ?? DateTime.now(),
+        savedAt: DateTime.now(),
+        elapsedSeconds: elapsedSeconds,
+        distanceMeters: _distanceMeters,
+        name: _workout?.name ?? 'Corsa libera',
+        type: _workout == null ? ActivityType.free : ActivityType.workout,
+        laps: List<Lap>.from(_laps),
+        route: List<RoutePoint>.from(_route),
+        workoutId: _workout?.id,
+      );
+
+  /// Si accorge quando il telefono smette di mandare punti.
+  ///
+  /// PERCHE' DIRLO SUBITO
+  /// --------------------
+  /// Se Android sospende l'app, l'utente se ne accorge a fine corsa: sei km
+  /// diventati tre, e non c'e' piu' niente da fare. Detto mentre succede,
+  /// invece, si puo' rimediare - riaprire l'app, togliere il risparmio
+  /// energetico - e almeno si sa che quel numero non e' da credere.
+  void _checkGpsStall() {
+    final DateTime? ultimo = _lastFixAt;
+    if (ultimo == null) return;
+
+    final int fermo = DateTime.now().difference(ultimo).inSeconds;
+
+    if (fermo >= gpsStallSeconds) {
+      _stalledSince ??= ultimo;
+      if (!_warnedAboutStall) {
+        _warnedAboutStall = true;
+        _coach.speak(
+          'Attenzione: il telefono ha smesso di mandare la posizione.',
+          priority: SpeechPriority.high,
+        );
+      }
+      return;
+    }
+
+    // Il segnale e' tornato: si conta il buco e si riparte.
+    final DateTime? inizio = _stalledSince;
+    if (inizio != null) {
+      _lostSeconds += DateTime.now().difference(inizio).inSeconds;
+      _stalledSince = null;
+      _warnedAboutStall = false;
+    }
+  }
+
+  /// `true` mentre il telefono non sta mandando posizioni.
+  bool get isGpsStalled => _stalledSince != null;
+
+  /// Da quanti secondi il GPS e' fermo adesso.
+  int get stalledSeconds {
+    final DateTime? inizio = _stalledSince;
+    if (inizio == null) return 0;
+    return DateTime.now().difference(inizio).inSeconds;
+  }
+
+  /// Secondi persi in tutto durante questa corsa.
+  int get lostSeconds =>
+      _lostSeconds + (isGpsStalled ? stalledSeconds : 0);
 
   /// `true` mentre un allenamento programmato e' effettivamente in esecuzione.
   bool get _workoutInProgress {

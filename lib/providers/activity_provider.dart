@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import '../models/athlete_profile.dart';
 import '../models/daily_checkin.dart';
+import '../models/run_snapshot.dart';
 import '../models/running_activity.dart';
 import '../services/pace_zone_engine.dart';
 import '../services/readiness_engine.dart';
@@ -63,8 +64,44 @@ class ActivityProvider extends ChangeNotifier {
   RunningActivity? get lastActivity =>
       _activities.isEmpty ? null : _activities.first;
 
+  /// Una corsa interrotta trovata su disco all'avvio, in attesa di risposta.
+  ///
+  /// Non viene salvata da sola: l'atleta deve poterla guardare e decidere.
+  /// Salvare a sua insaputa una corsa che magari era un avvio per sbaglio
+  /// significherebbe sporcargli l'archivio, e l'archivio e' la base di ogni
+  /// stima che l'app fa.
+  RunSnapshot? _pendingRecovery;
+
+  RunSnapshot? get pendingRecovery => _pendingRecovery;
+
+  /// Salva in archivio la corsa recuperata.
+  Future<bool> keepRecovered() async {
+    final RunSnapshot? snapshot = _pendingRecovery;
+    if (snapshot == null) return false;
+    _pendingRecovery = null;
+    final bool ok = await add(snapshot.toActivity());
+    await _storage.clearRunSnapshot();
+    return ok;
+  }
+
+  /// Butta via la corsa recuperata.
+  Future<void> discardRecovered() async {
+    _pendingRecovery = null;
+    await _storage.clearRunSnapshot();
+    notifyListeners();
+  }
+
   Future<void> load() async {
     _activities = await _storage.loadActivities();
+
+    // Se l'app e' stata uccisa mentre si correva, qui c'e' la corsa.
+    final RunSnapshot? interrotta = await _storage.loadRunSnapshot();
+    if (interrotta != null && interrotta.isWorthRecovering) {
+      _pendingRecovery = interrotta;
+    } else if (interrotta != null) {
+      // Troppo corta per essere una corsa: si butta senza disturbare.
+      await _storage.clearRunSnapshot();
+    }
     _athleteProfile = await _storage.loadAthleteProfile();
     _checkIns = await _storage.loadCheckIns();
     _recordsCache = null;
@@ -303,9 +340,41 @@ class ActivityProvider extends ChangeNotifier {
     return ultima;
   }
 
+  /// Le distanze per cui QUESTA corsa detiene il record.
+  ///
+  /// PERCHE' NON BASTA GUARDARE LO STORICO REGISTRATO
+  /// ------------------------------------------------
+  /// Un'uscita da 13,5 km a 5:33 si prendeva il trofeo "record personale 10 km
+  /// 54:44" da un atleta che nel profilo ha dichiarato un 10 km in **44:00** -
+  /// lo stesso numero su cui il motore di forma costruisce tutto l'indice.
+  /// Due parti della stessa app che si contraddicono, e quella che si vede e'
+  /// quella sbagliata.
+  ///
+  /// Un record e' un record se batte il meglio che sai di aver fatto, non il
+  /// meglio che l'app ti ha visto fare.
   List<DistanceRecord> recordsHeldBy(String activityId) => records.byDistance
       .where((DistanceRecord r) => r.activityId == activityId)
+      .where((DistanceRecord r) => !_beatenByDeclared(r))
       .toList();
+
+  /// `true` se un personale dichiarato a mano e' piu' veloce di questo record.
+  bool _beatenByDeclared(DistanceRecord record) {
+    final int? dichiarato = declaredBestSeconds(record.distance.meters);
+    return dichiarato != null && dichiarato < record.seconds;
+  }
+
+  /// Il tempo dichiarato nel profilo per una distanza, se c'e'.
+  ///
+  /// La tolleranza serve perche' "10 km" dichiarato e la distanza standard
+  /// dei record non cadono sullo stesso metro.
+  int? declaredBestSeconds(double meters) {
+    int? migliore;
+    for (final PersonalBest pb in _athleteProfile.personalBests) {
+      if ((pb.meters - meters).abs() > meters * 0.02) continue;
+      if (migliore == null || pb.seconds < migliore) migliore = pb.seconds;
+    }
+    return migliore;
+  }
 
   ImprovementResult get paceImprovement =>
       _stats.computePaceImprovement(_activities);

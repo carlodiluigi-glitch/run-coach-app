@@ -5,6 +5,7 @@ import '../app/app.dart';
 import '../app/routes.dart';
 import '../app/tokens.dart';
 import '../models/daily_checkin.dart';
+import '../models/run_snapshot.dart';
 import '../models/running_activity.dart';
 import '../models/training_plan.dart';
 import '../providers/activity_provider.dart';
@@ -73,6 +74,9 @@ class HomeScreen extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 14),
+
+            // ------------------------------- una corsa che non si e' persa
+            const _RecoveryCard(),
 
             // ------------------------------------------------- prontezza
             const _ReadinessCard(),
@@ -216,6 +220,94 @@ class HomeScreen extends StatelessWidget {
 ///
 /// Il confronto con la media e' piu' utile di un totale secco: dice se stai
 /// facendo piu' o meno del solito, che e' la domanda vera.
+/// "Ho trovato una corsa interrotta."
+///
+/// Compare quando l'app e' stata chiusa mentre si correva - risparmio
+/// energetico, memoria finita, un crash - e sul disco e' rimasta la corsa
+/// scritta fino a quel momento.
+///
+/// Non la salva da sola: mostra cosa ha trovato e lascia decidere. Salvare di
+/// nascosto una corsa che magari era un avvio per sbaglio significherebbe
+/// sporcare l'archivio, e l'archivio e' la base di ogni stima che l'app fa.
+class _RecoveryCard extends StatelessWidget {
+  const _RecoveryCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final AppPalette p = AppPalette.of(context);
+    final ActivityProvider activities = context.watch<ActivityProvider>();
+    final RunSnapshot? corsa = activities.pendingRecovery;
+    if (corsa == null) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: AppCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Icon(Icons.restore, size: 20, color: p.orange),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Ho trovato una corsa interrotta',
+                    style: AppText.title.copyWith(color: p.ink, fontSize: 17),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '${formatDateShort(corsa.startTime)}  ·  '
+              '${formatDistanceWithUnit(corsa.distanceMeters)}  ·  '
+              '${formatDuration(Duration(seconds: corsa.elapsedSeconds))}',
+              style: AppText.body.copyWith(color: p.ink),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'L\'app si e\' chiusa mentre registravi. Questo e\' quello che '
+              'era stato misurato fino a quel momento: gli ultimi secondi '
+              'prima della chiusura non ci sono.',
+              style: AppText.caption.copyWith(color: p.inkSoft),
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: SizedBox(
+                    height: 46,
+                    child: FilledButton(
+                      onPressed: () => activities.keepRecovered(),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: p.accent,
+                        foregroundColor: p.onAccent,
+                      ),
+                      child: const Text('Salvala'),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                SizedBox(
+                  height: 46,
+                  child: TextButton(
+                    onPressed: () => activities.discardRecovered(),
+                    child: Text(
+                      'Butta',
+                      style: TextStyle(color: p.inkFaint),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// Quanto sei pronto oggi, e cosa vuol dire per la seduta in programma.
 ///
 /// PERCHE' STA IN CIMA ALLA HOME

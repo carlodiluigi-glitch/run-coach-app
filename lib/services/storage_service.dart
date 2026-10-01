@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../models/athlete_profile.dart';
 import '../models/daily_checkin.dart';
+import '../models/run_snapshot.dart';
 import '../models/running_activity.dart';
 import '../models/running_shoe.dart';
 import '../models/training_plan.dart';
@@ -34,6 +35,7 @@ class StorageService {
   static const String planFileName = 'plan.json';
   static const String profileFileName = 'profile.json';
   static const String checkInsFileName = 'checkins.json';
+  static const String runInProgressFileName = 'corsa_in_corso.json';
 
   final Directory? _overrideDirectory;
   Directory? _directory;
@@ -247,6 +249,47 @@ class StorageService {
       checkInsFileName,
       jsonEncode(tenuti.map((DailyCheckIn c) => c.toJson()).toList()),
     );
+  }
+
+  // ------------------------------------------------- corsa in corso
+  /// Scrive su disco la corsa che si sta registrando.
+  ///
+  /// Viene chiamata ogni pochi secondi mentre si corre. E' l'unica scrittura
+  /// dell'app che deve essere veloce e frequente, quindi il file resta uno
+  /// solo e viene riscritto intero: un file che cresce a pezzi si corrompe
+  /// se il processo muore a meta', ed e' proprio quando muore che questo
+  /// file serve.
+  Future<bool> saveRunSnapshot(RunSnapshot snapshot) =>
+      _writeRaw(runInProgressFileName, jsonEncode(snapshot.toJson()));
+
+  /// Rilegge la corsa interrotta, se c'e'.
+  Future<RunSnapshot?> loadRunSnapshot() async {
+    final String? raw = await _readRaw(runInProgressFileName);
+    if (raw == null) return null;
+    try {
+      final Object? decoded = jsonDecode(raw);
+      if (decoded is Map) {
+        return RunSnapshot.fromJson(decoded.cast<String, dynamic>());
+      }
+    } catch (error) {
+      // Un file mezzo scritto e' esattamente il caso per cui esiste questa
+      // funzione: si butta via senza far rumore, non c'e' niente da
+      // recuperare e non e' colpa dell'utente.
+      lastError = 'Corsa interrotta non leggibile: $error';
+    }
+    return null;
+  }
+
+  /// Toglie la corsa in corso: si chiama quando e' stata salvata o buttata.
+  Future<bool> clearRunSnapshot() async {
+    try {
+      final File file = await _file(runInProgressFileName);
+      if (await file.exists()) await file.delete();
+      return true;
+    } catch (error) {
+      lastError = 'Non riesco a togliere la corsa interrotta: $error';
+      return false;
+    }
   }
 
   /// Cancella il piano attivo.

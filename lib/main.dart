@@ -45,6 +45,7 @@ Future<void> main() async {
     permissionService: permissions,
     coach: coach,
     nativeBridge: nativeBridge,
+    storage: storage,
   );
 
   // Caricamento dei dati locali prima di mostrare la Home.

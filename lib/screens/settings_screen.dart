@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../app/app.dart';
+import '../app/routes.dart';
 import '../models/user_settings.dart';
 import '../providers/settings_provider.dart';
 import '../widgets/app_card.dart';
+import '../widgets/inset_list.dart';
 
 /// Voce di scelta singola.
 ///
@@ -275,6 +277,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
             const SizedBox(height: 20),
             const SectionTitle('Registrazione'),
+            InsetList(
+              children: <Widget>[
+                AppListRow(
+                  title: 'Corse che si interrompono',
+                  subtitle: 'Se una corsa si ferma a meta\', quasi mai e\' il '
+                      'GPS: e\' il telefono che chiude l\'app per '
+                      'risparmiare batteria. Qui c\'e\' come impedirlo.',
+                  onTap: () =>
+                      Navigator.of(context).pushNamed(AppRoutes.battery),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
             AppCard(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               child: Column(

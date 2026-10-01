@@ -94,7 +94,12 @@ class RecordsScreen extends StatelessWidget {
                 separatorIndent: 58,
                 children: <Widget>[
                   for (final DistanceRecord record in records.byDistance)
-                    _RecordRow(record: record, now: now),
+                    _RecordRow(
+                      record: record,
+                      now: now,
+                      declaredSeconds:
+                          provider.declaredBestSeconds(record.distance.meters),
+                    ),
                 ],
               ),
 
@@ -174,19 +179,39 @@ class RecordsScreen extends StatelessWidget {
   }
 }
 
+/// Una riga della lista dei record.
+///
+/// [declaredSeconds] e' il personale che l'atleta ha dichiarato a mano per
+/// quella distanza. Quando e' piu' veloce di quello registrato, la riga smette
+/// di chiamarsi "record": mostra il tempo dichiarato come primato e quello
+/// misurato come il migliore **registrato con l'app**.
+///
+/// Prima non lo guardava nessuno, e la schermata dichiarava record un 10 km in
+/// 54:44 a un atleta che nel profilo aveva scritto 44:00 - lo stesso numero su
+/// cui il motore di forma costruisce l'indice.
 class _RecordRow extends StatelessWidget {
-  const _RecordRow({required this.record, required this.now});
+  const _RecordRow({
+    required this.record,
+    required this.now,
+    this.declaredSeconds,
+  });
 
   final DistanceRecord record;
   final DateTime now;
+  final int? declaredSeconds;
 
   @override
   Widget build(BuildContext context) {
     final AppPalette p = AppPalette.of(context);
 
+    final int? dichiarato = declaredSeconds;
+    final bool superato = dichiarato != null && dichiarato < record.seconds;
+
     // Un record fatto nelle ultime due settimane si colora: cosi' si vede
-    // quale primato e' "caldo" senza leggere tutte le date.
-    final bool recent = now.difference(record.date).inDays <= 14;
+    // quale primato e' "caldo" senza leggere tutte le date. Un tempo gia'
+    // battuto da un personale dichiarato non si colora mai.
+    final bool recent =
+        !superato && now.difference(record.date).inDays <= 14;
     final Color badgeColor = recent ? p.accent : (p.isDark ? p.surfaceElevated : Colors.black);
 
     return AppListRow(
@@ -209,9 +234,15 @@ class _RecordRow extends StatelessWidget {
         ),
       ),
       title: record.distance.label,
-      subtitle: '${formatPaceWithUnit(record.paceSecPerKm)}  ·  '
-          '${formatRelativeDay(record.date, now: now)}',
-      value: formatDuration(Duration(seconds: record.seconds)),
+      subtitle: superato
+          ? 'Dichiarato da te. Con l\'app: '
+              '${formatDuration(Duration(seconds: record.seconds))} il '
+              '${formatRelativeDay(record.date, now: now)}'
+          : '${formatPaceWithUnit(record.paceSecPerKm)}  ·  '
+              '${formatRelativeDay(record.date, now: now)}',
+      value: formatDuration(
+        Duration(seconds: superato ? dichiarato : record.seconds),
+      ),
       valueColor: recent ? p.accent : p.ink,
       onTap: () => Navigator.of(context)
           .pushNamed(AppRoutes.activityDetail, arguments: record.activityId),

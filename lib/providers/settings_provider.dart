@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../models/user_settings.dart';
+import '../models/weekly_availability.dart';
 import '../services/audio_coach_service.dart';
 import '../services/storage_service.dart';
 import '../utils/units.dart';
@@ -94,6 +95,14 @@ class SettingsProvider extends ChangeNotifier {
 
   Future<void> setUnits(UnitSystem units) =>
       update(_settings.copyWith(units: units));
+
+  /// Ricorda i giorni e i minuti in cui puo' correre.
+  ///
+  /// Si salva alla creazione di un piano, ma vive qui e non nel piano: la
+  /// settimana e' una proprieta' dell'atleta, non dell'allenamento. Cosi'
+  /// resta anche dopo aver cancellato un piano.
+  Future<void> setWeeklyAvailability(WeeklyAvailability availability) =>
+      update(_settings.copyWith(weeklyAvailability: availability));
 
   /// Prova la voce del coach con la personalita' attualmente selezionata.
   Future<void> testVoice() async {

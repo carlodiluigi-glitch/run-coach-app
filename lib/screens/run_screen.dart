@@ -376,7 +376,40 @@ class _RunScreenState extends State<RunScreen> {
                 ],
               ),
 
-              if (!run.hasGpsFix) ...<Widget>[
+              // IL TELEFONO HA SOSPESO LA REGISTRAZIONE
+              //
+              // Diverso dal "segnale assente" qui sotto: li' e' un sottopasso,
+              // qui e' Android che ha messo l'app a dormire. Va detto forte e
+              // subito, perche' e' l'unico momento in cui si puo' rimediare -
+              // a fine corsa restano solo i chilometri che mancano.
+              if (run.isGpsStalled) ...<Widget>[
+                const SizedBox(height: 18),
+                Container(
+                  padding: const EdgeInsets.fromLTRB(12, 11, 12, 11),
+                  decoration: BoxDecoration(
+                    color: p.red.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(AppRadius.small + 2),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Icon(Icons.warning_amber_rounded,
+                          size: 18, color: p.red),
+                      const SizedBox(width: 9),
+                      Expanded(
+                        child: Text(
+                          'Il telefono ha smesso di mandare la posizione da '
+                          '${run.stalledSeconds} secondi. Tieni l\'app aperta '
+                          'e controlla il risparmio energetico: da qui in '
+                          'avanti i chilometri non si contano.',
+                          style: AppText.caption
+                              .copyWith(color: p.red, height: 1.35),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ] else if (!run.hasGpsFix) ...<Widget>[
                 const SizedBox(height: 18),
                 Row(
                   children: <Widget>[

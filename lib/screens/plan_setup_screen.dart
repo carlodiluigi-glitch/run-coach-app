@@ -7,6 +7,7 @@ import '../models/weekly_availability.dart';
 import '../providers/activity_provider.dart';
 import '../models/estimate.dart';
 import '../providers/plan_provider.dart';
+import '../providers/settings_provider.dart';
 import '../services/plan_service.dart';
 import '../services/run_index_engine.dart';
 import '../services/stats_service.dart';
@@ -54,16 +55,28 @@ class _PlanSetupScreenState extends State<PlanSetupScreen> {
     final ActivityProvider activities = context.watch<ActivityProvider>();
     final RunningStats stats = activities.stats;
 
-    // Solo quando il piano e' stato letto da disco: al primo disegno della
-    // schermata puo' non esserlo ancora, e marcare "caricato" li' vorrebbe
-    // dire perdere per sempre i giorni del piano precedente.
+    // I giorni si cercano in tre posti, in quest'ordine:
+    //
+    //  1. le impostazioni, dove vengono salvati alla creazione di un piano:
+    //     e' la settimana dell'atleta, e resta anche senza piano;
+    //  2. il piano attivo, per chi ne ha uno creato prima che i giorni
+    //     finissero nelle impostazioni;
+    //  3. la proposta standard, per chi non li ha mai dichiarati.
+    //
+    // Si aspetta che entrambi siano stati letti da disco: al primo disegno
+    // della schermata possono non esserlo ancora, e marcare "caricato" li'
+    // vorrebbe dire perdere i giorni per sempre.
+    final SettingsProvider settingsForLoad = context.watch<SettingsProvider>();
     final PlanProvider plansForLoad = context.watch<PlanProvider>();
-    if (!_availabilityLoaded && plansForLoad.isLoaded) {
+    if (!_availabilityLoaded &&
+        settingsForLoad.isLoaded &&
+        plansForLoad.isLoaded) {
       _availabilityLoaded = true;
-      final WeeklyAvailability? previous =
-          plansForLoad.plan?.config.availability;
-      if (previous != null && !previous.isEmpty) {
-        _availabilityOrNull = previous;
+      final WeeklyAvailability? salvata =
+          settingsForLoad.settings.weeklyAvailability ??
+              plansForLoad.plan?.config.availability;
+      if (salvata != null && !salvata.isEmpty) {
+        _availabilityOrNull = salvata;
       }
     }
 
@@ -413,7 +426,12 @@ class _PlanSetupScreenState extends State<PlanSetupScreen> {
     setState(() => _saving = true);
 
     final PlanProvider plans = context.read<PlanProvider>();
+    final SettingsProvider settings = context.read<SettingsProvider>();
     final DateTime start = StatsService.startOfWeek(DateTime.now());
+
+    // La settimana dichiarata si ricorda anche se il piano venisse poi
+    // cancellato: la prossima volta non va ridichiarata.
+    await settings.setWeeklyAvailability(_availability);
 
     final PlanConfig config = PlanConfig(
       goal: _goal,

@@ -26,6 +26,73 @@ class NativeBridge {
     }
   }
 
+  /// L'app e' esclusa dal risparmio energetico di Android?
+  ///
+  /// PERCHE' CONTA PIU' DEL GPS
+  /// -------------------------
+  /// La causa numero uno delle corse perse a meta' non e' il segnale: e'
+  /// Android che addormenta il processo per risparmiare batteria. Una corsa
+  /// di un'ora e mezza diventa una di venti minuti, e non c'e' niente da
+  /// recuperare.
+  ///
+  /// In caso di dubbio risponde `true`: meglio non disturbare l'utente con
+  /// un avviso che potrebbe non servire.
+  Future<bool> isIgnoringBatteryOptimizations() async {
+    try {
+      final bool? ok = await _channel
+          .invokeMethod<bool>('isIgnoringBatteryOptimizations');
+      return ok ?? true;
+    } catch (error) {
+      debugPrint('NativeBridge: risparmio energetico non leggibile ($error)');
+      return true;
+    }
+  }
+
+  /// Apre la finestra di sistema che chiede l'esenzione.
+  ///
+  /// Chiede: la decisione resta all'utente e la finestra la disegna Android.
+  /// Restituisce `false` se quella schermata non esiste su questo telefono -
+  /// certi produttori la tolgono - e allora si ripiega su [openAppSettings].
+  Future<bool> requestIgnoreBatteryOptimizations() async {
+    try {
+      final bool? ok = await _channel
+          .invokeMethod<bool>('requestIgnoreBatteryOptimizations');
+      return ok ?? false;
+    } catch (error) {
+      debugPrint('NativeBridge: richiesta esenzione non disponibile ($error)');
+      return false;
+    }
+  }
+
+  /// Apre la pagina di sistema dell'app.
+  ///
+  /// Serve per i telefoni con un gestore energetico proprio (Xiaomi, Huawei,
+  /// Oppo), dove l'esenzione standard non basta e l'impostazione che conta si
+  /// chiama "avvio automatico" e sta in un posto diverso per ogni marca.
+  Future<bool> openAppSettings() async {
+    try {
+      final bool? ok = await _channel.invokeMethod<bool>('openAppSettings');
+      return ok ?? false;
+    } catch (error) {
+      debugPrint('NativeBridge: impostazioni app non apribili ($error)');
+      return false;
+    }
+  }
+
+  /// La marca del telefono, in minuscolo. Vuota se non si sa.
+  ///
+  /// Serve solo per dire all'utente dove cercare: l'impostazione che spegne
+  /// le app cambia nome e posto per ogni produttore.
+  Future<String> manufacturer() async {
+    try {
+      final String? name =
+          await _channel.invokeMethod<String>('deviceManufacturer');
+      return (name ?? '').toLowerCase().trim();
+    } catch (error) {
+      return '';
+    }
+  }
+
   /// Chiede il permesso di mostrare notifiche (necessario da Android 13).
   ///
   /// Se l'utente rifiuta, la registrazione in background funziona comunque:

@@ -34,6 +34,19 @@
          il processo dopo qualche minuto di schermo spento e si perdono punti. -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
+    <!-- ========== RISPARMIO ENERGETICO ==========
+         La causa numero uno delle corse perse non e' il GPS: e' Android che
+         addormenta l'app per risparmiare batteria. Con questo permesso si
+         puo' CHIEDERE all'utente di escludere Falcata da quel meccanismo -
+         chiedere, non imporre: la finestra la apre il sistema e decide lui.
+
+         Sui telefoni Xiaomi, Huawei e Oppo non basta: hanno un gestore loro,
+         con un'impostazione "avvio automatico" che sta in un altro posto per
+         ogni marca. Per quelli l'app apre la propria pagina di sistema e
+         spiega cosa cercare. -->
+    <uses-permission
+        android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
     <!-- Da Android 13 la notifica della registrazione richiede il consenso
          dell'utente. Se negato la corsa si registra lo stesso, ma senza
          notifica visibile. -->

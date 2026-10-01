@@ -1,3 +1,5 @@
+import 'weekly_availability.dart';
+
 /// Sistema di unita' di misura. Per ora solo metrico, ma l'enum e' gia'
 /// predisposto per l'aggiunta di quello imperiale.
 enum UnitSystem { metric, imperial }
@@ -44,6 +46,13 @@ extension CoachPersonalityLabel on CoachPersonality {
 }
 
 /// Impostazioni dell'utente, salvate localmente.
+WeeklyAvailability? _availabilityFromJson(dynamic raw) {
+  if (raw is! Map<dynamic, dynamic>) return null;
+  final WeeklyAvailability letta =
+      WeeklyAvailability.fromJson(raw.cast<String, dynamic>());
+  return letta.isEmpty ? null : letta;
+}
+
 class UserSettings {
   const UserSettings({
     this.userName = '',
@@ -59,6 +68,7 @@ class UserSettings {
     this.speechRate = 0.5,
     this.backgroundTrackingEnabled = true,
     this.welcomeDone = false,
+    this.weeklyAvailability,
   });
 
   /// Nome mostrato nella Home ("Ciao <nome>"). Vuoto = saluto generico.
@@ -100,6 +110,21 @@ class UserSettings {
   /// non metterlo non deve ritrovarsi la domanda a ogni avvio.
   final bool welcomeDone;
 
+  /// I giorni della settimana in cui puo' correre e quanti minuti ha su
+  /// ognuno.
+  ///
+  /// PERCHE' STA QUI E NON NEL PIANO
+  /// -------------------------------
+  /// Prima viveva solo dentro il piano, e la schermata di creazione la
+  /// rileggeva da li'. Ma la settimana di una persona non e' una proprieta'
+  /// del piano: e' una proprieta' sua. Senza piano - o dopo averlo
+  /// cancellato - i giorni sparivano e si tornava allo schema standard
+  /// (lungo di domenica, qualita' martedi' e giovedi'), che e' esattamente
+  /// quello che questa funzione esisteva per non fare.
+  ///
+  /// `null` = non l'ha ancora dichiarata.
+  final WeeklyAvailability? weeklyAvailability;
+
   bool get hasUserName => userName.trim().isNotEmpty;
 
   String get greeting => hasUserName ? 'Ciao ${userName.trim()}' : 'Ciao!';
@@ -118,6 +143,7 @@ class UserSettings {
     double? speechRate,
     bool? backgroundTrackingEnabled,
     bool? welcomeDone,
+    WeeklyAvailability? weeklyAvailability,
   }) =>
       UserSettings(
         userName: userName ?? this.userName,
@@ -136,6 +162,7 @@ class UserSettings {
         backgroundTrackingEnabled:
             backgroundTrackingEnabled ?? this.backgroundTrackingEnabled,
         welcomeDone: welcomeDone ?? this.welcomeDone,
+        weeklyAvailability: weeklyAvailability ?? this.weeklyAvailability,
       );
 
   Map<String, dynamic> toJson() => <String, dynamic>{
@@ -152,6 +179,8 @@ class UserSettings {
         'speechRate': speechRate,
         'backgroundTrackingEnabled': backgroundTrackingEnabled,
         'welcomeDone': welcomeDone,
+        if (weeklyAvailability != null)
+          'weeklyAvailability': weeklyAvailability!.toJson(),
       };
 
   factory UserSettings.fromJson(Map<String, dynamic> json) => UserSettings(
@@ -175,5 +204,6 @@ class UserSettings {
         // nome c'e' gia', il giro e' considerato fatto.
         welcomeDone: json['welcomeDone'] as bool? ??
             ((json['userName'] as String? ?? '').trim().isNotEmpty),
+        weeklyAvailability: _availabilityFromJson(json['weeklyAvailability']),
       );
 }

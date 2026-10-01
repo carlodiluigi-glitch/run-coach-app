@@ -312,6 +312,37 @@ void main() {
       expect(r.score >= 0 && r.score <= 100, isTrue);
     });
 
+    test('il giorno dopo una seduta dura non si dice "normale"', () {
+      // Preso dalla Home vera: nessun carico affidabile, nessun check-in, e
+      // un 5x1000 il giorno prima. Diceva 55 e "Normale", scrivendo pero'
+      // "ieri hai fatto una seduta di qualita'" come motivo - cioe' mostrando
+      // una causa che non aveva spostato il numero.
+      final Readiness r = readiness.compute(
+        load: TrainingLoadState.empty(oggi),
+        lastQualityAt: oggi.subtract(const Duration(hours: 20)),
+        now: oggi,
+      );
+
+      expect(r.band.allowsQuality, isFalse,
+          reason: 'punteggio ${r.score}, fascia ${r.band.label}: il giorno '
+              'dopo le ripetute non si fa altra qualita\'');
+      expect(r.reasons.first.contains('qualita'), isTrue);
+    });
+
+    test('il motivo mostrato deve avere spostato il numero', () {
+      final Readiness riposato = readiness.compute(
+        load: TrainingLoadState.empty(oggi),
+        now: oggi,
+      );
+      final Readiness dopoDura = readiness.compute(
+        load: TrainingLoadState.empty(oggi),
+        lastQualityAt: oggi.subtract(const Duration(hours: 20)),
+        now: oggi,
+      );
+      expect(dopoDura.score < riposato.score, isTrue,
+          reason: 'riposato ${riposato.score}, dopo ${dopoDura.score}');
+    });
+
     test('senza sapere niente non si dice "pronto"', () {
       // Il difetto vero che questo test ha trovato: il recupero vale 1 quando
       // non hai fatto niente di duro, e da solo portava il punteggio a 100.

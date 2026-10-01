@@ -849,6 +849,53 @@ veloci durano quaranta secondi. E' corretto - le ripetute brevi servono alla
 meccanica di corsa e non devono stancare - ma e' una scelta, non un caso.
 Un 10x400 invece conta, perche' un 400 dura piu' di un minuto.
 
+### La corsa non si perde
+
+Il difetto piu' grave possibile per un'app che vive sul telefono non e' un
+numero sbagliato: e' il dato che non c'e' piu'. Una stima imprecisa si
+corregge, una corsa persa no.
+
+Fino alla 1.6 una corsa viveva solo nella memoria del processo. Se Android
+chiudeva l'app - risparmio energetico, memoria finita, il gestore aggressivo di
+Xiaomi o Huawei, un crash - sparivano un'ora e mezza di lavoro. Tre difese, in
+ordine di importanza.
+
+**1. Si scrive su disco mentre si corre.** Ogni quindici secondi la corsa
+viene salvata in un file. Nel caso peggiore si perdono quindici secondi, non
+tutto. Alla riapertura, se il file c'e', la Home propone di salvare quello che
+era stato misurato.
+
+Non si riprende a correre, e non e' pigrizia: fra l'uccisione e il riavvio
+possono essere passate ore, e il cronometro non saprebbe cosa farne. Meglio
+salvare con sicurezza quello che era stato misurato che ricostruire per finta
+quello che non c'era nessuno a misurare.
+
+E non si salva da soli: l'app mostra cosa ha trovato e lascia decidere.
+Archiviare di nascosto una corsa che magari era un avvio per sbaglio
+sporcherebbe l'archivio, che e' la base di ogni stima. Sotto i due minuti o i
+duecento metri il file viene buttato senza nemmeno disturbare.
+
+**2. Se il telefono smette di mandare posizioni, lo dice subito.** Dopo mezzo
+minuto senza un punto compare un avviso rosso e il coach lo annuncia a voce.
+Trenta secondi e' la soglia: sotto e' un sottopasso, sopra e' Android che ha
+messo l'app a dormire.
+
+Detto a fine corsa non serve a niente - i chilometri mancano e basta. Detto
+mentre succede si puo' ancora rimediare, e almeno si sa che quel numero non e'
+da credere.
+
+**3. Si chiede l'esenzione dal risparmio energetico.** C'e' una schermata che
+lo spiega, sotto Impostazioni -> Registrazione, e che si adatta alla marca del
+telefono: su Xiaomi, Huawei, Oppo e altri l'esenzione standard di Android non
+basta, perche' hanno un gestore loro con un'impostazione "avvio automatico" che
+sta in un posto diverso per ognuno.
+
+Le istruzioni nominano la voce precisa da cercare. Un consiglio generico
+("controlla le impostazioni della batteria") non lo segue nessuno; uno che dice
+dove toccare si segue in trenta secondi. **I nomi delle voci vanno verificati
+sul campo**: cambiano fra versioni della stessa interfaccia, e stanno tutti in
+`lib/utils/battery_advice.dart` per essere corretti in un posto solo.
+
 ### Il carico: quanto e' costata una seduta
 
 Dieci chilometri lenti e dieci di ripetute sono la stessa riga sul diario e due
@@ -913,11 +960,25 @@ Il numero **non compare mai da solo**: sotto c'e' sempre il primo motivo per
 cui e' quello che e'. Un punteggio che non si puo' contestare e' un oracolo, e
 un oracolo non si corregge.
 
-Un difetto trovato scrivendo i test: il recupero vale 1 quando non hai fatto
-niente di duro di recente, e da solo portava il punteggio a **100 su 100** per
-chi aveva appena installato l'app. Massima prontezza perche' non si sapeva
-niente. Adesso, se mancano sia la freschezza sia il check-in, la risposta e'
-"normale" e sta in mezzo: 55, con fiducia bassa e scritto perche'.
+Due difetti trovati su questa parte, e vale la pena raccontarli perche' sono
+lo stesso errore visto da due lati.
+
+Il primo l'hanno trovato i test: il recupero vale 1 quando non hai fatto niente
+di duro di recente, e da solo portava il punteggio a **100 su 100** per chi
+aveva appena installato l'app. Massima prontezza perche' non si sapeva niente.
+Corretto mettendo un 55 fisso quando mancano sia la freschezza sia il check-in.
+
+Il secondo si e' visto solo usando l'app. La card in Home diceva **55,
+"Normale"**, e sotto come motivo principale *"ieri hai fatto una seduta di
+qualita'"* - che era vero, ma con il 55 fisso quel fatto non aveva spostato il
+numero di un punto. Una causa che non era una causa, cioe' esattamente il
+difetto che tutto il resto dell'app esiste per non avere. E la risposta giusta
+il giorno dopo un 5x1000 non e' "normale": e' **solo facile**.
+
+Adesso, senza carico e senza check-in, si parte da 55 e l'unica cosa che puo'
+muoverlo e' una seduta dura recente, che puo' solo abbassarlo. Il giorno dopo
+le ripetute vengono 40, fascia "solo facile". Sapere che ieri hai tirato e'
+poco, ma non e' niente.
 
 ### Le due reazioni immediate
 
@@ -1010,6 +1071,25 @@ Per riconoscere le ripetute senza dipendere dalla parola "Ripetuta", ogni
 parziale porta con se' il **tipo** della fase in forma non traducibile
 (`interval`, `recovery`, ...) accanto all'etichetta leggibile. Cercare la
 stringa italiana si sarebbe rotto alla prima traduzione.
+
+### Un record e' un record se batte quello che sai di aver fatto
+
+Un'uscita da 13,5 km a 5:33 si e' presa il trofeo **"Record personale 10 km
+54:44"** da un atleta che nel profilo ha dichiarato un 10 km in **44:00** - lo
+stesso numero su cui il motore di forma costruisce tutto l'indice.
+
+Due parti della stessa app che si contraddicono, e quella che si vede e' quella
+sbagliata. Il calcolo dei record guardava solo lo storico registrato col GPS e
+non sapeva niente dei personali dichiarati a mano.
+
+Adesso il trofeo sull'attivita' non compare per una distanza su cui hai
+dichiarato un tempo piu' veloce, e nella schermata Record quella riga mostra il
+tempo dichiarato come primato, con sotto il migliore **registrato con l'app** -
+che resta un'informazione utile, ma non e' il tuo record.
+
+E' lo stesso difetto gia' incontrato con il piano che leggeva un indice diverso
+da quello della schermata Forma: due strade che calcolano la stessa cosa
+finiscono sempre per divergere. Dove si puo', deve esserci una strada sola.
 
 ### Gara o test, dichiarati sull'attivita'
 

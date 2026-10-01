@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/workout.dart';
+import '../screens/battery_screen.dart';
 import '../screens/checkin_screen.dart';
 import '../screens/activity_detail_screen.dart';
 import '../screens/activity_history_screen.dart';
@@ -54,6 +55,9 @@ class AppRoutes {
 
   /// Il check-in del mattino: come stai, in tre domande.
   static const String checkIn = '/check-in';
+
+  /// Perche' il telefono ferma le app, e cosa farci.
+  static const String battery = '/batteria';
 
   /// Generatore delle rotte con gestione degli argomenti.
   static Route<dynamic> onGenerateRoute(RouteSettings routeSettings) {
@@ -132,6 +136,12 @@ class AppRoutes {
       case checkIn:
         return MaterialPageRoute<void>(
           builder: (_) => const CheckInScreen(),
+          settings: routeSettings,
+        );
+
+      case battery:
+        return MaterialPageRoute<void>(
+          builder: (_) => const BatteryScreen(),
           settings: routeSettings,
         );
 

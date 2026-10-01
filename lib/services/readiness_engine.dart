@@ -176,11 +176,21 @@ class ReadinessEngine {
     // appena installato l'app: massima prontezza perche' non si sa niente.
     // E' l'oracolo che tutto il resto dell'app evita.
     //
-    // Se mancano sia la freschezza sia il check-in, la risposta onesta e'
-    // "normale", e sta in mezzo: 55.
-    final double norm = (frescoNorm == null && checkNorm == null)
-        ? 0.55
-        : somma / pesi;
+    // Ma fermarsi a un 55 fisso era sbagliato all'opposto, e si vedeva in
+    // Home: la card scriveva "ieri hai fatto una seduta di qualita'" come
+    // motivo principale di un numero che quel fatto non aveva spostato di un
+    // punto. Una causa che non e' una causa.
+    //
+    // Quindi: senza carico e senza check-in si parte da 55 - non si sa
+    // niente, e "normale" e' l'unica risposta onesta - e l'unica cosa che
+    // puo' muoverlo e' una seduta dura recente, che puo' solo abbassarlo.
+    // Sapere che ieri hai tirato e' poco, ma non e' niente.
+    final double norm;
+    if (frescoNorm == null && checkNorm == null) {
+      norm = 0.55 - 0.25 * (1 - recuperoNorm);
+    } else {
+      norm = somma / pesi;
+    }
     int punteggio = (norm * 100).round().clamp(0, 100);
 
     // ----------------------------------------------------------- 4. dolore
