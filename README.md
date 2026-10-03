@@ -536,6 +536,12 @@ Sotto le tre settimane utili l'app **non propone niente** e lo dice. Un archivio
 corto non e' un archivio che dice numeri bassi: e' un archivio che non dice
 niente, e tirare a indovinare al ribasso e' peggio che chiedere.
 
+Lo stesso conto compariva anche in Home - *"sopra la tua media di 10,5 km"* a
+un atleta che ne fa 60 - e adesso usa **la stessa identica funzione**, non una
+copia. Due strade che calcolano la stessa cosa finiscono sempre per divergere:
+e' gia' successo con il piano che leggeva un indice diverso da quello della
+schermata Forma, e con il trofeo che non sapeva dei personali dichiarati.
+
 #### Da dove parte il piano lo decidi tu
 
 La Costruzione serve a costruire il motore aerobico e la tolleranza al volume.

@@ -51,6 +51,29 @@ void main() {
     });
   });
 
+  group('la stessa regola vale anche per la Home', () {
+    test('senza settimane vere non si confronta con niente', () {
+      // In Home diceva "sopra la tua media di 10,5 km" a chi ne fa 60,
+      // perche' divideva per quattro anche le settimane in cui l'app non
+      // c'era. Stesso difetto del punto di partenza, stessa regola: se non
+      // c'e' un riferimento vero, non si fa il confronto.
+      final RunningStats stats = conSettimane(
+        <double>[0, 0, 0, 0, 0, 0, 32, 12],
+      );
+      expect(stats.suggestedWeeklyKm, isNull);
+    });
+
+    test('con settimane vere il riferimento e\' quello giusto', () {
+      final RunningStats stats = conSettimane(
+        <double>[58, 61, 60, 59, 62, 60, 61, 32],
+      );
+      final double? riferimento = stats.suggestedWeeklyKm;
+      expect(riferimento, isNotNull);
+      expect(riferimento! > 55, isTrue,
+          reason: 'riferimento $riferimento: deve somigliare ai 60 veri');
+    });
+  });
+
   group('quando le settimane ci sono', () {
     test('la settimana in corso non conta', () {
       // L'ultima e' incompleta: se contasse, abbasserebbe la proposta.

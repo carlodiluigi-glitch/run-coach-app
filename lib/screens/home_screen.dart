@@ -450,22 +450,32 @@ class _WeekCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final AppPalette p = AppPalette.of(context);
-    final double averageKm = stats.lastFourWeeksKm / 4.0;
-    final bool hasHistory = averageKm >= 0.5;
+    // IL CONFRONTO SI FA CON LE SETTIMANE VERE
+    //
+    // Prima si divideva per quattro il totale delle ultime quattro settimane,
+    // anche quando in tre di quelle l'app non era installata. A un atleta da
+    // 60 km a settimana diceva "sopra la tua media di 10,5 km": un confronto
+    // con un numero che non e' mai esistito.
+    //
+    // E' lo stesso difetto del punto di partenza del piano, quindi si usa la
+    // stessa identica regola - mediana delle settimane intere, niente
+    // confronto sotto le tre - invece di riscriverla qui. Due strade che
+    // calcolano la stessa cosa finiscono sempre per divergere.
+    final double? riferimento = stats.suggestedWeeklyKm;
+    final bool hasHistory = riferimento != null;
     final double ratio = hasHistory
-        ? stats.weekKm / averageKm
+        ? stats.weekKm / riferimento
         : (stats.weekKm > 0 ? 1.0 : 0.0);
 
     final String note;
     if (!hasHistory) {
       note = stats.weekKm > 0
-          ? 'La tua prima settimana di dati'
+          ? 'Ancora poche settimane per un confronto'
           : 'Nessuna corsa questa settimana';
-    } else if (stats.weekKm >= averageKm) {
-      note = 'Sopra la tua media di ${averageKm.toStringAsFixed(1)} km';
+    } else if (stats.weekKm >= riferimento) {
+      note = 'Sopra le tue ${riferimento.toStringAsFixed(0)} km di solito';
     } else {
-      note = 'Media delle ultime 4 settimane: '
-          '${averageKm.toStringAsFixed(1)} km';
+      note = 'Di solito fai ${riferimento.toStringAsFixed(0)} km a settimana';
     }
 
     return AppCard(

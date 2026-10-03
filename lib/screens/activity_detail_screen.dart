@@ -43,6 +43,7 @@ class ActivityDetailScreen extends StatelessWidget {
 
     final RunningShoe? shoe = shoes.byId(activity.shoeId);
     final List<DistanceRecord> held = provider.recordsHeldBy(activity.id);
+    final double? carico = provider.loadOf(activity);
     final bool isWorkout = activity.type == ActivityType.workout;
 
     // Cosa e' stata davvero questa seduta, guardando i passi corsi e non il
@@ -199,6 +200,20 @@ class ActivityDetailScreen extends StatelessWidget {
                         'passa.',
                     value: 'si\'',
                     valueColor: p.red,
+                    showChevron: false,
+                  ),
+                // IL CARICO
+                //
+                // Il motore lo calcola per decidere la prontezza, ma finche'
+                // non si vede e' un numero che nessuno puo' contestare. Qui
+                // sta accanto alla distanza e al tempo, che e' il suo posto:
+                // sono tre modi di dire quanto e' costata la stessa corsa.
+                if (carico != null)
+                  AppListRow(
+                    title: 'Carico',
+                    subtitle: '100 punti = un\'ora a ritmo soglia. Conta '
+                        'l\'intensita\', non i chilometri.',
+                    value: carico.round().toString(),
                     showChevron: false,
                   ),
                 AppListRow(

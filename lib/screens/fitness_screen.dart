@@ -8,6 +8,7 @@ import '../providers/activity_provider.dart';
 import '../services/fitness_service.dart';
 import '../services/pace_zone_engine.dart';
 import '../services/run_index_engine.dart';
+import '../services/training_load_engine.dart';
 import '../utils/formatters.dart';
 import '../widgets/app_card.dart';
 import '../widgets/inset_list.dart';
@@ -129,6 +130,11 @@ class FitnessScreen extends StatelessWidget {
               ),
           ],
         ),
+
+        if (!activities.trainingLoad.isEmpty) ...<Widget>[
+          const SectionTitle('Carico e freschezza'),
+          _LoadCard(load: activities.trainingLoad),
+        ],
 
         if (result.samples.isNotEmpty) ...<Widget>[
           const SectionTitle('Su cosa e\' basato'),
@@ -270,6 +276,116 @@ class _IndexCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Quanto stai caricando e quanto sei fresco.
+///
+/// PERCHE' STA QUI
+/// ---------------
+/// L'indice di forma dice quanto vai forte. Questi due numeri dicono quanto ti
+/// sta costando arrivarci, ed e' l'altra meta' della stessa domanda: si puo'
+/// essere in forma e cotti nello stesso momento, ed e' il momento in cui ci si
+/// fa male.
+///
+/// Come per l'indice, nessun numero compare senza una riga che lo spiega.
+class _LoadCard extends StatelessWidget {
+  const _LoadCard({required this.load});
+
+  final TrainingLoadState load;
+
+  @override
+  Widget build(BuildContext context) {
+    final AppPalette p = AppPalette.of(context);
+    final double? rapporto = load.loadRatio;
+
+    Color tono() {
+      if (!load.isReliable || rapporto == null) return p.inkFaint;
+      if (rapporto >= 1.35) return p.red;
+      if (rapporto >= 1.15) return p.orange;
+      if (rapporto <= 0.75) return p.blue;
+      return p.green;
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        AppCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text('FATICA',
+                            style: AppText.label.copyWith(color: p.inkFaint)),
+                        const SizedBox(height: 4),
+                        Text(load.fatigue.toStringAsFixed(0),
+                            style: AppText.number(30, color: p.ink)),
+                        Text('ultimi 7 giorni',
+                            style:
+                                AppText.caption.copyWith(color: p.inkFaint)),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text('CONDIZIONE',
+                            style: AppText.label.copyWith(color: p.inkFaint)),
+                        const SizedBox(height: 4),
+                        Text(load.fitness.toStringAsFixed(0),
+                            style: AppText.number(30, color: p.ink)),
+                        Text('ultimi 28 giorni',
+                            style:
+                                AppText.caption.copyWith(color: p.inkFaint)),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text('FRESCHEZZA',
+                            style: AppText.label.copyWith(color: p.inkFaint)),
+                        const SizedBox(height: 4),
+                        Text(
+                          load.freshness >= 0
+                              ? '+${load.freshness.toStringAsFixed(0)}'
+                              : load.freshness.toStringAsFixed(0),
+                          style: AppText.number(30, color: tono()),
+                        ),
+                        Text('la differenza',
+                            style:
+                                AppText.caption.copyWith(color: p.inkFaint)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Text(load.headline, style: AppText.body.copyWith(color: p.ink)),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(left: 4, top: 8),
+          child: Text(
+            'Il carico di ogni seduta si misura in sforzo, non in chilometri: '
+            '100 punti sono un\'ora a ritmo soglia. La fatica e\' la media '
+            'degli ultimi sette giorni, la condizione quella degli ultimi '
+            'ventotto. Positiva vuol dire riposato rispetto al tuo solito, '
+            'negativa vuol dire che stai portando piu\' carico del normale - '
+            'che e\' giusto in carico e sbagliato prima di una gara.',
+            style: AppText.caption.copyWith(color: p.inkFaint),
+          ),
+        ),
+      ],
     );
   }
 }
