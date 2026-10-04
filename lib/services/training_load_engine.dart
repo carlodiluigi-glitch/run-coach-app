@@ -155,10 +155,60 @@ class TrainingLoadEngine {
     TrainingZones? zones, {
     DateTime? now,
   }) {
+    final List<TrainingLoadPoint> serie = seriesFor(
+      activities,
+      zones,
+      now: now,
+      days: 0, // tutta la storia: qui serve solo l'ultimo giorno
+    );
     final DateTime reference = _dayOnly(now ?? DateTime.now());
-    if (zones == null) {
-      return TrainingLoadState.empty(reference);
+    if (serie.isEmpty) return TrainingLoadState.empty(reference);
+
+    final TrainingLoadPoint ultimo = serie.last;
+
+    // Carico delle ultime sette giornate, in punti: serve per dire "questa
+    // settimana" in una frase, che e' piu' leggibile della media al giorno.
+    double settimana = 0;
+    for (int i = serie.length - 1; i >= 0 && i > serie.length - 8; i--) {
+      settimana += serie[i].load;
     }
+
+    DateTime? ultimoCarico;
+    for (final TrainingLoadPoint p in serie) {
+      if (p.load > 0) ultimoCarico = p.date;
+    }
+
+    return TrainingLoadState(
+      date: reference,
+      fatigue: _arrotonda(ultimo.fatigue),
+      fitness: _arrotonda(ultimo.fitness),
+      weekLoad: settimana,
+      historyDays: serie.length,
+      lastLoadDay: ultimoCarico,
+    );
+  }
+
+  /// Fatica e condizione giorno per giorno.
+  ///
+  /// PERCHE' SERVE LA SERIE E NON SOLO IL NUMERO DI OGGI
+  /// --------------------------------------------------
+  /// "Condizione 48, fatica 52" non dice niente da solo. Quello che conta e'
+  /// la direzione: 48 dopo essere stato a 30 e' una storia, 48 dopo essere
+  /// stato a 65 e' la storia opposta, e il numero di oggi e' identico nelle
+  /// due. Il grafico e' l'unico modo di far vedere la differenza.
+  ///
+  /// [days] = 0 restituisce tutta la storia; un numero restituisce solo gli
+  /// ultimi giorni, ma il calcolo parte sempre dal primo allenamento: le medie
+  /// esponenziali hanno memoria, e partire tre mesi fa da zero direbbe che a
+  /// gennaio eri fermo anche se correvi da due anni.
+  List<TrainingLoadPoint> seriesFor(
+    List<RunningActivity> activities,
+    TrainingZones? zones, {
+    DateTime? now,
+    int days = 90,
+  }) {
+    final DateTime reference = _dayOnly(now ?? DateTime.now());
+    if (zones == null) return const <TrainingLoadPoint>[];
 
     // Carico per giorno.
     final Map<DateTime, double> perDay = <DateTime, double>{};
@@ -172,9 +222,7 @@ class TrainingLoadEngine {
       if (primo == null || giorno.isBefore(primo)) primo = giorno;
     }
 
-    if (perDay.isEmpty || primo == null) {
-      return TrainingLoadState.empty(reference);
-    }
+    if (perDay.isEmpty || primo == null) return const <TrainingLoadPoint>[];
 
     // Medie esponenziali, un giorno alla volta dal primo allenamento a oggi.
     //
@@ -184,34 +232,30 @@ class TrainingLoadEngine {
     final double kFatica = 1 - math.exp(-1 / fatigueDays);
     final double kCondizione = 1 - math.exp(-1 / fitnessDays);
 
+    final DateTime? daMostrare = days <= 0
+        ? null
+        : reference.subtract(Duration(days: days - 1));
+
     double fatica = 0;
     double condizione = 0;
+    final List<TrainingLoadPoint> out = <TrainingLoadPoint>[];
     DateTime giorno = primo;
     while (!giorno.isAfter(reference)) {
       final double carico = perDay[giorno] ?? 0;
       fatica += (carico - fatica) * kFatica;
       condizione += (carico - condizione) * kCondizione;
+
+      if (daMostrare == null || !giorno.isBefore(daMostrare)) {
+        out.add(TrainingLoadPoint(
+          date: giorno,
+          load: carico,
+          fatigue: fatica,
+          fitness: condizione,
+        ));
+      }
       giorno = giorno.add(const Duration(days: 1));
     }
-
-    final int giorniDiStoria = reference.difference(primo).inDays + 1;
-
-    // Carico delle ultime sette giornate, in punti: serve per dire "questa
-    // settimana" in una frase, che e' piu' leggibile della media al giorno.
-    double settimana = 0;
-    for (int i = 0; i < 7; i++) {
-      settimana += perDay[reference.subtract(Duration(days: i))] ?? 0;
-    }
-
-    return TrainingLoadState(
-      date: reference,
-      fatigue: _arrotonda(fatica),
-      fitness: _arrotonda(condizione),
-      weekLoad: settimana,
-      historyDays: giorniDiStoria,
-      lastLoadDay: perDay.keys.reduce((DateTime a, DateTime b) =>
-          a.isAfter(b) ? a : b),
-    );
+    return out;
   }
 
   /// Arrotonda a una cifra: la falsa precisione confonde e basta.
@@ -225,6 +269,28 @@ class _Slice {
   const _Slice(this.seconds, this.intensity);
   final double seconds;
   final double intensity;
+}
+
+/// Un giorno nella storia del carico.
+class TrainingLoadPoint {
+  const TrainingLoadPoint({
+    required this.date,
+    required this.load,
+    required this.fatigue,
+    required this.fitness,
+  });
+
+  final DateTime date;
+
+  /// Punti di carico fatti in questo giorno. Zero nei giorni di riposo, che
+  /// sono quelli in cui la fatica scende.
+  final double load;
+
+  final double fatigue;
+  final double fitness;
+
+  /// Condizione meno fatica: positiva quando si e' riposati.
+  double get freshness => fitness - fatigue;
 }
 
 /// Dove sei: quanto sei stanco, quanto sei allenato, e la differenza.

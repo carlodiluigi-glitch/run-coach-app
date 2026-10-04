@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
@@ -90,6 +92,29 @@ class NativeBridge {
       return (name ?? '').toLowerCase().trim();
     } catch (error) {
       return '';
+    }
+  }
+
+  /// Condivide l'immagine di una corsa (e un testo di accompagnamento).
+  ///
+  /// L'immagine finisce nella galleria, cartella Falcata, e poi si apre il
+  /// pannello di condivisione di Android: da li' l'utente sceglie dove
+  /// mandarla. Se l'immagine non si puo' scrivere - Android precedente al 10,
+  /// galleria piena, permessi negati - parte lo stesso la condivisione del
+  /// solo testo, perche' un pulsante che non fa niente e' peggio di un
+  /// pulsante che fa meno.
+  ///
+  /// Restituisce `false` solo se non e' partito proprio niente.
+  Future<bool> shareRunImage({required Uint8List png, String text = ''}) async {
+    try {
+      final bool? ok = await _channel.invokeMethod<bool>(
+        'shareRunImage',
+        <String, dynamic>{'png': png, 'text': text},
+      );
+      return ok ?? false;
+    } catch (error) {
+      debugPrint('NativeBridge: condivisione non disponibile ($error)');
+      return false;
     }
   }
 

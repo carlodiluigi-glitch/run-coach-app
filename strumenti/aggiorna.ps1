@@ -164,10 +164,16 @@ try {
   # Quindi se uno zip tocca i file dove quell-identificativo e scritto, si
   # controlla che sia ancora quello giusto. Un controllo che non scattera mai e
   # il controllo giusto da avere.
+  # I file dove l-identificativo e scritto DAVVERO. Il manifest Android non e
+  # fra questi: nelle versioni recenti di Flutter non contiene piu il nome del
+  # pacchetto (sta nel build.gradle), quindi controllarlo li avrebbe fatto
+  # fallire ogni aggiornamento che tocca il manifest. Un controllo di sicurezza
+  # che blocca il lavoro buono e peggio di nessun controllo: si impara a
+  # ignorarlo, e il giorno che serve lo si ignora anche quello.
   $identita = @{
-    'pubspec.yaml'                              = 'name:\s*run_coach_app'
-    'android\app\build.gradle'                  = 'com\.runcoachapp\.run_coach_app'
-    'android\app\src\main\AndroidManifest.xml'  = 'run_coach_app'
+    'pubspec.yaml'                                                      = 'name:\s*run_coach_app'
+    'android\app\build.gradle'                                          = 'com\.runcoachapp\.run_coach_app'
+    'android\app\src\main\kotlin\com\runcoachapp\run_coach_app\MainActivity.kt' = 'package\s+com\.runcoachapp\.run_coach_app'
   }
   foreach ($chiave in $identita.Keys) {
     $f = Join-Path $radice $chiave

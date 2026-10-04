@@ -13,9 +13,11 @@ import '../screens/profile_screen.dart';
 import '../screens/records_screen.dart';
 import '../screens/run_screen.dart';
 import '../screens/settings_screen.dart';
+import '../screens/share_screen.dart';
 import '../screens/shoes_screen.dart';
 import '../screens/splash_screen.dart';
 import '../screens/stats_screen.dart';
+import '../screens/unlock_screen.dart';
 import '../screens/week_edit_screen.dart';
 import '../screens/welcome_screen.dart';
 import '../screens/workout_builder_screen.dart';
@@ -53,6 +55,12 @@ class AppRoutes {
 
   /// Cambia i giorni di una settimana sola. Argomento: il numero (int).
   static const String weekEdit = '/settimana';
+
+  /// Immagine della corsa da mandare. Argomento: l'id dell'attivita' (String).
+  static const String share = '/condividi';
+
+  /// Cosa e' gratis, cosa si paga, quanto.
+  static const String unlock = '/sblocca';
 
   /// Profilo dell'atleta e personali dichiarati.
   static const String profile = '/profile';
@@ -177,6 +185,19 @@ class AppRoutes {
         final Object? args = routeSettings.arguments;
         return MaterialPageRoute<void>(
           builder: (_) => WeekEditScreen(weekNumber: args is int ? args : 1),
+          settings: routeSettings,
+        );
+
+      case share:
+        final Object? args = routeSettings.arguments;
+        return MaterialPageRoute<void>(
+          builder: (_) => ShareScreen(activityId: args is String ? args : ''),
+          settings: routeSettings,
+        );
+
+      case unlock:
+        return MaterialPageRoute<void>(
+          builder: (_) => const UnlockScreen(),
           settings: routeSettings,
         );
 

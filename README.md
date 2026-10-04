@@ -259,6 +259,7 @@ run_coach_app/
 │   ├── models/
 │   │   ├── lap.dart
 │   │   ├── running_activity.dart
+│   │   ├── license.dart             # cosa e' gratis e cosa si paga
 │   │   ├── running_shoe.dart
 │   │   ├── user_settings.dart
 │   │   ├── workout.dart
@@ -273,6 +274,7 @@ run_coach_app/
 │   │   ├── coach_phrases.dart       # tutte le frasi del coach
 │   │   ├── stats_service.dart       # statistiche e trend
 │   │   ├── records_service.dart     # record personali per distanza
+│   │   ├── elevation_service.dart   # dislivello, al netto del rumore GPS
 │   │   ├── storage_service.dart     # salvataggio locale JSON
 │   │   └── native_bridge.dart       # schermo acceso + permesso notifiche
 │   ├── providers/
@@ -288,6 +290,8 @@ run_coach_app/
 │   │   ├── plan_screen.dart         # il piano attivo
 │   │   ├── plan_setup_screen.dart   # creazione del piano
 │   │   ├── week_edit_screen.dart    # i giorni di UNA settimana sola
+│   │   ├── share_screen.dart        # l'immagine della corsa da mandare
+│   │   ├── unlock_screen.dart       # cosa e' gratis, cosa si paga
 │   │   ├── welcome_screen.dart      # primo avvio: chiede il nome
 │   │   ├── home_screen.dart
 │   │   ├── run_screen.dart
@@ -302,6 +306,9 @@ run_coach_app/
 │   ├── widgets/
 │   │   ├── app_card.dart
 │   │   ├── day_time_row.dart      # giorno + minuti: una riga, usata in due posti
+│   │   ├── route_shape.dart       # il disegno del giro
+│   │   ├── load_chart.dart        # condizione e fatica negli ultimi mesi
+│   │   ├── share_card.dart        # la scheda che diventa immagine
 │   │   ├── inset_list.dart
 │   │   ├── metric_card.dart
 │   │   ├── metric_display.dart
@@ -315,6 +322,8 @@ run_coach_app/
 │       ├── speech_formatters.dart # numeri pronunciabili (voce)
 │       └── id_generator.dart
 ├── test/                        # test unitari e widget
+├── negozio/
+│   └── scheda-play-store.md     # testi pronti per la pubblicazione
 ├── strumenti/
 │   └── aggiorna.ps1             # applica uno zip e fa commit+push
 ├── AGGIORNA.bat                 # doppio clic: aggiorna tutto
@@ -607,6 +616,143 @@ Sul disco non finisce il piano, finisce il parametro: `weekOverrides` e' una
 mappa da numero di settimana a settimana dichiarata, e il piano viene
 ricalcolato da quella. Per questo si torna indietro senza perdere niente, e per
 questo un piano salvato prima di questa funzione si riapre identico a com'era.
+
+### Il percorso, e il dislivello che quasi tutti sbagliano
+
+La traccia GPS veniva registrata e salvata da sempre, e non si vedeva da nessuna
+parte. Adesso il dettaglio di una corsa mostra il **disegno del giro**, con
+partenza e arrivo.
+
+Non e' una mappa stradale: una mappa vuole un servizio esterno, una chiave, una
+connessione mentre la guardi e di solito un conto da pagare oltre un certo
+numero di visualizzazioni. Il valore, per chi ha appena finito di correre, sta
+quasi tutto nella **forma**: riconoscere il proprio giro, vedere dove si e'
+girato, accorgersi che il GPS ha fatto un salto. Quello lo da' la traccia da
+sola, senza rete, senza chiavi e senza mandare in giro il posto in cui abiti.
+
+Un dettaglio che non e' un dettaglio: i gradi di longitudine valgono meno di
+quelli di latitudine, e sempre meno salendo verso i poli. Senza quella
+correzione un giro quadrato verrebbe disegnato rettangolare, e chi lo guarda non
+riconoscerebbe il suo percorso.
+
+**Il dislivello e' la parte in cui si sbaglia.** Il GPS la quota la sa male:
+sulla verticale un telefono sbaglia dai quattro ai dodici metri, e l'errore
+cambia da un secondo all'altro anche stando fermi. Sommare le differenze punto
+per punto - la cosa ovvia da fare - su un'ora in pianura da' **ottomila metri di
+dislivello**, tutti fatti di rumore. Si riconosce perche' il numero cresce con la
+durata della corsa invece che con le salite.
+
+La soluzione e' in due passaggi: si smussa la quota su una finestra di tempo, e
+si conta solo quello che supera una soglia, spostando ogni volta il punto di
+riferimento.
+
+E qui c'e' l'errore che e' stato commesso scrivendo questo codice, prima di
+essere corretto. La prima versione smussava su una finestra di **punti** - cinque
+punti, soglia tre metri - e dava **474 metri su un'ora in pianura**. Una finestra
+contata in punti dura mezzo minuto se il telefono registra una volta al secondo
+e due minuti e mezzo se registra ogni cinque: nel primo caso non pulisce
+abbastanza, nel secondo spiana le salite vere. La finestra va misurata in
+**secondi**, e `RoutePoint` il tempo ce l'ha.
+
+I valori finali - finestra di 45 secondi, soglia di 8 metri - non sono scelti a
+occhio: vengono da una simulazione su percorsi di cui si conosceva il dislivello
+vero, al campionamento reale dell'app (un punto ogni due secondi).
+
+| percorso vero | rumore 4 m | rumore 12 m | somma ingenua |
+|---|---|---|---|
+| pianura, 0 m | **0 m** | **2 m** | 8.100 m |
+| salita 100 m e ritorno | 94 m | 96 m | 8.100 m |
+| ondulato, 150 m | 113 m | 124 m | 8.000 m |
+| salita continua, 300 m | 292 m | 295 m | 8.100 m |
+
+La pianura resta pianura anche con il segnale peggiore, ed e' la cosa che conta
+di piu': e' li' che le app sbagliano in modo vistoso. Le salite lunghe sono
+esatte. Il percorso ondulato viene sottostimato di circa un quinto, ed e' il
+prezzo dello smussamento - una stima prudente e' preferibile a un numero
+gonfiato che non si distingue dal rumore.
+
+Sotto i venti metri l'app scrive **"Pianeggiante"** invece del numero: dare a un
+residuo di rumore l'aria di una misura sarebbe la stessa bugia in piccolo.
+
+### Condividere una corsa
+
+Un pulsante genera l'immagine della corsa - distanza, tempo, passo, dislivello,
+il disegno del giro - e la manda dove si vuole. E' il modo in cui le app di
+corsa si fanno conoscere senza pubblicita': ogni corsa condivisa e' qualcuno che
+la vede e chiede con cosa e' stata fatta. Per un'app che si compra una volta
+sola e non ha un budget di marketing, quel passaparola e' il canale.
+
+Due scelte che vale la pena scrivere.
+
+**Niente FileProvider.** La via solita per condividere un file su Android passa
+da `androidx`, cioe' da una libreria da dichiarare fra le dipendenze - un pezzo
+in piu' che puo' rompere la compilazione a ogni aggiornamento di Flutter, su
+un'app che per scelta ne ha cinque in tutto. `MediaStore` sta nel sistema, non
+in una libreria: da Android 10 ci si scrive senza nessun permesso e restituisce
+proprio l'indirizzo che serve. In piu' l'immagine resta nella galleria, cartella
+Falcata, e chi la vuole rimandare domani la ritrova senza riaprire l'app. Sotto
+Android 10 si condivide il solo testo, perche' scrivere nella galleria vorrebbe
+un permesso invasivo per una funzione accessoria.
+
+**Il percorso non dice dove abiti.** Il disegno e' in scala relativa, senza
+coordinate e senza mappa: si vede la forma del giro, non il posto. Chi condivide
+una corsa non sta scegliendo di pubblicare il proprio indirizzo, e l'app non
+deve fargli prendere quella decisione per sbaglio. L'immagine si vede prima di
+mandarla, sempre.
+
+### Il grafico degli ultimi mesi
+
+Il motore del carico calcolava condizione e fatica giorno per giorno e ne
+mostrava solo l'ultimo. Ma *"condizione 48"* dopo essere stato a 30 e
+*"condizione 48"* dopo essere stato a 65 sono la stessa riga e due situazioni
+opposte: nella prima stai costruendo, nella seconda ti stai perdendo.
+
+Adesso la schermata Forma mostra le due linee degli ultimi mesi. La spessa sale
+piano e scende piano - quanto sei allenato. La sottile sale subito dopo una
+seduta dura e scende in pochi giorni - la fatica. Quando la sottile sta sopra
+per settimane, stai portando piu' carico di quanto il corpo riesca a trasformare
+in allenamento.
+
+Il punto delicato: **il grafico finisce esattamente sul numero scritto sopra**,
+perche' e' lo stesso conto. `stateFor` non calcola piu' niente per conto suo, e'
+l'ultimo punto di `seriesFor`. Un grafico che finisse da un'altra parte
+costringerebbe l'utente a scegliere a quale dei due credere - ed e' la stessa
+lezione del punto di partenza e dei record, imparata qui per la quarta volta.
+
+Un'attenzione che si vede solo nel codice: chiedere trenta giorni mostra trenta
+giorni ma **calcola dal primo allenamento**. Le medie esponenziali hanno memoria:
+ripartire da zero un mese fa direbbe che un mese fa eri fermo anche se correvi da
+due anni.
+
+### Cosa e' gratis e cosa si paga
+
+La divisione non e' "poco gratis per costringerti a pagare". E' l'opposto:
+**tutto quello che fanno le altre app e' gratis per sempre**, e si paga solo
+quello che le altre non hanno.
+
+| Gratis, per sempre | Falcata completa |
+|---|---|
+| Registrare le corse, anche a schermo spento | Il piano di allenamento |
+| Allenamenti a intervalli e coach vocale | Forma, passi e previsioni |
+| Percorso e dislivello | Carico, fatica e prontezza |
+| Record personali e statistiche | |
+
+Chi scarica Falcata e la usa come app di corsa normale non incontra mai un muro.
+Chi vuole essere allenato paga **una volta sola**, perche' l'abbonamento e' il
+motivo per cui la gente non compra: chi corre tre volte a settimana e paga gia'
+la palestra non aggiunge un'altra rata mensile, mentre venti euro una volta li
+spende senza pensarci.
+
+Una regola che non si rompe: **niente di gia' registrato si blocca mai.** Le
+corse sono dell'atleta, non dell'app. Se il blocco scattasse sullo storico non
+sarebbe un modello di vendita, sarebbe un ostaggio.
+
+Il pagamento vero passa dal Play Store e richiede un account da sviluppatore,
+che non c'e' ancora. Quello che c'e' da adesso e' la **struttura**: l'app sa
+cosa e' gratis, sa cosa e' bloccato, e lo dice nel posto giusto. Quando ci sara'
+l'account, cambia da dove arriva `LicenseState.isUnlocked` - una riga - invece
+di dover rimettere mano a tutte le schermate. I testi per il negozio stanno in
+`negozio/scheda-play-store.md`.
 
 #### Da quanti km si parte
 

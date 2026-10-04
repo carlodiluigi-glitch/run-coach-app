@@ -12,6 +12,7 @@ import '../services/training_load_engine.dart';
 import '../utils/formatters.dart';
 import '../widgets/app_card.dart';
 import '../widgets/inset_list.dart';
+import '../widgets/load_chart.dart';
 
 /// Forma attuale: indice, zone di allenamento, previsioni di gara.
 class FitnessScreen extends StatelessWidget {
@@ -134,6 +135,33 @@ class FitnessScreen extends StatelessWidget {
         if (!activities.trainingLoad.isEmpty) ...<Widget>[
           const SectionTitle('Carico e freschezza'),
           _LoadCard(load: activities.trainingLoad),
+        ],
+
+        // IL NUMERO DI OGGI NON BASTA.
+        //
+        // "Condizione 48" dopo essere stato a 30 e "condizione 48" dopo essere
+        // stato a 65 sono la stessa riga e due situazioni opposte. Il grafico
+        // e' l'unico modo di far vedere quale delle due.
+        //
+        // Il grafico finisce esattamente sul numero scritto sopra, perche' e'
+        // lo stesso conto: l'ultimo punto della serie E' lo stato di oggi.
+        if (LoadChart.canDraw(activities.loadSeries())) ...<Widget>[
+          const SectionTitle('Gli ultimi mesi'),
+          AppCard(
+            padding: const EdgeInsets.fromLTRB(12, 14, 12, 12),
+            child: LoadChart(points: activities.loadSeries()),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(left: 4, top: 8),
+            child: Text(
+              'La linea spessa sale piano e scende piano: e\' quanto sei '
+              'allenato. La sottile sale subito dopo una seduta dura e scende '
+              'in pochi giorni: e\' la fatica. Quando la sottile sta sopra '
+              'per settimane, stai portando piu\' carico di quanto il corpo '
+              'riesca a trasformare in allenamento.',
+              style: AppText.caption.copyWith(color: p.inkFaint),
+            ),
+          ),
         ],
 
         if (result.samples.isNotEmpty) ...<Widget>[

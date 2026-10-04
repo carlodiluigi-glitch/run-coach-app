@@ -276,6 +276,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
 
             const SizedBox(height: 20),
+            const SectionTitle('Falcata completa'),
+            InsetList(
+              children: <Widget>[
+                AppListRow(
+                  title: 'Cosa e\' gratis e cosa si paga',
+                  subtitle: 'Registrare, allenamenti, record e percorso sono '
+                      'gratis per sempre. Il piano, i passi e il carico si '
+                      'pagano una volta sola.',
+                  onTap: () =>
+                      Navigator.of(context).pushNamed(AppRoutes.unlock),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 20),
             const SectionTitle('Registrazione'),
             InsetList(
               children: <Widget>[

@@ -47,6 +47,11 @@ class ActivityProvider extends ChangeNotifier {
   static const ReadinessEngine _readinessEngine = ReadinessEngine();
   static const SessionClassifier _classifier = SessionClassifier();
   TrainingLoadState? _loadCache;
+
+  /// La serie del carico, con i giorni per cui e' stata calcolata: senza
+  /// quelli, una chiamata con un periodo diverso riceverebbe la serie vecchia.
+  List<TrainingLoadPoint>? _loadSeriesCache;
+  int _loadSeriesDays = -1;
   Readiness? _readinessCache;
 
   List<DailyCheckIn> _checkIns = <DailyCheckIn>[];
@@ -107,6 +112,7 @@ class ActivityProvider extends ChangeNotifier {
     _recordsCache = null;
     _runIndexCache = null;
     _loadCache = null;
+    _loadSeriesCache = null;
     _readinessCache = null;
     _zonesCache = null;
     _loaded = true;
@@ -127,6 +133,7 @@ class ActivityProvider extends ChangeNotifier {
     _recordsCache = null;
     _runIndexCache = null;
     _loadCache = null;
+    _loadSeriesCache = null;
     _readinessCache = null;
     _zonesCache = null;
     _sort();
@@ -154,6 +161,7 @@ class ActivityProvider extends ChangeNotifier {
     _recordsCache = null;
     _runIndexCache = null;
     _loadCache = null;
+    _loadSeriesCache = null;
     _readinessCache = null;
     _zonesCache = null;
     _sort();
@@ -186,6 +194,7 @@ class ActivityProvider extends ChangeNotifier {
     _recordsCache = null;
     _runIndexCache = null;
     _loadCache = null;
+    _loadSeriesCache = null;
     _readinessCache = null;
     _zonesCache = null;
     notifyListeners();
@@ -226,6 +235,7 @@ class ActivityProvider extends ChangeNotifier {
     _athleteProfile = profile;
     _runIndexCache = null;
     _loadCache = null;
+    _loadSeriesCache = null;
     _readinessCache = null;
     _zonesCache = null;
     notifyListeners();
@@ -264,6 +274,20 @@ class ActivityProvider extends ChangeNotifier {
     final TrainingZones? zones = trainingZones;
     if (zones == null) return null;
     return _loadEngine.loadOf(activity, zones);
+  }
+
+  /// Condizione e fatica giorno per giorno, per il grafico.
+  ///
+  /// Il conto e' lo stesso che produce il numero di oggi: [trainingLoad] non e'
+  /// altro che l'ultimo punto di questa serie. Un grafico che non finisse
+  /// esattamente sul numero scritto sopra sarebbe la cosa peggiore - due
+  /// verita' diverse sulla stessa schermata.
+  List<TrainingLoadPoint> loadSeries({int days = 90}) {
+    final List<TrainingLoadPoint>? cache = _loadSeriesCache;
+    if (cache != null && _loadSeriesDays == days) return cache;
+    _loadSeriesDays = days;
+    return _loadSeriesCache =
+        _loadEngine.seriesFor(_activities, trainingZones, days: days);
   }
 
   /// I check-in del mattino, dal piu' recente.

@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../app/routes.dart';
 import '../app/tokens.dart';
 import '../models/effort.dart';
 import '../models/running_activity.dart';
 import '../models/running_shoe.dart';
 import '../providers/activity_provider.dart';
 import '../providers/shoe_provider.dart';
+import '../services/elevation_service.dart';
 import '../services/pace_zone_engine.dart';
 import '../services/records_service.dart';
 import '../services/session_classifier.dart';
@@ -16,6 +18,7 @@ import '../widgets/empty_state.dart';
 import '../widgets/inset_list.dart';
 import '../widgets/lap_table.dart';
 import '../widgets/metric_card.dart';
+import '../widgets/route_shape.dart';
 
 /// Dettaglio di una attivita' salvata.
 class ActivityDetailScreen extends StatelessWidget {
@@ -48,6 +51,9 @@ class ActivityDetailScreen extends StatelessWidget {
 
     // Cosa e' stata davvero questa seduta, guardando i passi corsi e non il
     // nome che aveva sul programma.
+    final ElevationSummary dislivello =
+        const ElevationService().of(activity.route);
+
     final TrainingZones? zones = provider.trainingZones;
     final SessionAnalysis? analysis = zones == null
         ? null
@@ -60,6 +66,14 @@ class ActivityDetailScreen extends StatelessWidget {
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         actions: <Widget>[
+          IconButton(
+            tooltip: 'Condividi',
+            icon: Icon(Icons.ios_share, color: p.blue),
+            onPressed: () => Navigator.of(context).pushNamed(
+              AppRoutes.share,
+              arguments: activity.id,
+            ),
+          ),
           IconButton(
             tooltip: 'Elimina',
             icon: Icon(Icons.delete_outline, color: p.red),
@@ -133,6 +147,80 @@ class ActivityDetailScreen extends StatelessWidget {
                 ),
               ],
             ),
+
+            // ----------------------------------------- percorso e dislivello
+            //
+            // La traccia GPS veniva registrata e salvata da sempre, e non si
+            // vedeva da nessuna parte. Riconoscere il proprio giro e' il primo
+            // motivo per cui si riapre una corsa di tre mesi fa.
+            if (RouteShape.canDraw(activity.route)) ...<Widget>[
+              const SectionTitle('Il giro'),
+              AppCard(
+                padding: const EdgeInsets.fromLTRB(10, 12, 10, 10),
+                child: Column(
+                  children: <Widget>[
+                    RouteShape(route: activity.route),
+                    const SizedBox(height: 6),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: <Widget>[
+                        Icon(Icons.circle, size: 9, color: p.green),
+                        const SizedBox(width: 5),
+                        Text('Partenza',
+                            style:
+                                AppText.caption.copyWith(color: p.inkFaint)),
+                        const SizedBox(width: 14),
+                        Icon(Icons.circle_outlined, size: 9, color: p.ink),
+                        const SizedBox(width: 5),
+                        Text('Arrivo',
+                            style:
+                                AppText.caption.copyWith(color: p.inkFaint)),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+
+            if (dislivello.isKnown) ...<Widget>[
+              const SizedBox(height: 12),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Expanded(
+                    child: MetricCard(
+                      label: 'Salita',
+                      value: dislivello.isFlat
+                          ? '--'
+                          : '${dislivello.gainMeters.round()}',
+                      unit: dislivello.isFlat ? 'pianeggiante' : 'm',
+                      valueFontSize: 28,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: MetricCard(
+                      label: 'Discesa',
+                      value: dislivello.isFlat
+                          ? '--'
+                          : '${dislivello.lossMeters.round()}',
+                      unit: dislivello.isFlat ? '' : 'm',
+                      valueFontSize: 28,
+                    ),
+                  ),
+                ],
+              ),
+              Padding(
+                padding: const EdgeInsets.only(left: 4, top: 8),
+                child: Text(
+                  'Il dislivello viene dal GPS, non da un barometro: e\' un '
+                  'numero indicativo. Le oscillazioni sotto i tre metri sono '
+                  'scartate, altrimenti un\'ora in pianura risulterebbe una '
+                  'salita di seicento metri fatta solo di errore.',
+                  style: AppText.caption.copyWith(color: p.inkFaint),
+                ),
+              ),
+            ],
 
             // ------------------------------------------------------ record
             if (held.isNotEmpty) ...<Widget>[
