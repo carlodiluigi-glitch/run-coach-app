@@ -16,6 +16,7 @@ import '../screens/settings_screen.dart';
 import '../screens/shoes_screen.dart';
 import '../screens/splash_screen.dart';
 import '../screens/stats_screen.dart';
+import '../screens/week_edit_screen.dart';
 import '../screens/welcome_screen.dart';
 import '../screens/workout_builder_screen.dart';
 import '../screens/workout_library_screen.dart';
@@ -49,6 +50,9 @@ class AppRoutes {
 
   /// Creazione di un nuovo piano.
   static const String planSetup = '/plan-setup';
+
+  /// Cambia i giorni di una settimana sola. Argomento: il numero (int).
+  static const String weekEdit = '/settimana';
 
   /// Profilo dell'atleta e personali dichiarati.
   static const String profile = '/profile';
@@ -166,6 +170,13 @@ class AppRoutes {
       case planSetup:
         return MaterialPageRoute<void>(
           builder: (_) => const PlanSetupScreen(),
+          settings: routeSettings,
+        );
+
+      case weekEdit:
+        final Object? args = routeSettings.arguments;
+        return MaterialPageRoute<void>(
+          builder: (_) => WeekEditScreen(weekNumber: args is int ? args : 1),
           settings: routeSettings,
         );
 

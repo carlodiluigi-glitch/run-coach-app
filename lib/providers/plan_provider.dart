@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../models/training_plan.dart';
+import '../models/weekly_availability.dart';
 import '../services/plan_service.dart';
 import '../services/storage_service.dart';
 
@@ -81,6 +82,48 @@ class PlanProvider extends ChangeNotifier {
     if (current == null || vdot <= 0) return false;
     return create(current.copyWith(vdot: vdot));
   }
+
+  /// Cambia i giorni e i tempi di UNA settimana sola.
+  ///
+  /// PERCHE' NON CAMBIA LA SETTIMANA NORMALE
+  /// ---------------------------------------
+  /// Perche' un turno diverso e' un'eccezione, non un trasloco. Se cambiare la
+  /// settimana del 12 ottobre cambiasse anche quelle dopo, l'atleta dovrebbe
+  /// ricordarsi di rimetterla a posto - e non lo fara', e tre mesi dopo il
+  /// piano avra' il lungo nel giorno sbagliato senza che nessuno sappia
+  /// perche'.
+  ///
+  /// Si passa `null` per rimettere quella settimana come le altre.
+  Future<bool> setWeekAvailability(
+    int weekNumber,
+    WeeklyAvailability? availability,
+  ) async {
+    final PlanConfig? current = _config;
+    if (current == null || weekNumber < 1) return false;
+    return create(current.withWeekAvailability(weekNumber, availability));
+  }
+
+  /// Rimette una settimana sui giorni normali.
+  Future<bool> resetWeek(int weekNumber) =>
+      setWeekAvailability(weekNumber, null);
+
+  /// Rimette TUTTO il piano sui giorni normali.
+  Future<bool> resetAllWeeks() async {
+    final PlanConfig? current = _config;
+    if (current == null) return false;
+    return create(
+      current.copyWith(weekOverrides: const <int, WeeklyAvailability>{}),
+    );
+  }
+
+  /// I giorni in vigore per una settimana: i suoi, se li ha, altrimenti quelli
+  /// normali. Un solo posto da cui legge anche la schermata.
+  WeeklyAvailability availabilityForWeek(int weekNumber) =>
+      _config?.availabilityForWeek(weekNumber) ??
+      WeeklyAvailability.suggested();
+
+  bool isWeekChanged(int weekNumber) =>
+      _config?.isWeekChanged(weekNumber) ?? false;
 
   /// Aggiunge una gara al piano e ne ricalcola le settimane intorno.
   Future<bool> addRace(RaceEvent race) async {

@@ -98,12 +98,17 @@ class _PlanScreenState extends State<PlanScreen> {
               week: week,
               isCurrent: week.number == currentNumber,
               total: plan.weeks.length,
+              isChanged: plan.config.isWeekChanged(week.number),
               onPrevious: shown > 1
                   ? () => setState(() => _shownWeek = shown - 1)
                   : null,
               onNext: shown < plan.weeks.length
                   ? () => setState(() => _shownWeek = shown + 1)
                   : null,
+              onEditDays: () => Navigator.of(context).pushNamed(
+                AppRoutes.weekEdit,
+                arguments: week.number,
+              ),
             ),
 
             const SizedBox(height: 14),
@@ -166,6 +171,37 @@ class _PlanScreenState extends State<PlanScreen> {
                 style: AppText.caption.copyWith(color: p.inkFaint),
               ),
             ),
+
+            // Le eccezioni si accumulano senza farsi notare: dopo tre mesi di
+            // turni ce ne sono otto, e nessuna si ricorda piu' perche'. Quindi
+            // si contano, e c'e' un modo per togliere tutto in un colpo.
+            if (plan.config.changedWeekCount > 0)
+              Padding(
+                padding: const EdgeInsets.only(left: 4, top: 10),
+                child: Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: Text(
+                        plan.config.changedWeekCount == 1
+                            ? 'Una settimana ha giorni cambiati a mano.'
+                            : '${plan.config.changedWeekCount} settimane hanno '
+                                'giorni cambiati a mano.',
+                        style: AppText.caption.copyWith(color: p.inkSoft),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () => plans.resetAllWeeks(),
+                      child: Text(
+                        'Rimetti tutte',
+                        style: AppText.caption.copyWith(
+                          color: p.blue,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
 
             const SizedBox(height: 16),
             AppCard(
@@ -352,15 +388,22 @@ class _WeekHeader extends StatelessWidget {
     required this.week,
     required this.isCurrent,
     required this.total,
+    required this.isChanged,
     required this.onPrevious,
     required this.onNext,
+    required this.onEditDays,
   });
 
   final PlanWeek week;
   final bool isCurrent;
   final int total;
+
+  /// `true` se i giorni di questa settimana sono stati cambiati a mano.
+  final bool isChanged;
+
   final VoidCallback? onPrevious;
   final VoidCallback? onNext;
+  final VoidCallback onEditDays;
 
   @override
   Widget build(BuildContext context) {
@@ -422,6 +465,32 @@ class _WeekHeader extends StatelessWidget {
                     textColor: p.inkSoft,
                   ),
                 ],
+
+                // I TURNI CAMBIANO, IL PIANO DEVE POTER CAMBIARE CON LORO.
+                //
+                // Il pulsante sta qui, sulla settimana aperta, e non sepolto
+                // nelle impostazioni: il momento in cui serve e' quando si
+                // guarda la settimana e si vede il lungo nel giorno del
+                // doppio turno. Se per cambiarlo bisogna cercarlo, non lo
+                // cerca nessuno e la settimana si salta.
+                const SizedBox(height: 10),
+                TextButton.icon(
+                  onPressed: onEditDays,
+                  icon: Icon(
+                    isChanged ? Icons.edit : Icons.event_repeat_outlined,
+                    size: 17,
+                    color: p.blue,
+                  ),
+                  label: Text(
+                    isChanged
+                        ? 'Giorni cambiati - rivedi'
+                        : 'Cambia i giorni di questa settimana',
+                    style: AppText.caption.copyWith(
+                      color: p.blue,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
               ],
             ),
           ),

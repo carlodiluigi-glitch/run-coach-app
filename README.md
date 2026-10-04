@@ -22,14 +22,15 @@ chiave privata**.
 1. [Prerequisiti](#prerequisiti)
 2. [Come eseguire l'app](#come-eseguire-lapp)
 3. [Come creare l'APK in locale](#come-creare-lapk-in-locale)
-4. [Come usare GitHub Actions](#come-usare-github-actions)
-5. [Come scaricare l'APK](#come-scaricare-lapk)
-6. [Struttura del progetto](#struttura-del-progetto)
-7. [Permessi Android](#permessi-android)
-8. [Funzioni implementate](#funzioni-implementate)
-9. [Funzioni predisposte per il futuro](#funzioni-predisposte-per-il-futuro)
-10. [Note tecniche](#note-tecniche)
-11. [Risoluzione problemi](#risoluzione-problemi)
+4. [Applicare un aggiornamento: AGGIORNA.bat](#applicare-un-aggiornamento-aggiornabat)
+5. [Come usare GitHub Actions](#come-usare-github-actions)
+6. [Come scaricare l'APK](#come-scaricare-lapk)
+7. [Struttura del progetto](#struttura-del-progetto)
+8. [Permessi Android](#permessi-android)
+9. [Funzioni implementate](#funzioni-implementate)
+10. [Funzioni predisposte per il futuro](#funzioni-predisposte-per-il-futuro)
+11. [Note tecniche](#note-tecniche)
+12. [Risoluzione problemi](#risoluzione-problemi)
 
 ---
 
@@ -107,6 +108,46 @@ build/app/outputs/flutter-apk/app-release.apk
 > Store va generata una chiave nuova, tenuta fuori dal repository e passata
 > alla CI come secret. **Conservane sempre una copia**: se si perde, l'app non
 > e' piu' aggiornabile.
+
+---
+
+## Applicare un aggiornamento: AGGIORNA.bat
+
+Nella radice del progetto c'e' **`AGGIORNA.bat`**. Si scarica lo zip
+dell'aggiornamento e si fa **doppio clic sul .bat**: trova lo zip piu' recente
+nei Download (o sul Desktop, o nella cartella stessa), dice cosa sta per
+scrivere, chiede conferma una volta, scrive i file, fa il commit con il
+messaggio che viaggia dentro lo zip (`_messaggio.txt`) e lo manda su GitHub, che
+compila l'APK da solo.
+
+Perche' esiste: i passaggi a mano - estrai, copia, apri GitHub Desktop, inventa
+il messaggio del commit, Commit, Push - sono sei occasioni di sbagliare per ogni
+modifica, e una volta e' andata male davvero (una release estratta solo a meta',
+con il risultato che una versione non e' mai stata installata e la successiva
+conteneva due blocchi di modifiche). Un doppio clic non si estrae a meta'.
+
+Cosa **non** fa, e sono garanzie controllate dal programma stesso:
+
+- non tocca `.git`: la storia del progetto non viene riscritta;
+- non cancella file: scrive solo quelli che sono nello zip;
+- si rifiuta di partire se la cartella non e' Falcata, o non e' collegata a
+  GitHub, o se lo zip non somiglia a un aggiornamento (in cima non c'e' ne'
+  `lib`, ne' `test`, ne' `pubspec.yaml`);
+- **si ferma se uno zip cambia il nome del progetto o l'identificativo
+  Android.** E' l'unico errore da cui non si torna: Android riconosce un'app da
+  quell'identificativo, e se cambia considera Falcata un'altra app - si installa
+  accanto e tutte le corse registrate restano dentro la vecchia, senza modo di
+  riprenderle. Non e' un bug da correggere dopo, e' un archivio perso. Il
+  controllo non scattera' mai, ed e' il controllo giusto da avere;
+- se non trova `git` sul computer (lo cerca anche dentro GitHub Desktop, che se
+  lo porta dietro) non si inventa niente: lascia i file scritti e dice i tre
+  passi da fare in GitHub Desktop, compreso il messaggio del commit da
+  incollare.
+
+Il motore sta in `strumenti/aggiorna.ps1` ed e' stato provato su tutti i casi
+che contano: zip giusto, zip di un altro progetto, zip che rinomina il progetto,
+risposta "no", computer senza git, cartella senza `.git`, cartella di un altro
+progetto, niente da mandare.
 
 ---
 
@@ -246,6 +287,7 @@ run_coach_app/
 │   │   ├── fitness_screen.dart      # forma, passi, previsioni
 │   │   ├── plan_screen.dart         # il piano attivo
 │   │   ├── plan_setup_screen.dart   # creazione del piano
+│   │   ├── week_edit_screen.dart    # i giorni di UNA settimana sola
 │   │   ├── welcome_screen.dart      # primo avvio: chiede il nome
 │   │   ├── home_screen.dart
 │   │   ├── run_screen.dart
@@ -259,6 +301,7 @@ run_coach_app/
 │   │   └── settings_screen.dart
 │   ├── widgets/
 │   │   ├── app_card.dart
+│   │   ├── day_time_row.dart      # giorno + minuti: una riga, usata in due posti
 │   │   ├── inset_list.dart
 │   │   ├── metric_card.dart
 │   │   ├── metric_display.dart
@@ -272,6 +315,9 @@ run_coach_app/
 │       ├── speech_formatters.dart # numeri pronunciabili (voce)
 │       └── id_generator.dart
 ├── test/                        # test unitari e widget
+├── strumenti/
+│   └── aggiorna.ps1             # applica uno zip e fa commit+push
+├── AGGIORNA.bat                 # doppio clic: aggiorna tutto
 ├── analysis_options.yaml
 ├── pubspec.yaml
 ├── .gitignore
@@ -518,6 +564,49 @@ Prima vivevano solo nel piano, e bastava cancellarlo perche' la settimana
 tornasse allo schema standard - lungo di domenica - che e' esattamente quello
 che questa funzione esiste per non fare. La settimana di una persona non e' una
 proprieta' del suo allenamento.
+
+#### Una settimana puo' fare eccezione
+
+La settimana dichiarata una volta sola e' una finzione comoda: va bene per
+generare un piano, non per viverlo. Chi lavora su turni sa il mercoledi' com'e'
+fatta la settimana dopo, non tre mesi prima. E quando il piano chiede il lungo
+nel giorno del doppio turno non e' che l'atleta si adatta: e' che **quella
+settimana viene saltata**, e dopo due settimane saltate il piano non si guarda
+piu'. Un piano non si abbandona perche' e' troppo duro, si abbandona perche' ha
+smesso di somigliare alla vita di chi lo segue.
+
+Adesso ogni settimana ha un pulsante *"Cambia i giorni di questa settimana"*:
+si rimettono i giorni e i minuti, si vede dove cadranno le sedute mentre si
+tocca il piu' e il meno, e si applica. Quello che cambia e quello che no:
+
+| Cambia | Non cambia |
+|---|---|
+| dove cadono le sedute di quella settimana | la fase |
+| quanto ci sta (il tempo e' un tetto anche qui) | il volume della progressione |
+| la nota della settimana, che lo dichiara | **le altre settimane** |
+
+Il punto non negoziabile e' l'ultima riga. Se cambiare la settimana del 12
+ottobre muovesse anche quelle dopo, l'atleta dovrebbe ricordarsi di rimetterla
+a posto - e non lo fara', e tre mesi dopo il piano avra' il lungo nel giorno
+sbagliato senza che nessuno sappia perche'. Un turno diverso e' un'eccezione,
+non un trasloco. Si torna indietro quando si vuole, su una settimana o su
+tutte, e il piano conta quante eccezioni ci sono: le eccezioni si accumulano
+senza farsi notare.
+
+**Non e' una seconda strada.** Il generatore e' lo stesso, legge solo una
+settimana diversa in ingresso: `PlanConfig.availabilityForWeek(n)` restituisce
+l'eccezione se c'e', altrimenti la settimana normale, e `_buildWeek` chiama
+quella e non sa la differenza. Anche il conto di quante qualita' vuole una
+settimana (`qualityWantedFor`) e' uno solo, condiviso fra il generatore e
+l'anteprima della schermata: se fosse scritto due volte, prima o poi
+l'anteprima direbbe due qualita' dove il piano ne mette una, e un'anteprima che
+mente e' peggio di nessuna anteprima. Stessa regola gia' imparata tre volte in
+questo progetto - vedi il punto di partenza qui sotto.
+
+Sul disco non finisce il piano, finisce il parametro: `weekOverrides` e' una
+mappa da numero di settimana a settimana dichiarata, e il piano viene
+ricalcolato da quella. Per questo si torna indietro senza perdere niente, e per
+questo un piano salvato prima di questa funzione si riapre identico a com'era.
 
 #### Da quanti km si parte
 

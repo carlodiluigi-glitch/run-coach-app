@@ -12,6 +12,7 @@ import '../services/plan_service.dart';
 import '../services/run_index_engine.dart';
 import '../services/stats_service.dart';
 import '../widgets/app_card.dart';
+import '../widgets/day_time_row.dart';
 import '../widgets/inset_list.dart';
 
 /// Impostazione di un nuovo piano: obiettivo, durata, giorni, punto di
@@ -214,7 +215,7 @@ class _PlanSetupScreenState extends State<PlanSetupScreen> {
               child: Column(
                 children: <Widget>[
                   for (int day = 1; day <= 7; day++)
-                    _DayTimeRow(
+                    DayTimeRow(
                       weekday: day,
                       minutes: _availability.minutesOn(day),
                       isLong: schedule.longDay == day &&
@@ -457,107 +458,5 @@ class _PlanSetupScreenState extends State<PlanSetupScreen> {
       return;
     }
     Navigator.of(context).pop();
-  }
-}
-
-/// Una riga: il giorno e quanto tempo hai.
-///
-/// Niente slider e niente finestre: il meno sempre a sinistra, il piu' sempre
-/// a destra, il valore in mezzo. La settimana si imposta in pochi tocchi
-/// stando in piedi, che e' come verra' usata davvero.
-class _DayTimeRow extends StatelessWidget {
-  const _DayTimeRow({
-    required this.weekday,
-    required this.minutes,
-    required this.isLong,
-    required this.isQuality,
-    required this.onChanged,
-  });
-
-  final int weekday;
-  final int minutes;
-  final bool isLong;
-  final bool isQuality;
-  final ValueChanged<int> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final AppPalette p = AppPalette.of(context);
-    final bool runs = minutes >= WeeklyAvailability.minUsefulMinutes;
-
-    String? ruolo;
-    if (isLong) {
-      ruolo = 'lungo';
-    } else if (isQuality) {
-      ruolo = 'qualita\'';
-    }
-
-    return SizedBox(
-      height: 46,
-      child: Row(
-        children: <Widget>[
-          SizedBox(
-            width: 92,
-            child: Text(
-              WeeklyAvailability.dayName(weekday),
-              style: AppText.body.copyWith(
-                color: runs ? p.ink : p.inkFaint,
-                fontWeight: runs ? FontWeight.w600 : FontWeight.w400,
-              ),
-            ),
-          ),
-          if (ruolo != null)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-              decoration: BoxDecoration(
-                color: p.accent.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(AppRadius.pill),
-              ),
-              child: Text(
-                ruolo,
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: p.accent,
-                ),
-              ),
-            ),
-          const Spacer(),
-          IconButton(
-            visualDensity: VisualDensity.compact,
-            onPressed: minutes <= 0
-                ? null
-                : () => onChanged(
-                    minutes - WeeklyAvailability.stepMinutes),
-            icon: Icon(Icons.remove_circle_outline,
-                size: 22, color: minutes <= 0 ? p.separator : p.inkSoft),
-          ),
-          SizedBox(
-            width: 62,
-            child: Text(
-              WeeklyAvailability.formatMinutes(runs ? minutes : 0),
-              textAlign: TextAlign.center,
-              style: AppText.number(
-                15,
-                color: runs ? p.ink : p.inkFaint,
-              ),
-            ),
-          ),
-          IconButton(
-            visualDensity: VisualDensity.compact,
-            onPressed: minutes >= WeeklyAvailability.maxMinutes
-                ? null
-                : () => onChanged(minutes < WeeklyAvailability.minMinutes
-                    ? WeeklyAvailability.minMinutes + 25
-                    : minutes + WeeklyAvailability.stepMinutes),
-            icon: Icon(Icons.add_circle_outline,
-                size: 22,
-                color: minutes >= WeeklyAvailability.maxMinutes
-                    ? p.separator
-                    : p.accent),
-          ),
-        ],
-      ),
-    );
   }
 }

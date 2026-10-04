@@ -186,7 +186,7 @@ class PlanService {
         targetKm: volumes[i],
         config: config,
         paces: paces,
-        isDownWeek: _isDownWeek(i, phases[i]),
+        isDownWeek: isDownWeek(i, phases[i]),
       ));
     }
 
@@ -280,7 +280,7 @@ class PlanService {
   }
 
   /// Ogni quarta settimana e' di scarico, ma non durante lo scarico finale.
-  bool _isDownWeek(int index, PlanPhase phase) {
+  bool isDownWeek(int index, PlanPhase phase) {
     if (phase == PlanPhase.taper || phase == PlanPhase.recovery) return false;
     return (index + 1) % 4 == 0;
   }
@@ -320,7 +320,7 @@ class PlanService {
         final int cycle = i ~/ 4;
         double value = start * math.pow(perCycle, cycle).toDouble();
         if (value > peakKm) value = peakKm;
-        if (_isDownWeek(i, phases[i])) value *= 0.75;
+        if (isDownWeek(i, phases[i])) value *= 0.75;
         continuo.add(double.parse(value.toStringAsFixed(1)));
       }
       return continuo;
@@ -354,7 +354,7 @@ class PlanService {
         final double progress =
             lastLoadIndex <= 0 ? 1.0 : i / lastLoadIndex.toDouble();
         value = start + (peakKm - start) * progress.clamp(0.0, 1.0);
-        if (_isDownWeek(i, phases[i])) {
+        if (isDownWeek(i, phases[i])) {
           value *= 0.75;
         }
       }
@@ -379,6 +379,45 @@ class PlanService {
   }
 
   // ------------------------------------------------------------ settimana
+  /// Quante sedute di qualita' vuole una settimana.
+  ///
+  /// PERCHE' E' UN METODO E NON QUATTRO RIGHE DENTRO AL GENERATORE
+  /// ------------------------------------------------------------
+  /// Perche' lo chiede anche la schermata che cambia i giorni di una settimana
+  /// sola: mentre l'atleta tocca il piu' e il meno deve vedere dove cadranno
+  /// le sedute, e deve vedere la verita'. Se il conto fosse scritto due volte,
+  /// l'anteprima prima o poi direbbe due qualita' e il piano ne metterebbe
+  /// una.
+  ///
+  /// Due condizioni abbassano sempre a una: tre giorni di corsa (con tre
+  /// giorni, due qualita' significa correre solo forte) e la settimana di
+  /// scarico (scaricare mantenendo due qualita' non e' scaricare).
+  int qualityWantedFor({
+    required PlanPhase phase,
+    required int dayCount,
+    required bool isDownWeek,
+  }) {
+    int wanted;
+    switch (phase) {
+      case PlanPhase.base:
+        wanted = 1;
+        break;
+      case PlanPhase.build:
+      case PlanPhase.peak:
+        wanted = 2;
+        break;
+      case PlanPhase.taper:
+        wanted = 1;
+        break;
+      case PlanPhase.recovery:
+        wanted = 0;
+        break;
+    }
+    if (dayCount <= 3) wanted = math.min(wanted, 1);
+    if (isDownWeek) wanted = math.min(wanted, 1);
+    return wanted;
+  }
+
   PlanWeek _buildWeek({
     required int index,
     required PlanPhase phase,
@@ -390,26 +429,19 @@ class PlanService {
     final DateTime weekStart = _dayOnly(
       config.startDate.add(Duration(days: index * 7)),
     );
-    final WeeklyAvailability availability = config.effectiveAvailability;
+    // I giorni di QUESTA settimana: di norma quelli dichiarati una volta per
+    // tutte, ma una singola settimana puo' averne di suoi (turni cambiati).
+    // Il resto del calcolo non sa la differenza - ed e' il punto: una sola
+    // strada che genera le settimane, con un ingresso diverso.
+    final WeeklyAvailability availability =
+        config.availabilityForWeek(index + 1);
+    final bool daysChangedByHand = config.isWeekChanged(index + 1);
 
-    int qualityWanted;
-    switch (phase) {
-      case PlanPhase.base:
-        qualityWanted = 1;
-        break;
-      case PlanPhase.build:
-      case PlanPhase.peak:
-        qualityWanted = 2;
-        break;
-      case PlanPhase.taper:
-        qualityWanted = 1;
-        break;
-      case PlanPhase.recovery:
-        qualityWanted = 0;
-        break;
-    }
-    if (availability.dayCount <= 3) qualityWanted = math.min(qualityWanted, 1);
-    if (isDownWeek) qualityWanted = math.min(qualityWanted, 1);
+    final int qualityWanted = qualityWantedFor(
+      phase: phase,
+      dayCount: availability.dayCount,
+      isDownWeek: isDownWeek,
+    );
 
     final WeekSchedule schedule =
         scheduleFor(availability, qualityWanted: qualityWanted);
@@ -522,6 +554,9 @@ class PlanService {
         a.date.compareTo(b.date));
 
     final List<String> note = <String>[];
+    if (daysChangedByHand) {
+      note.add('Giorni cambiati solo per questa settimana');
+    }
     if (isDownWeek) {
       note.add('Settimana di scarico: il volume scende del 25%');
     }

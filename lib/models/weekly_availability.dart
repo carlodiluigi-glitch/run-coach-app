@@ -150,6 +150,34 @@ class WeeklyAvailability {
     return '${h}h $m\'';
   }
 
+  /// Due settimane sono uguali se hanno gli stessi giorni con gli stessi
+  /// minuti.
+  ///
+  /// PERCHE' SERVE
+  /// -------------
+  /// Una settimana si puo' cambiare a mano, solo per se stessa. Per dire "qui
+  /// e' cambiata" bisogna poterla confrontare con la settimana normale - e se
+  /// l'atleta la rimette identica a prima, la modifica va via da sola invece
+  /// di restare appesa a non fare niente.
+  /// Si confrontano i minuti VALIDI: un giorno da cinque minuti e' riposo, e
+  /// vale quanto un giorno assente. Altrimenti due settimane identiche da
+  /// correre risulterebbero diverse per un valore che nessuna delle due usa.
+  int _effective(int weekday) => runsOn(weekday) ? minutesOn(weekday) : 0;
+
+  @override
+  bool operator ==(Object other) {
+    if (other is! WeeklyAvailability) return false;
+    for (int d = 1; d <= 7; d++) {
+      if (_effective(d) != other._effective(d)) return false;
+    }
+    return true;
+  }
+
+  @override
+  int get hashCode => Object.hashAll(
+        <int>[for (int d = 1; d <= 7; d++) _effective(d)],
+      );
+
   Map<String, dynamic> toJson() => <String, dynamic>{
         for (final MapEntry<int, int> e in minutesByDay.entries)
           e.key.toString(): e.value,

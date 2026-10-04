@@ -452,9 +452,12 @@ class PlanConfig {
     required this.vdot,
     this.availability,
     this.startPhase = PlanPhase.base,
+    Map<int, WeeklyAvailability>? weekOverrides,
     List<RaceEvent>? races,
     DateTime? createdAt,
   })  : id = id ?? IdGenerator.newId('plan'),
+        weekOverrides =
+            weekOverrides ?? const <int, WeeklyAvailability>{},
         races = races ?? <RaceEvent>[],
         createdAt = createdAt ?? DateTime.now();
 
@@ -500,6 +503,66 @@ class PlanConfig {
     return WeeklyAvailability.fromDaysPerWeek(daysPerWeek);
   }
 
+  /// Settimane con i giorni cambiati a mano, per numero di settimana (da 1).
+  ///
+  /// PERCHE' UNA SETTIMANA PUO' FARE ECCEZIONE
+  /// -----------------------------------------
+  /// La settimana dichiarata una volta sola e' una finzione comoda: va bene
+  /// per generare un piano, non per viverlo. Chi fa i turni sa il mercoledi'
+  /// com'e' fatta la settimana dopo, non prima. E un piano che il lunedi'
+  /// chiede il lungo nel giorno in cui si lavora dodici ore non e' un piano
+  /// difficile, e' un piano che quella settimana viene saltato.
+  ///
+  /// Quindi la settimana normale resta il riferimento, e una singola settimana
+  /// puo' sovrascriverla. Solo quella: le altre non si muovono, la fase non
+  /// cambia, il volume previsto resta quello della progressione. Cambia dove
+  /// cadono le sedute - e, se il tempo e' meno, quanto ci sta.
+  ///
+  /// Non e' una seconda strada che calcola le stesse cose: il generatore e'
+  /// identico, legge solo una settimana diversa in ingresso.
+  final Map<int, WeeklyAvailability> weekOverrides;
+
+  /// I giorni da usare per UNA settimana: la sua eccezione, se c'e', altrimenti
+  /// la settimana normale.
+  WeeklyAvailability availabilityForWeek(int weekNumber) {
+    final WeeklyAvailability? only = weekOverrides[weekNumber];
+    if (only != null && !only.isEmpty) return only;
+    return effectiveAvailability;
+  }
+
+  /// `true` se quella settimana e' stata cambiata a mano.
+  bool isWeekChanged(int weekNumber) {
+    final WeeklyAvailability? only = weekOverrides[weekNumber];
+    return only != null && !only.isEmpty && only != effectiveAvailability;
+  }
+
+  /// Quante settimane sono state cambiate a mano.
+  int get changedWeekCount {
+    int count = 0;
+    for (final int week in weekOverrides.keys) {
+      if (isWeekChanged(week)) count++;
+    }
+    return count;
+  }
+
+  /// Rimette (o toglie) l'eccezione di una settimana.
+  ///
+  /// Un'eccezione identica alla settimana normale non viene tenuta: sarebbe
+  /// una modifica che non modifica niente, e comparirebbe come tale.
+  PlanConfig withWeekAvailability(
+    int weekNumber,
+    WeeklyAvailability? only,
+  ) {
+    final Map<int, WeeklyAvailability> next =
+        Map<int, WeeklyAvailability>.from(weekOverrides);
+    if (only == null || only.isEmpty || only == effectiveAvailability) {
+      next.remove(weekNumber);
+    } else {
+      next[weekNumber] = only;
+    }
+    return copyWith(weekOverrides: next);
+  }
+
   /// Chilometri settimanali di partenza: da qui il piano cresce.
   final double startWeeklyKm;
 
@@ -532,6 +595,7 @@ class PlanConfig {
     double? vdot,
     WeeklyAvailability? availability,
     PlanPhase? startPhase,
+    Map<int, WeeklyAvailability>? weekOverrides,
     List<RaceEvent>? races,
   }) =>
       PlanConfig(
@@ -544,6 +608,10 @@ class PlanConfig {
         vdot: vdot ?? this.vdot,
         availability: availability ?? this.availability,
         startPhase: startPhase ?? this.startPhase,
+        // Una mappa vuota passata di proposito svuota le eccezioni: serve per
+        // rimettere tutto il piano sulla settimana normale.
+        weekOverrides: weekOverrides ??
+            Map<int, WeeklyAvailability>.from(this.weekOverrides),
         races: races ?? List<RaceEvent>.from(this.races),
         createdAt: createdAt,
       );
@@ -555,6 +623,12 @@ class PlanConfig {
         'weeks': weeks,
         'daysPerWeek': daysPerWeek,
         if (availability != null) 'availability': availability!.toJson(),
+        if (weekOverrides.isNotEmpty)
+          'weekOverrides': <String, dynamic>{
+            for (final MapEntry<int, WeeklyAvailability> e
+                in weekOverrides.entries)
+              e.key.toString(): e.value.toJson(),
+          },
         'startPhase': startPhase.storageKey,
         'startWeeklyKm': startWeeklyKm,
         'vdot': vdot,
@@ -567,6 +641,27 @@ class PlanConfig {
         (json['races'] as List<dynamic>?) ?? <dynamic>[];
     final Map<dynamic, dynamic>? rawAvailability =
         json['availability'] as Map<dynamic, dynamic>?;
+
+    // Le eccezioni di settimana: una chiave non numerica o una settimana vuota
+    // si ignora, cosi' un file manomesso o scritto da una versione futura non
+    // impedisce di aprire il piano.
+    final Map<int, WeeklyAvailability> overrides =
+        <int, WeeklyAvailability>{};
+    final Map<dynamic, dynamic>? rawOverrides =
+        json['weekOverrides'] as Map<dynamic, dynamic>?;
+    if (rawOverrides != null) {
+      for (final MapEntry<dynamic, dynamic> e in rawOverrides.entries) {
+        final int? week = int.tryParse(e.key.toString());
+        final Object? value = e.value;
+        if (week == null || week < 1 || value is! Map<dynamic, dynamic>) {
+          continue;
+        }
+        final WeeklyAvailability only =
+            WeeklyAvailability.fromJson(value.cast<String, dynamic>());
+        if (!only.isEmpty) overrides[week] = only;
+      }
+    }
+
     return PlanConfig(
       id: json['id'] as String?,
       goal: RaceGoalInfo.fromStorage(json['goal'] as String?),
@@ -580,6 +675,7 @@ class PlanConfig {
           ? null
           : WeeklyAvailability.fromJson(
               rawAvailability.cast<String, dynamic>()),
+      weekOverrides: overrides,
       startWeeklyKm: (json['startWeeklyKm'] as num?)?.toDouble() ?? 20.0,
       vdot: (json['vdot'] as num?)?.toDouble() ?? 0.0,
       createdAt: DateTime.tryParse(json['createdAt'] as String? ?? ''),
