@@ -68,6 +68,7 @@ class UserSettings {
     this.speechRate = 0.5,
     this.backgroundTrackingEnabled = true,
     this.welcomeDone = false,
+    this.mapEnabled = false,
     this.weeklyAvailability,
   });
 
@@ -110,6 +111,22 @@ class UserSettings {
   /// non metterlo non deve ritrovarsi la domanda a ogni avvio.
   final bool welcomeDone;
 
+  /// Mostra la mappa vera sotto al percorso delle corse.
+  ///
+  /// PERCHE' NASCE SPENTA
+  /// --------------------
+  /// Perche' e' l'unica funzione di Falcata che ha bisogno di internet e
+  /// l'unica che costa qualcosa ogni mese: i riquadri di mappa li serve un
+  /// fornitore, e si pagano a consumo. Il disegno del percorso - che per
+  /// riconoscere il proprio giro basta e avanza - non costa niente e c'e'
+  /// sempre.
+  ///
+  /// Spenta di default vuol dire che chi non la accende non manda nessuna
+  /// richiesta a nessuno e non fa crescere nessun conto. Chi la vuole la
+  /// accende, e i riquadri che scarica restano nel telefono: la stessa corsa
+  /// riaperta non ne chiede piu' nemmeno uno.
+  final bool mapEnabled;
+
   /// I giorni della settimana in cui puo' correre e quanti minuti ha su
   /// ognuno.
   ///
@@ -143,6 +160,7 @@ class UserSettings {
     double? speechRate,
     bool? backgroundTrackingEnabled,
     bool? welcomeDone,
+    bool? mapEnabled,
     WeeklyAvailability? weeklyAvailability,
   }) =>
       UserSettings(
@@ -162,6 +180,7 @@ class UserSettings {
         backgroundTrackingEnabled:
             backgroundTrackingEnabled ?? this.backgroundTrackingEnabled,
         welcomeDone: welcomeDone ?? this.welcomeDone,
+        mapEnabled: mapEnabled ?? this.mapEnabled,
         weeklyAvailability: weeklyAvailability ?? this.weeklyAvailability,
       );
 
@@ -179,6 +198,7 @@ class UserSettings {
         'speechRate': speechRate,
         'backgroundTrackingEnabled': backgroundTrackingEnabled,
         'welcomeDone': welcomeDone,
+        'mapEnabled': mapEnabled,
         if (weeklyAvailability != null)
           'weeklyAvailability': weeklyAvailability!.toJson(),
       };
@@ -204,6 +224,7 @@ class UserSettings {
         // nome c'e' gia', il giro e' considerato fatto.
         welcomeDone: json['welcomeDone'] as bool? ??
             ((json['userName'] as String? ?? '').trim().isNotEmpty),
+        mapEnabled: json['mapEnabled'] as bool? ?? false,
         weeklyAvailability: _availabilityFromJson(json['weeklyAvailability']),
       );
 }

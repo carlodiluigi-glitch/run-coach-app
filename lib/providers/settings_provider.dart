@@ -96,6 +96,13 @@ class SettingsProvider extends ChangeNotifier {
   Future<void> setUnits(UnitSystem units) =>
       update(_settings.copyWith(units: units));
 
+  /// Accende o spegne la mappa vera sotto al percorso.
+  ///
+  /// E' l'unico interruttore che decide se l'app parla con internet: spenta,
+  /// Falcata non manda una richiesta a nessuno.
+  Future<void> setMapEnabled(bool enabled) =>
+      update(_settings.copyWith(mapEnabled: enabled));
+
   /// Ricorda i giorni e i minuti in cui puo' correre.
   ///
   /// Si salva alla creazione di un piano, ma vive qui e non nel piano: la

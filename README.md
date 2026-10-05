@@ -275,6 +275,7 @@ run_coach_app/
 │   │   ├── stats_service.dart       # statistiche e trend
 │   │   ├── records_service.dart     # record personali per distanza
 │   │   ├── elevation_service.dart   # dislivello, al netto del rumore GPS
+│   │   ├── map_tile_service.dart    # riquadri di mappa: vista, memoria, costo
 │   │   ├── storage_service.dart     # salvataggio locale JSON
 │   │   └── native_bridge.dart       # schermo acceso + permesso notifiche
 │   ├── providers/
@@ -307,6 +308,7 @@ run_coach_app/
 │   │   ├── app_card.dart
 │   │   ├── day_time_row.dart      # giorno + minuti: una riga, usata in due posti
 │   │   ├── route_shape.dart       # il disegno del giro
+│   │   ├── route_map.dart         # il giro sopra la mappa vera
 │   │   ├── load_chart.dart        # condizione e fatica negli ultimi mesi
 │   │   ├── share_card.dart        # la scheda che diventa immagine
 │   │   ├── inset_list.dart
@@ -616,6 +618,75 @@ Sul disco non finisce il piano, finisce il parametro: `weekOverrides` e' una
 mappa da numero di settimana a settimana dichiarata, e il piano viene
 ricalcolato da quella. Per questo si torna indietro senza perdere niente, e per
 questo un piano salvato prima di questa funzione si riapre identico a com'era.
+
+### La mappa vera, e perche' nasce spenta
+
+Il disegno del percorso non costa niente e funziona senza rete. Una mappa vera
+no: i riquadri li serve un fornitore e si pagano a consumo. Il piu' economico
+per un'app come questa da' 150.000 riquadri al mese gratis e poi 125 dollari al
+mese - circa 700 utenti attivi, poi la bolletta. E' un **costo ricorrente in un
+prodotto che si vende una volta sola**, cioe' esattamente la trappola che
+l'acquisto unico esisteva per evitare.
+
+Quindi la mappa c'e', ma fatta in modo che quel conto resti governabile.
+
+**Niente pacchetto, niente scorrimento.** I pacchetti per le mappe sanno fare
+zoom e trascinamento, e per farlo scaricano riquadri in continuazione: la spesa
+dipende da quanto l'utente gioca con la mappa, e non e' prevedibile. A Falcata
+serve l'opposto - una **figura ferma** che inquadra la corsa. Ferma vuol dire un
+numero di riquadri deciso in partenza: da due a sei per una corsa normale, con
+un tetto a 24 che non si puo' sfondare.
+
+**I riquadri si tengono.** Scaricati una volta, restano nel telefono per un
+anno. La stessa corsa riaperta cento volte costa un download, non cento. Nelle
+impostazioni si vede quanto spazio occupano e si possono buttare - si
+riscaricano quando servono.
+
+**Nasce spenta.** Chi non l'accende non manda una richiesta a nessuno e non fa
+crescere nessun conto. Ed e' l'unica funzione per cui l'app ha bisogno di
+internet: il permesso nel manifest Android e' stato aggiunto adesso, per questa
+e solo per questa.
+
+#### Due difetti trovati scrivendola
+
+Il primo e' nella proiezione, ed e' stato evitato perche' il test la confronta
+con la formula ufficiale di OpenStreetMap scritta in modo diverso. Non basta che
+il conto sia coerente con se stesso: se sbaglia, si scaricano - e si pagano -
+pezzi di mappa di un altro posto, e il percorso cade nel vuoto.
+
+Il secondo c'era davvero. Il tetto ai riquadri era usato come condizione per
+scendere di zoom: *"se ne servono troppi, allarga la vista"*. Sembra ovvio ed e'
+falso - **il numero di riquadri non dipende dallo zoom**, dipende da quanto e'
+grande il riquadro sullo schermo. Per coprire una tela larga 360 pixel ne
+servono due o tre a qualunque zoom. Su una tela grande nessuno zoom passava il
+controllo e la mappa non compariva mai, in silenzio. Adesso il tetto e' un
+controllo di sicurezza sul costo, non una leva di regolazione: se scatta, si
+ripiega sul disegno del percorso.
+
+#### Quando le cose vanno male
+
+E' l'unico pezzo di Falcata che dipende da internet, quindi le regole sono
+scritte:
+
+- **si parte sempre dal disegno**, che compare subito, prima di qualunque
+  riquadro: non esiste il momento in cui si guarda un rettangolo vuoto;
+- **niente rete, nessun errore**: se i riquadri non arrivano resta il disegno, e
+  non c'e' nessun messaggio, perche' non e' successo niente di sbagliato;
+- **un riquadro alla volta**: sedici connessioni insieme i server delle mappe le
+  contano come abuso.
+
+#### Prima di pubblicare
+
+`MapTileService.tileUrlTemplate` e' l'unico posto dove e' scritto da dove
+arrivano i riquadri, e punta a OpenStreetMap. E' gratuito e perfetto per un'app
+usata da chi la scrive, ma la loro politica d'uso non consente di appoggiarsi ai
+loro server per un'app distribuita su un negozio: e' una fondazione che paga
+quella banda con le donazioni. Per pubblicare serve un fornitore con un
+contratto - cambia quella riga e si aggiunge la chiave, il resto non si tocca.
+
+L'attribuzione invece non e' facoltativa in nessun caso, ed e' per questo che
+sta nella stessa classe accanto all'indirizzo e non in una schermata
+dimenticabile.
 
 ### Il percorso, e il dislivello che quasi tutti sbagliano
 

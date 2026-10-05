@@ -52,6 +52,19 @@
          notifica visibile. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- ========== MAPPE ==========
+         L'UNICA cosa per cui Falcata usa internet, e solo se l'utente accende
+         la mappa nelle impostazioni (nasce spenta).
+
+         Nessun dato esce da qui: la richiesta che parte e' "dammi il riquadro
+         di mappa numero X", identica per chiunque si trovi in quella zona.
+         Non viene mandata nessuna corsa, nessuna posizione registrata e
+         nessun identificativo. I riquadri scaricati restano nel telefono,
+         quindi la stessa corsa riaperta non chiede piu' niente.
+
+         Senza questo permesso l'app funziona interamente, mappa esclusa. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <!-- Il GPS e' fortemente consigliato ma non obbligatorio per installare. -->
     <uses-feature
         android:name="android.hardware.location.gps"

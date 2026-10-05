@@ -7,6 +7,7 @@ import '../models/effort.dart';
 import '../models/running_activity.dart';
 import '../models/running_shoe.dart';
 import '../providers/activity_provider.dart';
+import '../providers/settings_provider.dart';
 import '../providers/shoe_provider.dart';
 import '../services/elevation_service.dart';
 import '../services/pace_zone_engine.dart';
@@ -18,6 +19,7 @@ import '../widgets/empty_state.dart';
 import '../widgets/inset_list.dart';
 import '../widgets/lap_table.dart';
 import '../widgets/metric_card.dart';
+import '../widgets/route_map.dart';
 import '../widgets/route_shape.dart';
 
 /// Dettaglio di una attivita' salvata.
@@ -30,6 +32,8 @@ class ActivityDetailScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final ActivityProvider provider = context.watch<ActivityProvider>();
     final ShoeProvider shoes = context.watch<ShoeProvider>();
+    final bool conMappa =
+        context.watch<SettingsProvider>().settings.mapEnabled;
     final RunningActivity? activity = provider.byId(activityId);
     final AppPalette p = AppPalette.of(context);
 
@@ -159,7 +163,13 @@ class ActivityDetailScreen extends StatelessWidget {
                 padding: const EdgeInsets.fromLTRB(10, 12, 10, 10),
                 child: Column(
                   children: <Widget>[
-                    RouteShape(route: activity.route),
+                    if (conMappa)
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: RouteMap(route: activity.route),
+                      )
+                    else
+                      RouteShape(route: activity.route),
                     const SizedBox(height: 6),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,

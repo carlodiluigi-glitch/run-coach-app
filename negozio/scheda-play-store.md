@@ -106,8 +106,12 @@ carico si sbloccano con un acquisto unico. Una volta sola, non un abbonamento.
 I TUOI DATI RESTANO SUL TUO TELEFONO
 
 Nessun account, nessun server, nessuna registrazione. Le corse stanno nella
-memoria del telefono e non vengono mandate da nessuna parte. Falcata funziona
-in aereo.
+memoria del telefono e non vengono mandate da nessuna parte.
+
+L'unica funzione che usa internet è la mappa sotto al percorso, ed è spenta
+finché non la accendi tu. Anche accesa, quello che parte è solo "dammi il pezzo
+di mappa di questa zona": non esce nessuna corsa, nessuna posizione registrata
+e nessun nome. Tutto il resto funziona in aereo.
 ```
 
 Circa 3.200 caratteri: sotto il limite, con spazio per aggiungere.
@@ -152,6 +156,14 @@ guarda legge quella, non l'interfaccia.
 - Posizione: usata solo sul dispositivo, mai trasmessa
 - Account: non richiesto
 
+Una precisazione da fare, perché è vera: con la mappa accesa l'app chiede al
+fornitore dei riquadri i pezzi di mappa di una zona, e quella richiesta porta
+con sé l'indirizzo IP, come qualunque pagina web. Non porta corse, posizioni
+registrate né identificativi. Nella dichiarazione Google va segnata come
+"posizione approssimativa, non raccolta dall'app, trasmessa a un servizio di
+mappe" — scriverlo è più sicuro che tacerlo, e la funzione è comunque
+disattivabile.
+
 Serve comunque una pagina web con l'informativa privacy: Google la pretende
 anche quando non si raccoglie niente. Una pagina sola, può stare su GitHub
 Pages.
@@ -169,3 +181,9 @@ Pages.
    scritte a tavolino e non ancora viste su uno schermo vero.
 5. **Prodotto in-app** configurato nella console, e poi collegato al posto di
    `LicenseState.developerUnlocked`.
+6. **Cambiare il fornitore delle mappe.** `MapTileService.tileUrlTemplate` punta
+   a OpenStreetMap: gratuito e perfetto per uso personale, ma la loro politica
+   d'uso non consente di appoggiarsi ai loro server per un'app distribuita su un
+   negozio — è una fondazione che paga quella banda con le donazioni. Serve un
+   fornitore con un contratto (Thunderforest, MapTiler e simili). È una riga
+   sola, e l'attribuzione va aggiornata di conseguenza.
