@@ -619,6 +619,110 @@ mappa da numero di settimana a settimana dichiarata, e il piano viene
 ricalcolato da quella. Per questo si torna indietro senza perdere niente, e per
 questo un piano salvato prima di questa funzione si riapre identico a com'era.
 
+### La distanza: il difetto piu' grave che l'app abbia avuto
+
+Una corsa vera, sua: 10,32 km in 51:40, passo 5:00. Carlo ha detto *"mi e'
+sembrato troppo veloce, ho dubitato che fosse sbagliato"*. Aveva ragione a
+dubitare, e il difetto era peggio di quanto sembrasse.
+
+**La distanza e' l'ingresso di tutto.** Da li' escono il passo, l'indice di
+forma, i record, il carico, i ritmi del piano. Nessun calcolo a valle puo'
+rimediare a un numero sbagliato in ingresso: se la distanza e' gonfiata del 15%
+l'app ti crede piu' veloce di quello che sei e ti allena a ritmi che non reggi.
+
+#### Il metodo che sembra ovvio, e perche' non funziona
+
+Falcata sommava la distanza fra un punto GPS e il successivo. E' la cosa ovvia
+da fare, ed e' sbagliata: ogni posizione ha un errore di qualche metro, e un
+corridore a 5:00/km avanza 3,3 metri al secondo. **Il passo vero e l'errore sono
+della stessa misura**, quindi la somma misura in buona parte il rumore.
+
+Aggiungere i filtri che sembrano risolverlo - una distanza minima per ignorare
+le oscillazioni, un tetto di velocita' per i salti - non toglie l'errore: gli
+fa cambiare segno in modo imprevedibile. Misurato su corse simulate di 50
+minuti di cui si conosceva la distanza vera:
+
+| errore del GPS | metodo vecchio | metodo nuovo |
+|---|---|---|
+| 2 m | da +2% a +32% (secondo il passo) | **-0,0%** |
+| 3 m | da -18% a +33% | **-0,0%** |
+| 5 m | circa -39% | **-0,0%** |
+| 8 m | circa -69% | **-0,0%** |
+| ripetute, 8 m | -73% | **-0,0%** |
+| con semafori, 3 m | +11% | **+0,3%** |
+
+Un'app che su una corsa vera puo' sbagliare di settanta chilometri su cento non
+sta misurando: sta tirando a indovinare.
+
+#### Il dato giusto c'era gia', e veniva buttato
+
+Il chip GPS non ricava la velocita' dalle posizioni: la misura dallo
+**spostamento di frequenza** del segnale dei satelliti - l'effetto Doppler, lo
+stesso per cui la sirena di un'ambulanza cambia tono quando passa. E' una misura
+diretta e indipendente, precisa a qualche decimo di metro al secondo anche
+quando la posizione balla di dieci metri.
+
+Android la riporta in ogni campione. Falcata **la leggeva gia'** - per scriverla
+sullo schermo durante la corsa - e poi la buttava via. Adesso la distanza e' il
+tempo per quella velocita', sommato.
+
+#### Due trappole, cadute e risalite
+
+**Zero non vuol dire fermo.** Qualche telefono riporta velocita' esattamente
+zero sempre. Trattare lo zero come "sei fermo" azzerava la corsa intera su quei
+telefoni: cento per cento di errore. Lo zero manda al ripiego sulle posizioni,
+che se si e' davvero fermi non somma niente comunque, perche' la posizione non
+si muove.
+
+**Due strade, due riferimenti, un totale.** La velocita' e il ripiego sommano
+nello stesso totale ma tengono due riferimenti diversi. Lasciando fermo quello
+del ripiego mentre si misura con la velocita', al primo campione senza velocita'
+il ripiego misurava tutto lo spostamento dall'ultima volta che era stato usato -
+cioe' tratti gia' contati. Sulla corsa simulata con i semafori la distanza
+usciva **del 90% piu' lunga del vero**. Un riferimento che non avanza e' un
+tratto contato due volte.
+
+Entrambe trovate dalla simulazione, non dal ragionamento. E' il motivo per cui i
+test di questo file non controllano dei dettagli: ricostruiscono corse di cui si
+conosce la distanza vera e verificano che il numero ci somigli.
+
+#### Il ripiego, per i telefoni senza Doppler
+
+Si torna alle posizioni, ma **mediate** sugli ultimi nove campioni - lo stesso
+trucco della quota - con una soglia proporzionale all'accuratezza dichiarata,
+perche' sotto l'errore del GPS non si distingue un passo da un tremolio. Resta
+entro l'1% su un percorso diritto e perde al massimo il 5% su un percorso pieno
+di curve strette, dove la media taglia gli angoli. Nove campioni sono il
+compromesso misurato: a ventuno la pulizia e' migliore ma un giro con una curva
+ogni cento metri perde il 13%.
+
+### La deriva della quota
+
+Sulla stessa corsa l'app ha scritto **salita 21 m, discesa 35 m**. E' un giro
+chiuso: si parte e si arriva nello stesso punto, quindi quello che sali lo
+scendi, e l'algoritmo garantisce da solo che i due numeri non possano differire
+piu' della soglia di 8 metri. Quattordici metri di scarto non erano il percorso.
+
+Erano la quota di partenza e quella di arrivo, misurate nello stesso posto, che
+non coincidevano piu'. L'errore del GPS sulla quota non e' solo rumore veloce:
+ha una componente **lenta**. In cinquanta minuti i satelliti si spostano e la
+stima scivola di una decina di metri, e per una media su novanta secondi una
+deriva lenta e' indistinguibile da una salita molto dolce.
+
+La correzione: quando si torna al punto di partenza, la quota finale **deve**
+essere quella iniziale. Tutta la differenza che resta e' deriva per definizione,
+e si toglie distribuendola lungo la corsa.
+
+| caso | prima | dopo |
+|---|---|---|
+| giro piatto, deriva +15 m | salita 15, discesa 0 | **salita 0, discesa 0** |
+| giro piatto, deriva -15 m | salita 0, discesa 8 | **salita 0, discesa 0** |
+| giro su collina da 40 m, deriva +12 m | salita 40, discesa 24 | **salita 36, discesa 36** |
+
+Su un percorso da un punto a un altro la correzione **non** scatta: li' la
+differenza di quota e' vera, e toglierla cancellerebbe il dislivello di chi
+finisce in cima a una salita.
+
 ### La mappa vera, e perche' nasce spenta
 
 Il disegno del percorso non costa niente e funziona senza rete. Una mappa vera

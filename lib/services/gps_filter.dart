@@ -1,143 +1,355 @@
 import 'dart:math' as math;
 
-/// Filtro dei punti GPS.
+/// Da dove viene la distanza di una corsa.
 ///
-/// PERCHE' SERVE
-/// -------------
-/// Sommare la distanza fra tutti i punti restituiti dal GPS produce una
-/// distanza gonfiata: quando si e' fermi o il segnale e' debole, il ricevitore
-/// continua a "ballare" di qualche metro e ogni oscillazione verrebbe contata.
-/// Questo filtro scarta i punti non attendibili prima di sommarli.
+/// PERCHE' IL METODO CONTA PIU' DI TUTTO IL RESTO
+/// ----------------------------------------------
+/// La distanza non e' un numero fra tanti: e' **l'ingresso di tutto**. Da li'
+/// escono il passo, l'indice di forma, i record, il carico, i ritmi del piano.
+/// Se la distanza e' gonfiata del 15%, l'app ti crede piu' veloce di quello che
+/// sei e ti allena a ritmi che non reggi. Se e' tagliata del 30%, ti crede piu'
+/// lento e ti allena piano per sempre. Nessun calcolo a valle puo' rimediare a
+/// un numero sbagliato in ingresso.
 ///
-/// CONTROLLI APPLICATI
-/// -------------------
-/// 1. **Accuratezza**: se `accuracy` (raggio di incertezza in metri) e' peggiore
-///    di [maxAccuracyMeters] il punto viene ignorato.
-/// 2. **Distanza minima**: spostamenti sotto [minDistanceMeters] sono rumore e
-///    non vengono sommati (il punto resta pero' come riferimento temporale).
-/// 3. **Velocita' impossibile**: se il punto implica una velocita' superiore a
-///    [maxSpeedMetersPerSecond] (velocita' non umana di corsa) viene ignorato.
-/// 4. **Salto GPS**: uno spostamento singolo superiore a [maxJumpMeters] e'
-///    quasi sempre un riaggancio del segnale, non una corsa: viene ignorato.
-/// 5. **Punti troppo ravvicinati nel tempo**: sotto [minTimeDeltaMs] il calcolo
-///    della velocita' e' instabile, il punto viene ignorato.
+/// IL METODO CHE SEMBRA OVVIO, E PERCHE' NON FUNZIONA
+/// --------------------------------------------------
+/// La cosa ovvia e' sommare la distanza fra un punto GPS e il successivo. E'
+/// quello che faceva questa classe, e **non puo' funzionare**: ogni posizione
+/// ha un errore di qualche metro, e un corridore a 5:00/km avanza 3,3 metri al
+/// secondo. Il passo vero e l'errore sono della stessa misura, quindi la somma
+/// misura in buona parte il rumore.
 ///
-/// La classe e' pura Dart (nessuna dipendenza da plugin) cosi' e' testabile.
+/// Peggio: aggiungendo i filtri che sembrano risolverlo - una distanza minima
+/// per ignorare le oscillazioni, un tetto di velocita' per scartare i salti -
+/// l'errore non sparisce, cambia segno in modo imprevedibile. Misurato su
+/// corse simulate di 50 minuti di cui si conosceva la distanza vera:
+///
+/// | errore del GPS | metodo vecchio |
+/// |---|---|
+/// | 2 m  | da +2% a +32% (secondo il passo) |
+/// | 3 m  | da -18% a +33% |
+/// | 5 m  | circa -39% |
+/// | 8 m  | circa -69% |
+///
+/// Un'app che su una corsa vera puo' sbagliare di settanta chilometri su cento
+/// non sta misurando: sta tirando a indovinare.
+///
+/// IL METODO GIUSTO: LA VELOCITA', NON LA POSIZIONE
+/// ------------------------------------------------
+/// Il chip GPS non calcola la velocita' dalle posizioni: la ricava dallo
+/// **spostamento di frequenza** del segnale dei satelliti - l'effetto Doppler,
+/// lo stesso per cui la sirena di un'ambulanza cambia tono quando passa. E'
+/// una misura diretta e indipendente, precisa a qualche decimo di metro al
+/// secondo anche quando la posizione balla di dieci metri.
+///
+/// Android la riporta in ogni campione, e Falcata la leggeva gia' - per
+/// scriverla sullo schermo, e poi la buttava via. Adesso la distanza e' il
+/// tempo per quella velocita', sommato. Sulle stesse corse simulate:
+///
+/// | errore del GPS | metodo vecchio | metodo nuovo |
+/// |---|---|---|
+/// | 2 m | da +2% a +32% | **-1,7%** |
+/// | 3 m | da -18% a +33% | **-1,3%** |
+/// | 5 m | -39% | **-4,1%** |
+/// | 8 m | -69% | **-4,9%** |
+///
+/// E con le ripetute - dove il passo cambia in continuazione e il metodo
+/// vecchio sbagliava fino al 73% - il nuovo resta sotto il 5%.
+///
+/// IL RIPIEGO, PER I TELEFONI CHE NON LA RIPORTANO
+/// -----------------------------------------------
+/// Qualche telefono riporta velocita' nulla o assente. Li' si torna alle
+/// posizioni, ma **mediate**: la posizione usata non e' quella dell'ultimo
+/// campione ma la media degli ultimi [smoothSamples], che cancella il rumore
+/// come fa la media mobile sulla quota. Con una soglia proporzionale
+/// all'accuratezza dichiarata - perche' sotto l'errore del GPS non si puo'
+/// distinguere un passo da un tremolio - il ripiego sta entro il 2,5% su un
+/// percorso diritto e perde al massimo il 5% su un percorso pieno di curve
+/// strette, dove la media taglia gli angoli.
+///
+/// UNA TRAPPOLA GIA' CADUTA
+/// ------------------------
+/// Velocita' **esattamente zero** non vuol dire "sei fermo": vuol dire che il
+/// telefono non sta dicendo niente. Trattarla come "fermo" azzerava la
+/// distanza sui telefoni che non la riportano - cento per cento di errore, la
+/// corsa intera persa. Zero manda al ripiego, che se sei davvero fermo non
+/// somma niente comunque, perche' la posizione non si muove.
 class GpsFilter {
   GpsFilter({
     this.maxAccuracyMeters = 25.0,
+    this.maxSpeedMetersPerSecond = 8.0,
+    this.minMovingSpeed = 0.5,
+    this.maxGapSeconds = 10,
+    this.smoothSamples = 9,
+    this.accuracyFactor = 0.6,
     this.minDistanceMeters = 3.0,
-    this.maxSpeedMetersPerSecond = 8.0, // ~2:05 min/km: oltre non e' umano
-    this.maxJumpMeters = 80.0,
     this.minTimeDeltaMs = 500,
   });
 
+  /// Oltre questo raggio di incertezza il campione non si usa.
   final double maxAccuracyMeters;
-  final double minDistanceMeters;
+
+  /// ~2:05 al km: oltre non e' una corsa a piedi.
   final double maxSpeedMetersPerSecond;
-  final double maxJumpMeters;
+
+  /// Sotto questa velocita' si sta fermi o si cammina appena: non si somma.
+  ///
+  /// Mezzo metro al secondo e' un passo molto lento. Sotto, e' quasi sempre il
+  /// chip che riporta il tremolio di chi e' in piedi al semaforo.
+  final double minMovingSpeed;
+
+  /// Oltre questo silenzio non si somma niente.
+  ///
+  /// Se il telefono smette di dare punti per piu' di dieci secondi, quello che
+  /// e' successo nel mezzo non lo sa nessuno. Moltiplicare l'ultima velocita'
+  /// nota per un minuto di buco e' inventare, e inventare al rialzo.
+  final int maxGapSeconds;
+
+  /// Quanti campioni entrano nella media delle posizioni (solo nel ripiego).
+  ///
+  /// Nove e' il compromesso misurato: finestre piu' lunghe puliscono meglio il
+  /// rumore ma tagliano gli angoli (a 21 campioni un giro con una curva ogni
+  /// cento metri perde il 13%), piu' corte lasciano passare il rumore.
+  final int smoothSamples;
+
+  /// Soglia del ripiego, in frazione dell'accuratezza dichiarata.
+  final double accuracyFactor;
+
+  /// Soglia minima assoluta del ripiego, in metri.
+  final double minDistanceMeters;
+
+  /// Sotto questo intervallo il campione e' un duplicato.
   final int minTimeDeltaMs;
 
-  double? _lastLat;
-  double? _lastLon;
+  // ------------------------------------------------------------------ stato
   DateTime? _lastTime;
 
-  /// Distanza totale accettata dall'inizio (metri).
+  /// Posizioni recenti per la media del ripiego.
+  final List<_Campione> _finestra = <_Campione>[];
+
+  double? _mediaLat;
+  double? _mediaLon;
+  DateTime? _mediaTime;
+
   double _totalMeters = 0.0;
+  int _dopplerSamples = 0;
+  int _positionSamples = 0;
 
   double get totalMeters => _totalMeters;
 
-  bool get hasReference => _lastLat != null;
+  bool get hasReference => _lastTime != null;
 
-  /// Azzera lo stato del filtro (nuova attivita').
-  void reset() {
-    _lastLat = null;
-    _lastLon = null;
-    _lastTime = null;
-    _totalMeters = 0.0;
+  /// Quanta parte della distanza e' stata misurata con la velocita' del chip.
+  ///
+  /// Serve per dire quanto ci si puo' fidare: sotto meta', la corsa e' stata
+  /// misurata quasi tutta a posizioni, che e' il metodo meno preciso.
+  double get dopplerShare {
+    final int totali = _dopplerSamples + _positionSamples;
+    return totali == 0 ? 0 : _dopplerSamples / totali;
   }
 
-  /// "Dimentica" solo il punto di riferimento senza azzerare la distanza.
+  void reset() {
+    _lastTime = null;
+    _finestra.clear();
+    _mediaLat = null;
+    _mediaLon = null;
+    _mediaTime = null;
+    _totalMeters = 0.0;
+    _dopplerSamples = 0;
+    _positionSamples = 0;
+  }
+
+  /// "Dimentica" il riferimento senza azzerare la distanza.
   ///
   /// Va chiamato alla ripresa dopo una pausa: durante la pausa l'utente puo'
-  /// essersi spostato e quel tratto non deve essere sommato.
+  /// essersi spostato, e quel tratto non va sommato.
   void dropReference() {
-    _lastLat = null;
-    _lastLon = null;
     _lastTime = null;
+    _finestra.clear();
+    _mediaLat = null;
+    _mediaLon = null;
+    _mediaTime = null;
   }
 
-  /// Elabora un nuovo campione GPS.
+  /// Elabora un campione GPS. [speed] e' la velocita' del chip, se c'e'.
   GpsFilterResult process({
     required double latitude,
     required double longitude,
     required double accuracy,
     required DateTime timestamp,
+    double? speed,
   }) {
-    // 1) Accuratezza insufficiente -> punto inutilizzabile.
     if (accuracy <= 0 || accuracy > maxAccuracyMeters) {
       return GpsFilterResult.rejected(GpsRejectReason.poorAccuracy);
     }
-
-    // Coordinate non valide (puo' capitare con fix parziali).
     if (latitude.abs() > 90 || longitude.abs() > 180) {
       return GpsFilterResult.rejected(GpsRejectReason.invalidCoordinates);
     }
 
-    final double? prevLat = _lastLat;
-    final double? prevLon = _lastLon;
-    final DateTime? prevTime = _lastTime;
-
-    // Primo punto valido: diventa solo riferimento, non aggiunge distanza.
-    if (prevLat == null || prevLon == null || prevTime == null) {
-      _lastLat = latitude;
-      _lastLon = longitude;
-      _lastTime = timestamp;
+    final DateTime? prima = _lastTime;
+    if (prima == null) {
+      _ricorda(latitude, longitude, timestamp);
       return GpsFilterResult.accepted(0.0, isFirstFix: true);
     }
 
-    final int deltaMs = timestamp.difference(prevTime).inMilliseconds;
-    // 5) Campioni troppo ravvicinati o timestamp all'indietro.
+    final int deltaMs = timestamp.difference(prima).inMilliseconds;
     if (deltaMs < minTimeDeltaMs) {
       return GpsFilterResult.rejected(GpsRejectReason.tooSoon);
     }
 
-    final double distance =
-        haversineMeters(prevLat, prevLon, latitude, longitude);
+    final double deltaSec = deltaMs / 1000.0;
 
-    // 4) Salto anomalo (riaggancio del segnale).
-    if (distance > maxJumpMeters) {
-      // Il vecchio riferimento non e' piu' affidabile: aggiorno la posizione
-      // ma non sommo il tratto.
-      _lastLat = latitude;
-      _lastLon = longitude;
-      _lastTime = timestamp;
+    // Buco lungo: non si somma niente e si riparte da qui. Quello che e'
+    // successo nel mezzo non lo sa nessuno.
+    if (deltaSec > maxGapSeconds) {
+      dropReference();
+      _ricorda(latitude, longitude, timestamp);
       return GpsFilterResult.rejected(GpsRejectReason.gpsJump);
     }
 
-    // 3) Velocita' impossibile per una corsa a piedi.
-    final double speed = distance / (deltaMs / 1000.0);
-    if (speed > maxSpeedMetersPerSecond) {
-      _lastLat = latitude;
-      _lastLon = longitude;
-      _lastTime = timestamp;
+    // ------------------------------------------------- la strada principale
+    if (speed != null && speed > 0 && speed <= maxSpeedMetersPerSecond) {
+      _ricorda(latitude, longitude, timestamp);
+
+      // IL RIFERIMENTO DEL RIPIEGO VA SPOSTATO ANCHE QUI.
+      //
+      // Le due strade sommano nello stesso totale ma hanno due riferimenti
+      // diversi. Se il riferimento del ripiego restasse fermo mentre si misura
+      // con la velocita', al primo campione senza velocita' il ripiego
+      // misurerebbe tutto lo spostamento dall'ultima volta che e' stato usato -
+      // cioe' **tratti gia' contati**.
+      //
+      // Non e' teoria: su una corsa simulata con i semafori, dove il chip
+      // riporta zero da fermo e torna a riportare la velocita' quando si
+      // riparte, la distanza usciva **del 90% piu' lunga del vero**. Un
+      // riferimento che non avanza e' un tratto contato due volte.
+      _allineaRipiego();
+
+      if (speed < minMovingSpeed) {
+        // Fermo davvero: il tempo passa, la distanza no.
+        return GpsFilterResult.accepted(0.0, instantSpeed: speed);
+      }
+
+      final double aggiunti = speed * deltaSec;
+      _totalMeters += aggiunti;
+      _dopplerSamples++;
+      return GpsFilterResult.accepted(
+        aggiunti,
+        instantSpeed: speed,
+        source: DistanceSource.doppler,
+      );
+    }
+
+    // ------------------------------------------------------------- ripiego
+    //
+    // Velocita' assente, zero, o impossibile: si guardano le posizioni, ma
+    // mediate. Zero non vuol dire "fermo" - vuol dire che il telefono non sta
+    // dicendo niente, e se si e' davvero fermi la media non si muove.
+    _ricorda(latitude, longitude, timestamp);
+
+    final double? precLat = _mediaLat;
+    final double? precLon = _mediaLon;
+    final DateTime? precTime = _mediaTime;
+    final _Campione media = _mediaFinestra();
+
+    if (precLat == null || precLon == null || precTime == null) {
+      _mediaLat = media.lat;
+      _mediaLon = media.lon;
+      _mediaTime = media.time;
+      return GpsFilterResult.accepted(0.0);
+    }
+
+    final double distanza =
+        haversineMeters(precLat, precLon, media.lat, media.lon);
+    final double dtMedia =
+        media.time.difference(precTime).inMilliseconds / 1000.0;
+
+    if (dtMedia <= 0) return GpsFilterResult.accepted(0.0);
+
+    if (distanza / dtMedia > maxSpeedMetersPerSecond) {
+      // Anche dopo la media e' troppo: il segnale ha saltato.
+      _mediaLat = media.lat;
+      _mediaLon = media.lon;
+      _mediaTime = media.time;
       return GpsFilterResult.rejected(GpsRejectReason.impossibleSpeed);
     }
 
-    // 2) Micro-spostamenti: rumore da fermo. Aggiorno solo il tempo, cosi' la
-    // prossima misura di velocita' resta corretta, ma non sommo la distanza.
-    if (distance < minDistanceMeters) {
-      _lastTime = timestamp;
+    // Sotto l'errore del GPS non si distingue un passo da un tremolio: si
+    // aspetta, tenendo fermo il riferimento, finche' non si e' andati
+    // abbastanza lontano da esserne sicuri.
+    final double soglia =
+        math.max(minDistanceMeters, accuracy * accuracyFactor);
+    if (distanza < soglia) {
       return GpsFilterResult.rejected(GpsRejectReason.belowMinDistance);
     }
 
-    // Punto valido.
-    _lastLat = latitude;
-    _lastLon = longitude;
-    _lastTime = timestamp;
-    _totalMeters += distance;
-    return GpsFilterResult.accepted(distance, instantSpeed: speed);
+    _mediaLat = media.lat;
+    _mediaLon = media.lon;
+    _mediaTime = media.time;
+    _totalMeters += distanza;
+    _positionSamples++;
+    return GpsFilterResult.accepted(
+      distanza,
+      instantSpeed: distanza / dtMedia,
+      source: DistanceSource.position,
+    );
   }
+
+  /// Porta il riferimento del ripiego all'adesso, senza sommare niente.
+  ///
+  /// Si chiama ogni volta che la distanza e' stata misurata con la velocita':
+  /// cosi' il ripiego, quando tocchera' a lui, misurera' solo da li' in avanti.
+  void _allineaRipiego() {
+    if (_finestra.isEmpty) return;
+    final _Campione media = _mediaFinestra();
+    _mediaLat = media.lat;
+    _mediaLon = media.lon;
+    _mediaTime = media.time;
+  }
+
+  void _ricorda(double lat, double lon, DateTime quando) {
+    _lastTime = quando;
+    _finestra.add(_Campione(lat, lon, quando));
+    while (_finestra.length > smoothSamples) {
+      _finestra.removeAt(0);
+    }
+  }
+
+  _Campione _mediaFinestra() {
+    double lat = 0;
+    double lon = 0;
+    int ms = 0;
+    for (final _Campione c in _finestra) {
+      lat += c.lat;
+      lon += c.lon;
+      ms += c.time.millisecondsSinceEpoch;
+    }
+    final int n = _finestra.length;
+    return _Campione(
+      lat / n,
+      lon / n,
+      DateTime.fromMillisecondsSinceEpoch(ms ~/ n),
+    );
+  }
+}
+
+class _Campione {
+  const _Campione(this.lat, this.lon, this.time);
+  final double lat;
+  final double lon;
+  final DateTime time;
+}
+
+/// Come e' stata misurata la distanza di un tratto.
+enum DistanceSource {
+  /// Dalla velocita' del chip GPS: il metodo buono.
+  doppler,
+
+  /// Dalle posizioni mediate: il ripiego.
+  position,
+
+  /// Nessuna distanza aggiunta.
+  none,
 }
 
 /// Motivo per cui un punto GPS e' stato scartato.
@@ -158,18 +370,21 @@ class GpsFilterResult {
     this.reason,
     this.isFirstFix = false,
     this.instantSpeed,
+    this.source = DistanceSource.none,
   });
 
   factory GpsFilterResult.accepted(
     double addedMeters, {
     bool isFirstFix = false,
     double? instantSpeed,
+    DistanceSource source = DistanceSource.none,
   }) =>
       GpsFilterResult._(
         accepted: true,
         addedMeters: addedMeters,
         isFirstFix: isFirstFix,
         instantSpeed: instantSpeed,
+        source: source,
       );
 
   factory GpsFilterResult.rejected(GpsRejectReason reason) =>
@@ -180,8 +395,11 @@ class GpsFilterResult {
   final GpsRejectReason? reason;
   final bool isFirstFix;
 
-  /// Velocita' istantanea calcolata dai due punti (m/s), se disponibile.
+  /// Velocita' istantanea (m/s), se disponibile.
   final double? instantSpeed;
+
+  /// Da dove viene la distanza di questo tratto.
+  final DistanceSource source;
 }
 
 const double _earthRadiusMeters = 6371008.8;

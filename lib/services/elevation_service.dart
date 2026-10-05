@@ -1,4 +1,5 @@
 import '../models/running_activity.dart';
+import 'gps_filter.dart';
 
 /// Quanto hai salito e quanto hai sceso.
 ///
@@ -110,7 +111,36 @@ class ElevationService {
     }
     if (quote.length < minimumSamples) return ElevationSummary.unknown;
 
-    final List<double> smussate = _smooth(tempi, quote);
+    List<double> smussate = _smooth(tempi, quote);
+
+    // ---------------------------------------------- la deriva, su un giro chiuso
+    //
+    // DOVE SI VEDE IL DIFETTO
+    // -----------------------
+    // Su una corsa vera e' uscito "salita 21 m, discesa 35 m". Su un giro
+    // chiuso - si parte e si arriva nello stesso punto - quello che sali lo
+    // scendi: i due numeri devono essere praticamente uguali, e l'algoritmo
+    // garantisce da solo che non possano differire piu' della soglia. Quattordici
+    // metri di scarto quindi non sono il percorso: sono il segno che la quota di
+    // partenza e quella di arrivo, misurate nello stesso posto, non coincidono.
+    //
+    // PERCHE' LA MEDIA MOBILE NON BASTA
+    // ---------------------------------
+    // Perche' l'errore del GPS sulla quota non e' solo rumore veloce: ha anche
+    // una componente **lenta**. In cinquanta minuti i satelliti si spostano e la
+    // stima scivola di una decina di metri. Per una media su novanta secondi una
+    // deriva lenta e' indistinguibile da una salita molto dolce, e viene contata
+    // come dislivello vero.
+    //
+    // LA CORREZIONE
+    // -------------
+    // Quando si torna al punto di partenza, la quota finale **deve** essere
+    // quella iniziale. Tutta la differenza che resta e' deriva per definizione,
+    // e si toglie distribuendola lungo la corsa. Su un percorso da un punto a un
+    // altro non si puo' fare - li' la differenza e' vera - e infatti non si fa.
+    if (_isClosedLoop(route)) {
+      smussate = _removeDrift(tempi, smussate);
+    }
 
     double salita = 0;
     double discesa = 0;
@@ -139,6 +169,36 @@ class ElevationService {
       maxMeters: massima,
       samples: quote.length,
     );
+  }
+
+  /// Quanto vicini devono essere partenza e arrivo perche' sia un giro chiuso.
+  ///
+  /// Sessanta metri: abbastanza per coprire l'incertezza del GPS su due punti
+  /// e il fatto che non ci si ferma mai esattamente dove si e' partiti, troppo
+  /// poco perche' due posti diversi si confondano.
+  static const double loopToleranceMeters = 60.0;
+
+  static bool _isClosedLoop(List<RoutePoint> route) {
+    if (route.length < 2) return false;
+    final RoutePoint a = route.first;
+    final RoutePoint b = route.last;
+    return haversineMeters(a.latitude, a.longitude, b.latitude, b.longitude) <
+        loopToleranceMeters;
+  }
+
+  /// Toglie la deriva: la quota finale torna uguale a quella iniziale, e lo
+  /// scivolamento viene distribuito lungo tutta la corsa.
+  static List<double> _removeDrift(List<int> tempi, List<double> quote) {
+    final int n = quote.length;
+    if (n < 2) return quote;
+    final int durata = tempi.last - tempi.first;
+    if (durata <= 0) return quote;
+
+    final double deriva = quote.last - quote.first;
+    return <double>[
+      for (int i = 0; i < n; i++)
+        quote[i] - deriva * (tempi[i] - tempi.first) / durata,
+    ];
   }
 
   /// Media mobile centrata su una finestra di tempo.

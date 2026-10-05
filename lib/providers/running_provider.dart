@@ -493,11 +493,16 @@ class RunningProvider extends ChangeNotifier {
       return;
     }
 
+    // La velocita' del chip e' il dato che misura davvero la distanza: la
+    // posizione serve solo a disegnare il percorso e come ripiego. Prima
+    // veniva letta e buttata via, e la distanza usciva dalle posizioni - con
+    // errori fino al 70% su una corsa intera.
     final GpsFilterResult result = _filter.process(
       latitude: sample.latitude,
       longitude: sample.longitude,
       accuracy: sample.accuracy,
       timestamp: sample.timestamp,
+      speed: sample.speed,
     );
 
     if (!result.accepted) return;

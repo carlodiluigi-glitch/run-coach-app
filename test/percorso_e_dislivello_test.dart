@@ -212,4 +212,91 @@ void main() {
       expect(RouteShape.canDraw(percorso(pianura())), isTrue);
     });
   });
+
+  group('la deriva del GPS su un giro chiuso', () {
+    /// Un anello: si parte e si torna nello stesso punto.
+    List<RoutePoint> anello(
+      List<double> quoteVere, {
+      double rumore = 4.0,
+      double derivaMetri = 0,
+      int seed = 11,
+    }) {
+      final math.Random random = math.Random(seed);
+      double gauss() {
+        final double u1 = 1.0 - random.nextDouble();
+        final double u2 = random.nextDouble();
+        return math.sqrt(-2.0 * math.log(u1)) * math.cos(2 * math.pi * u2);
+      }
+      final int n = quoteVere.length;
+      return <RoutePoint>[
+        for (int i = 0; i < n; i++)
+          RoutePoint(
+            // Un cerchio: l'ultimo punto torna sul primo.
+            latitude: 45.0 + 0.004 * math.sin(2 * math.pi * i / n),
+            longitude: 9.0 + 0.006 * math.cos(2 * math.pi * i / n),
+            elapsedSeconds: i * 2,
+            altitude: quoteVere[i] +
+                gauss() * rumore +
+                derivaMetri * i / n,
+          ),
+      ];
+    }
+
+    const int punti = 1550; // circa cinquanta minuti a un punto ogni 2 s
+
+    test('un giro piatto resta piatto anche con la deriva', () {
+      // DA DOVE NASCE QUESTO TEST
+      // Su una corsa vera l'app ha scritto "salita 21, discesa 35" su un giro
+      // chiuso in riva al mare. Quei quattordici metri di scarto non erano il
+      // percorso: erano la quota di partenza e quella di arrivo, misurate nello
+      // stesso posto, che non coincidevano piu'.
+      for (final double deriva in <double>[15, -15, 0]) {
+        final ElevationSummary r = service.of(
+          anello(List<double>.filled(punti, 120.0), derivaMetri: deriva),
+        );
+        expect(r.isFlat, isTrue,
+            reason: 'deriva $deriva m: salita '
+                '${r.gainMeters.toStringAsFixed(0)} m su un giro piatto');
+      }
+    });
+
+    test('su un anello quello che sali lo scendi', () {
+      // La verifica che non si puo' barare: su un giro chiuso i due numeri
+      // devono pareggiare, qualunque sia il terreno.
+      final List<double> collina = <double>[
+        for (int i = 0; i < punti; i++)
+          120 + 20 - 20 * math.cos(2 * math.pi * i / punti),
+      ];
+      final ElevationSummary r =
+          service.of(anello(collina, derivaMetri: 12));
+
+      expect((r.gainMeters - r.lossMeters).abs() < 10, isTrue,
+          reason: 'salita ${r.gainMeters.toStringAsFixed(0)}, '
+              'discesa ${r.lossMeters.toStringAsFixed(0)}: su un anello '
+              'devono pareggiare');
+      expect(r.gainMeters > 25 && r.gainMeters < 50, isTrue,
+          reason: 'salita ${r.gainMeters.toStringAsFixed(0)} m, attesi ~40');
+    });
+
+    test('un percorso da un punto a un altro NON viene corretto', () {
+      // Qui la differenza di quota fra partenza e arrivo e' vera: toglierla
+      // cancellerebbe il dislivello di chi finisce in cima a una salita.
+      final List<double> salita = <double>[
+        for (int i = 0; i < punti; i++) 100 + 200 * i / punti,
+      ];
+      final List<RoutePoint> puntoAPunto = <RoutePoint>[
+        for (int i = 0; i < punti; i++)
+          RoutePoint(
+            latitude: 45.0 + 0.0001 * i, // si allontana e non torna
+            longitude: 9.0,
+            elapsedSeconds: i * 2,
+            altitude: salita[i],
+          ),
+      ];
+      final ElevationSummary r = service.of(puntoAPunto);
+      expect(r.gainMeters > 170, isTrue,
+          reason: 'salita ${r.gainMeters.toStringAsFixed(0)} m su 200 veri: '
+              'la correzione non doveva scattare');
+    });
+  });
 }
