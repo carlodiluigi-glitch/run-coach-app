@@ -24,15 +24,20 @@ import 'dart:math' as math;
 /// l'errore non sparisce, cambia segno in modo imprevedibile. Misurato su
 /// corse simulate di 50 minuti di cui si conosceva la distanza vera:
 ///
-/// | errore del GPS | metodo vecchio |
-/// |---|---|
-/// | 2 m  | da +2% a +32% (secondo il passo) |
-/// | 3 m  | da -18% a +33% |
-/// | 5 m  | circa -39% |
-/// | 8 m  | circa -69% |
+/// | caso | metodo vecchio | metodo nuovo |
+/// |---|---|---|
+/// | corsa continua | da +2,5% a +3,1% | **0,0%** |
+/// | ripetute | da -2,4% a -4,2% | **-0,2%** |
+/// | con soste e semafori | da +5,0% a +8,3% | **+0,1%** |
 ///
-/// Un'app che su una corsa vera puo' sbagliare di settanta chilometri su cento
-/// non sta misurando: sta tirando a indovinare.
+/// PERCHE' UN 3% CONTA LO STESSO
+/// -----------------------------
+/// Tre per cento su dieci chilometri sono trecento metri, e non e' un errore
+/// casuale che si media via: e' una **distorsione sistematica, con il segno che
+/// cambia secondo il tipo di seduta**. Le corse con soste venivano allungate
+/// (+8%), le ripetute accorciate (-4%). Confrontare una seduta con l'altra -
+/// che e' esattamente quello che fa l'indice di forma - voleva dire confrontare
+/// due misure storte in direzioni opposte.
 ///
 /// IL METODO GIUSTO: LA VELOCITA', NON LA POSIZIONE
 /// ------------------------------------------------
@@ -46,15 +51,23 @@ import 'dart:math' as math;
 /// scriverla sullo schermo, e poi la buttava via. Adesso la distanza e' il
 /// tempo per quella velocita', sommato. Sulle stesse corse simulate:
 ///
-/// | errore del GPS | metodo vecchio | metodo nuovo |
-/// |---|---|---|
-/// | 2 m | da +2% a +32% | **-1,7%** |
-/// | 3 m | da -18% a +33% | **-1,3%** |
-/// | 5 m | -39% | **-4,1%** |
-/// | 8 m | -69% | **-4,9%** |
+/// (I numeri sono quelli della tabella qui sopra.)
 ///
-/// E con le ripetute - dove il passo cambia in continuazione e il metodo
-/// vecchio sbagliava fino al 73% - il nuovo resta sotto il 5%.
+/// Il guadagno piu' grande e' sulle corse con le soste, dove il metodo vecchio
+/// regalava fino all'8% di distanza mai percorsa.///
+/// UNA LEZIONE SU COME SI MISURA
+/// -----------------------------
+/// La prima versione di questa analisi dava al metodo vecchio errori fino al
+/// **69%**. Era falso, e l'errore stava nell'ipotesi: il rumore del GPS era
+/// stato modellato come **indipendente a ogni secondo**. L'errore vero invece
+/// **deriva lentamente** - multipath, geometria dei satelliti e ionosfera
+/// cambiano in minuti, non in secondi - quindi due posizioni consecutive hanno
+/// quasi lo stesso errore, e la differenza fra loro e' molto piu' pulita.
+///
+/// Il numero sbagliato e' stato smontato da chi l'app la usa: "non mi sembrava
+/// che sbagliasse cosi' tanto". Aveva ragione. Una simulazione vale quanto la
+/// sua ipotesi piu' debole, e quando il risultato contraddice l'esperienza di
+/// chi guarda i numeri veri, e' quasi sempre l'ipotesi a essere sbagliata.
 ///
 /// IL RIPIEGO, PER I TELEFONI CHE NON LA RIPORTANO
 /// -----------------------------------------------

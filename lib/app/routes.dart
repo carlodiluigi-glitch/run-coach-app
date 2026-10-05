@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/workout.dart';
+import '../screens/backup_screen.dart';
 import '../screens/battery_screen.dart';
 import '../screens/checkin_screen.dart';
 import '../screens/activity_detail_screen.dart';
@@ -70,6 +71,9 @@ class AppRoutes {
 
   /// Perche' il telefono ferma le app, e cosa farci.
   static const String battery = '/batteria';
+
+  /// Copia di sicurezza dell'archivio: salvare e rimettere.
+  static const String backup = '/copia';
 
   /// Generatore delle rotte con gestione degli argomenti.
   static Route<dynamic> onGenerateRoute(RouteSettings routeSettings) {
@@ -154,6 +158,12 @@ class AppRoutes {
       case battery:
         return MaterialPageRoute<void>(
           builder: (_) => const BatteryScreen(),
+          settings: routeSettings,
+        );
+
+      case backup:
+        return MaterialPageRoute<void>(
+          builder: (_) => const BackupScreen(),
           settings: routeSettings,
         );
 

@@ -11,6 +11,7 @@ import '../providers/settings_provider.dart';
 import '../providers/shoe_provider.dart';
 import '../services/elevation_service.dart';
 import '../services/pace_zone_engine.dart';
+import '../services/run_profile.dart';
 import '../services/records_service.dart';
 import '../services/session_classifier.dart';
 import '../utils/formatters.dart';
@@ -20,6 +21,7 @@ import '../widgets/inset_list.dart';
 import '../widgets/lap_table.dart';
 import '../widgets/metric_card.dart';
 import '../widgets/route_map.dart';
+import '../widgets/run_profile_chart.dart';
 import '../widgets/route_shape.dart';
 
 /// Dettaglio di una attivita' salvata.
@@ -57,6 +59,7 @@ class ActivityDetailScreen extends StatelessWidget {
     // nome che aveva sul programma.
     final ElevationSummary dislivello =
         const ElevationService().of(activity.route);
+    final List<ProfileSample> profilo = RunProfile.of(activity.route);
 
     final TrainingZones? zones = provider.trainingZones;
     final SessionAnalysis? analysis = zones == null
@@ -151,6 +154,29 @@ class ActivityDetailScreen extends StatelessWidget {
                 ),
               ],
             ),
+
+            // ------------------------------------- com'e' andata, metro per metro
+            //
+            // La tabella dei giri dice il passo di ogni chilometro, e va bene
+            // per un lento regolare. Non serve per capire DENTRO un
+            // chilometro: una ripetuta da 400 metri sparisce nella media del
+            // suo chilometro, e un calo negli ultimi due minuti pure.
+            if (RunProfile.canDraw(profilo)) ...<Widget>[
+              const SectionTitle('Come e\' andata'),
+              AppCard(
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+                child: RunProfileChart(profile: profilo),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(left: 4, top: 8),
+                child: Text(
+                  'In alto si corre forte. Tieni il dito sul grafico per '
+                  'leggere un punto preciso. Dove la linea si interrompe il '
+                  'passo non si poteva dire: una sosta, o un buco di segnale.',
+                  style: AppText.caption.copyWith(color: p.inkFaint),
+                ),
+              ),
+            ],
 
             // ----------------------------------------- percorso e dislivello
             //

@@ -11,11 +11,24 @@ import 'package:run_coach_app/services/gps_filter.dart';
 /// forma, i record, il carico, i ritmi del piano. Nessun calcolo a valle puo'
 /// rimediare a un numero sbagliato in ingresso.
 ///
-/// Il metodo vecchio sommava la distanza fra un punto GPS e il successivo. Non
-/// puo' funzionare: ogni posizione ha un errore di qualche metro e un
-/// corridore a 5:00/km avanza 3,3 metri al secondo - il passo vero e l'errore
-/// sono della stessa misura. Sulle stesse corse simulate di questo file,
-/// sbagliava **dal -69% al +33%** secondo il passo e la qualita' del segnale.
+/// Il metodo vecchio sommava la distanza fra un punto GPS e il successivo, e
+/// sbagliava **dal -4% al +8%**: poco, ma sistematicamente, e con il segno che
+/// cambiava secondo il tipo di seduta - le corse con soste allungate, le
+/// ripetute accorciate. Confrontare una seduta con l'altra voleva dire
+/// confrontare due misure storte in direzioni opposte.
+///
+/// ATTENZIONE A COME SI LEGGONO QUESTI TEST
+/// ----------------------------------------
+/// La prima versione di questo file simulava il rumore del GPS come
+/// **indipendente a ogni secondo**, e concludeva che il metodo vecchio
+/// sbagliava fino al 69%. Era falso: l'errore vero deriva lentamente, quindi
+/// due posizioni consecutive condividono quasi tutto l'errore e la differenza
+/// fra loro e' molto piu' pulita. Il numero e' stato smentito da chi usa
+/// l'app, non dal codice.
+///
+/// Le soglie qui sotto restano larghe apposta: servono a prendere una
+/// regressione grossa, non a certificare una precisione che questa
+/// simulazione non puo' garantire.
 ///
 /// Il metodo nuovo usa la velocita' che il chip ricava dall'effetto Doppler:
 /// una misura diretta, precisa a qualche decimo di metro al secondo anche

@@ -94,53 +94,53 @@ class ElevationService {
   /// di un dislivello assente.
   static const int minimumSamples = 60;
 
-  ElevationSummary of(List<RoutePoint> route) {
-    // Tempo e quota, solo dei punti che hanno entrambi, in ordine.
+  /// La quota di ogni punto, ripulita: smussata e, su un giro chiuso, senza
+  /// deriva.
+  ///
+  /// Allineata uno a uno con [route]: `null` dove la quota non c'era. Serve a
+  /// disegnare il profilo altimetrico, e la usa anche [of] per contare il
+  /// dislivello - cosi' il numero scritto sotto il grafico e' quello del
+  /// grafico, non un secondo conto che un giorno divergera'.
+  List<double?> smoothedAltitudes(List<RoutePoint> route) {
     final List<int> tempi = <int>[];
     final List<double> quote = <double>[];
+    final List<int> indici = <int>[];
     int ultimo = -1;
-    for (final RoutePoint p in route) {
-      final double? alt = p.altitude;
+    for (int i = 0; i < route.length; i++) {
+      final double? alt = route[i].altitude;
       if (alt == null || !alt.isFinite) continue;
       // Un punto fuori ordine romperebbe la finestra scorrevole. Non capita,
       // ma un file riletto da disco puo' sempre sorprendere.
-      if (p.elapsedSeconds < ultimo) continue;
-      ultimo = p.elapsedSeconds;
-      tempi.add(p.elapsedSeconds);
+      if (route[i].elapsedSeconds < ultimo) continue;
+      ultimo = route[i].elapsedSeconds;
+      tempi.add(route[i].elapsedSeconds);
       quote.add(alt);
+      indici.add(i);
     }
-    if (quote.length < minimumSamples) return ElevationSummary.unknown;
+
+    final List<double?> out =
+        List<double?>.filled(route.length, null, growable: false);
+    if (quote.length < minimumSamples) return out;
 
     List<double> smussate = _smooth(tempi, quote);
-
-    // ---------------------------------------------- la deriva, su un giro chiuso
-    //
-    // DOVE SI VEDE IL DIFETTO
-    // -----------------------
-    // Su una corsa vera e' uscito "salita 21 m, discesa 35 m". Su un giro
-    // chiuso - si parte e si arriva nello stesso punto - quello che sali lo
-    // scendi: i due numeri devono essere praticamente uguali, e l'algoritmo
-    // garantisce da solo che non possano differire piu' della soglia. Quattordici
-    // metri di scarto quindi non sono il percorso: sono il segno che la quota di
-    // partenza e quella di arrivo, misurate nello stesso posto, non coincidono.
-    //
-    // PERCHE' LA MEDIA MOBILE NON BASTA
-    // ---------------------------------
-    // Perche' l'errore del GPS sulla quota non e' solo rumore veloce: ha anche
-    // una componente **lenta**. In cinquanta minuti i satelliti si spostano e la
-    // stima scivola di una decina di metri. Per una media su novanta secondi una
-    // deriva lenta e' indistinguibile da una salita molto dolce, e viene contata
-    // come dislivello vero.
-    //
-    // LA CORREZIONE
-    // -------------
-    // Quando si torna al punto di partenza, la quota finale **deve** essere
-    // quella iniziale. Tutta la differenza che resta e' deriva per definizione,
-    // e si toglie distribuendola lungo la corsa. Su un percorso da un punto a un
-    // altro non si puo' fare - li' la differenza e' vera - e infatti non si fa.
     if (_isClosedLoop(route)) {
       smussate = _removeDrift(tempi, smussate);
     }
+    for (int k = 0; k < indici.length; k++) {
+      out[indici[k]] = smussate[k];
+    }
+    return out;
+  }
+
+  ElevationSummary of(List<RoutePoint> route) {
+    // Una strada sola con il profilo del grafico: se il dislivello si contasse
+    // su una quota ripulita in modo diverso da quella disegnata, il numero e il
+    // grafico racconterebbero due storie.
+    final List<double> smussate = <double>[
+      for (final double? q in smoothedAltitudes(route))
+        if (q != null) q,
+    ];
+    if (smussate.length < minimumSamples) return ElevationSummary.unknown;
 
     double salita = 0;
     double discesa = 0;
@@ -167,7 +167,7 @@ class ElevationService {
       lossMeters: discesa,
       minMeters: minima,
       maxMeters: massima,
-      samples: quote.length,
+      samples: smussate.length,
     );
   }
 

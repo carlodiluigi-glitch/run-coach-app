@@ -52,6 +52,7 @@ class RoutePoint {
     required this.longitude,
     required this.elapsedSeconds,
     this.altitude,
+    this.speed,
   });
 
   final double latitude;
@@ -62,11 +63,32 @@ class RoutePoint {
 
   final double? altitude;
 
+  /// Velocita' in metri al secondo misurata dal chip GPS, se l'ha riportata.
+  ///
+  /// PERCHE' VIENE SALVATA
+  /// ---------------------
+  /// Perche' e' il dato buono. Il chip la ricava dallo spostamento di frequenza
+  /// del segnale dei satelliti - l'effetto Doppler - e non dalle posizioni:
+  /// resta precisa a qualche decimo di metro al secondo anche quando la
+  /// posizione balla di dieci metri.
+  ///
+  /// La distanza della corsa gia' la usa. Ma anche DOPO, a corsa finita,
+  /// l'app rilegge il tracciato per capire che seduta e' stata e quanto e'
+  /// costata - e per farlo misurava il passo dalle posizioni, cioe' con lo
+  /// stesso difetto, un passo piu' in la': qualche secondo al chilometro, ma
+  /// sempre nella stessa direzione. Salvandola qui, quei conti leggono la
+  /// misura buona invece di rifare l'errore.
+  ///
+  /// `null` sui tracciati registrati prima, e sui telefoni che non la
+  /// riportano: in quel caso si torna alle posizioni.
+  final double? speed;
+
   Map<String, dynamic> toJson() => <String, dynamic>{
         'lat': latitude,
         'lon': longitude,
         't': elapsedSeconds,
         'alt': altitude,
+        if (speed != null) 'v': speed,
       };
 
   factory RoutePoint.fromJson(Map<String, dynamic> json) => RoutePoint(
@@ -74,6 +96,7 @@ class RoutePoint {
         longitude: (json['lon'] as num?)?.toDouble() ?? 0.0,
         elapsedSeconds: (json['t'] as num?)?.toInt() ?? 0,
         altitude: (json['alt'] as num?)?.toDouble(),
+        speed: (json['v'] as num?)?.toDouble(),
       );
 }
 

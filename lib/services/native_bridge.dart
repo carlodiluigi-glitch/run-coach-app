@@ -118,6 +118,42 @@ class NativeBridge {
     }
   }
 
+  /// Chiede dove salvare un file di testo e lo scrive li'.
+  ///
+  /// Si apre il selettore di Android: decide l'utente dove va a finire -
+  /// telefono, chiavetta, Drive, quello che ha. Cosi' l'app non ha bisogno di
+  /// nessun permesso sulla memoria, e la copia non resta in un posto scelto da
+  /// noi che l'utente non trovera' mai.
+  ///
+  /// `false` se ha annullato o se non si e' potuto scrivere.
+  Future<bool> saveTextFile({
+    required String name,
+    required String content,
+  }) async {
+    try {
+      final bool? ok = await _channel.invokeMethod<bool>(
+        'saveTextFile',
+        <String, dynamic>{'name': name, 'content': content},
+      );
+      return ok ?? false;
+    } catch (error) {
+      debugPrint('NativeBridge: salvataggio file non disponibile ($error)');
+      return false;
+    }
+  }
+
+  /// Chiede quale file aprire e ne restituisce il testo.
+  ///
+  /// `null` se ha annullato o se il file non si e' potuto leggere.
+  Future<String?> openTextFile() async {
+    try {
+      return await _channel.invokeMethod<String>('openTextFile');
+    } catch (error) {
+      debugPrint('NativeBridge: apertura file non disponibile ($error)');
+      return null;
+    }
+  }
+
   /// Chiede il permesso di mostrare notifiche (necessario da Android 13).
   ///
   /// Se l'utente rifiuta, la registrazione in background funziona comunque:

@@ -277,6 +277,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
 
             const SizedBox(height: 20),
+            const SectionTitle('I tuoi dati'),
+            InsetList(
+              children: <Widget>[
+                AppListRow(
+                  title: 'Copia di sicurezza',
+                  subtitle: 'Le corse stanno solo in questo telefono. Se lo '
+                      'cambi o lo perdi, senza una copia spariscono.',
+                  onTap: () =>
+                      Navigator.of(context).pushNamed(AppRoutes.backup),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 20),
             const SectionTitle('Mappa'),
             AppCard(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),

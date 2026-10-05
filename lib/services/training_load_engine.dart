@@ -2,8 +2,8 @@ import 'dart:math' as math;
 
 import '../models/estimate.dart';
 import '../models/running_activity.dart';
-import 'gps_filter.dart';
 import 'pace_zone_engine.dart';
+import 'route_windows.dart';
 
 /// Il carico di una seduta, e quanto ne resta nelle gambe.
 ///
@@ -100,42 +100,26 @@ class TrainingLoadEngine {
   /// medio - meno preciso, ma un'attivita' inserita a mano non puo' valere
   /// zero solo perche' non ha il GPS.
   List<_Slice> _slices(RunningActivity activity, double thresholdPace) {
-    final List<RoutePoint> route = activity.route;
     final List<_Slice> out = <_Slice>[];
 
-    if (route.length >= 3) {
-      int windowStart = 0;
-      double windowMeters = 0;
-
-      for (int i = 1; i < route.length; i++) {
-        final double step = haversineMeters(
-          route[i - 1].latitude,
-          route[i - 1].longitude,
-          route[i].latitude,
-          route[i].longitude,
-        );
-        if (step.isFinite) windowMeters += step;
-
-        final int elapsed =
-            route[i].elapsedSeconds - route[windowStart].elapsedSeconds;
-        if (elapsed < windowSeconds) continue;
-
-        if (windowMeters > 5 && elapsed > 0) {
-          final double pace = elapsed / (windowMeters / 1000.0);
-          if (pace > 100 && pace < 1500) {
-            final double intensita =
-                (thresholdPace / pace).clamp(0.0, maxIntensity);
-            if (intensita >= minIntensity) {
-              out.add(_Slice(elapsed.toDouble(), intensita));
-            }
-          }
-        }
-
-        windowStart = i;
-        windowMeters = 0;
+    // Le finestre le costruisce RouteWindows, che e' lo stesso codice usato dal
+    // classificatore. Una copia sola, e i metri vengono dalla velocita' del
+    // chip quando il tracciato ce l'ha: qui conta il doppio, perche'
+    // l'intensita' viene elevata al quadrato e un errore sul passo si
+    // amplifica.
+    for (final RouteWindow finestra in RouteWindows.of(
+      activity.route,
+      windowSeconds: windowSeconds,
+    )) {
+      final double? pace = finestra.paceSecondsPerKm;
+      if (pace == null) continue;
+      final double intensita =
+          (thresholdPace / pace).clamp(0.0, maxIntensity);
+      if (intensita >= minIntensity) {
+        out.add(_Slice(finestra.seconds, intensita));
       }
-      if (out.isNotEmpty) return out;
     }
+    if (out.isNotEmpty) return out;
 
     final double? media = activity.averagePaceSecondsPerKm;
     if (media == null || media <= 0 || activity.durationSeconds <= 0) {

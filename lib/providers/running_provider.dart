@@ -519,6 +519,10 @@ class RunningProvider extends ChangeNotifier {
         longitude: sample.longitude,
         elapsedSeconds: seconds,
         altitude: sample.altitude,
+        // La velocita' del chip viaggia con il punto: a corsa finita e' quella
+        // che dice quanto si stava andando forte, non la distanza fra due
+        // posizioni rumorose.
+        speed: sample.speed,
       ));
     }
 

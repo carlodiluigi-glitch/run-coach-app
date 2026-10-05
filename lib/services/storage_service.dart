@@ -324,4 +324,181 @@ class StorageService {
     }
     return <Map<String, dynamic>>[];
   }
+
+
+  // ======================================================= copia di sicurezza
+  /// I file che compongono l'archivio.
+  ///
+  /// `corsa_in_corso.json` NON c'e' di proposito: e' la corsa che si sta
+  /// registrando adesso, non fa parte dell'archivio, e ripristinarla su un
+  /// altro telefono farebbe comparire una corsa a meta' che non si e' mai
+  /// fatta.
+  static const List<String> backupFiles = <String>[
+    settingsFileName,
+    shoesFileName,
+    workoutsFileName,
+    activitiesFileName,
+    planFileName,
+    profileFileName,
+    checkInsFileName,
+  ];
+
+  /// Marcatore in testa al file: serve a riconoscerlo e a rifiutare tutto il
+  /// resto prima di toccare qualcosa.
+  static const String backupMarker = 'falcata-backup';
+  static const int backupFormat = 1;
+
+  /// Tutto l'archivio in un file solo.
+  ///
+  /// PERCHE' UN FILE E NON UNA SINCRONIZZAZIONE
+  /// ------------------------------------------
+  /// Perche' una sincronizzazione vuole un account, un server e un costo
+  /// mensile, e Falcata non ha nessuna delle tre cose. Un file lo metti dove
+  /// vuoi tu - email a te stesso, chiavetta, Drive - e resta leggibile anche
+  /// se un giorno l'app non esiste piu': dentro c'e' JSON, non un formato
+  /// chiuso. L'archivio e' tuo davvero solo se puoi portartelo via.
+  Future<String?> exportBackup({String appVersion = ''}) async {
+    try {
+      final Map<String, dynamic> contenuto = <String, dynamic>{};
+      for (final String nome in backupFiles) {
+        final String? raw = await _readRaw(nome);
+        if (raw != null) contenuto[nome] = raw;
+      }
+      if (contenuto.isEmpty) {
+        lastError = 'Non c\'e\' ancora niente da salvare.';
+        return null;
+      }
+      lastError = null;
+      return const JsonEncoder.withIndent('  ').convert(<String, dynamic>{
+        'tipo': backupMarker,
+        'formato': backupFormat,
+        'app': appVersion,
+        'creato': DateTime.now().toIso8601String(),
+        'file': contenuto,
+      });
+    } catch (error) {
+      lastError = 'Copia non riuscita: $error';
+      return null;
+    }
+  }
+
+  /// Rimette l'archivio da una copia.
+  ///
+  /// LA REGOLA CHE NON SI ROMPE
+  /// --------------------------
+  /// **Prima si controlla tutto, poi si scrive.** Un file rotto scritto sopra
+  /// un archivio buono lo distrugge, e il ripristino e' proprio il momento in
+  /// cui l'utente non ha una seconda copia. Quindi: si verifica il marcatore,
+  /// si verifica che ogni pezzo sia JSON valido, e solo se e' passato tutto si
+  /// tocca il disco.
+  ///
+  /// I nomi sconosciuti vengono ignorati invece di far fallire il ripristino:
+  /// una copia fatta da una versione futura deve poter restituire almeno
+  /// quello che questa versione sa leggere.
+  Future<BackupReport> importBackup(String raw) async {
+    final Object? decodificato;
+    try {
+      decodificato = jsonDecode(raw);
+    } catch (_) {
+      return const BackupReport.failed('Questo file non e\' leggibile.');
+    }
+
+    if (decodificato is! Map) {
+      return const BackupReport.failed('Questo non e\' un file di Falcata.');
+    }
+    if (decodificato['tipo'] != backupMarker) {
+      return const BackupReport.failed(
+        'Questo non e\' una copia di Falcata. Non ho toccato niente.',
+      );
+    }
+
+    final Object? file = decodificato['file'];
+    if (file is! Map) {
+      return const BackupReport.failed('La copia e\' vuota o danneggiata.');
+    }
+
+    // --- primo giro: si controlla, senza scrivere niente ---
+    final Map<String, String> daScrivere = <String, String>{};
+    for (final String nome in backupFiles) {
+      final Object? contenuto = file[nome];
+      if (contenuto == null) continue;
+      if (contenuto is! String) {
+        return BackupReport.failed('Il pezzo "$nome" e\' danneggiato.');
+      }
+      try {
+        jsonDecode(contenuto);
+      } catch (_) {
+        return BackupReport.failed('Il pezzo "$nome" non e\' leggibile.');
+      }
+      daScrivere[nome] = contenuto;
+    }
+
+    if (daScrivere.isEmpty) {
+      return const BackupReport.failed(
+        'Nella copia non c\'e\' niente che questa versione sappia leggere.',
+      );
+    }
+
+    // --- secondo giro: adesso si scrive ---
+    final List<String> fatti = <String>[];
+    for (final MapEntry<String, String> e in daScrivere.entries) {
+      if (await _writeRaw(e.key, e.value)) {
+        fatti.add(e.key);
+      } else {
+        return BackupReport.failed(
+          'Scrittura di "${e.key}" non riuscita: $lastError',
+        );
+      }
+    }
+
+    // La corsa in corso non appartiene all'archivio ripristinato.
+    await clearRunSnapshot();
+
+    return BackupReport.ok(
+      fatti,
+      createdAt: DateTime.tryParse(decodificato['creato'] as String? ?? ''),
+    );
+  }
+}
+
+/// Esito di un ripristino.
+class BackupReport {
+  const BackupReport.ok(this.restored, {this.createdAt}) : error = null;
+  const BackupReport.failed(this.error)
+      : restored = const <String>[],
+        createdAt = null;
+
+  /// I file rimessi a posto.
+  final List<String> restored;
+
+  /// Quando era stata fatta la copia.
+  final DateTime? createdAt;
+
+  /// Perche' non si e' potuto fare. `null` se e' andata.
+  final String? error;
+
+  bool get isOk => error == null;
+
+  /// Che cosa e' tornato, in italiano.
+  String get summary {
+    final String? problema = error;
+    if (problema != null) return problema;
+    const Map<String, String> nomi = <String, String>{
+      StorageService.activitiesFileName: 'le corse',
+      StorageService.settingsFileName: 'le impostazioni',
+      StorageService.shoesFileName: 'le scarpe',
+      StorageService.workoutsFileName: 'gli allenamenti',
+      StorageService.planFileName: 'il piano',
+      StorageService.profileFileName: 'il profilo',
+      StorageService.checkInsFileName: 'i check-in',
+    };
+    final List<String> pezzi = <String>[
+      for (final String f in restored)
+        if (nomi[f] != null) nomi[f]!,
+    ];
+    if (pezzi.isEmpty) return 'Ripristino completato.';
+    if (pezzi.length == 1) return 'Ho rimesso ${pezzi.first}.';
+    final String ultimo = pezzi.removeLast();
+    return 'Ho rimesso ${pezzi.join(', ')} e $ultimo.';
+  }
 }

@@ -1,6 +1,6 @@
 import '../models/running_activity.dart';
-import 'gps_filter.dart';
 import 'pace_zone_engine.dart';
+import 'route_windows.dart';
 
 /// Quanto e' stata dura una seduta, guardando cosa e' stato corso davvero.
 enum SessionIntensity { recovery, easy, steady, moderate, hard }
@@ -262,43 +262,24 @@ class SessionClassifier {
     RunningActivity activity,
     TrainingZones zones,
   ) {
-    final List<RoutePoint> route = activity.route;
+    // Le finestre le costruisce RouteWindows, che e' lo stesso codice usato
+    // dal motore del carico: due copie dello stesso conto, prima o poi,
+    // divergono. Ed e' li' che i metri vengono dalla velocita' del chip invece
+    // che dalle posizioni, quando il tracciato ce l'ha.
     final List<_Window> out = <_Window>[];
-
-    int windowStart = 0;
-    double windowMeters = 0;
-
-    for (int i = 1; i < route.length; i++) {
-      final double step = haversineMeters(
-        route[i - 1].latitude,
-        route[i - 1].longitude,
-        route[i].latitude,
-        route[i].longitude,
-      );
-      if (step.isFinite) windowMeters += step;
-
-      final int elapsed =
-          route[i].elapsedSeconds - route[windowStart].elapsedSeconds;
-      if (elapsed < windowSeconds) continue;
-
-      TrainingZone? zone;
-      if (windowMeters > 5 && elapsed > 0) {
-        final double pace = elapsed / (windowMeters / 1000.0);
-        // Passi impossibili (GPS ballerino, semaforo, pausa non registrata)
-        // vengono scartati invece di finire in una zona a caso.
-        if (pace > 100 && pace < 1500) {
-          zone = zones.zoneFor(pace);
-        }
-      }
-      // zone == null: finestra buttata. Resta nella lista come buco, cosi'
+    for (final RouteWindow finestra in RouteWindows.of(
+      activity.route,
+      windowSeconds: windowSeconds,
+    )) {
+      final double? pace = finestra.paceSecondsPerKm;
+      // pace == null: finestra buttata. Resta nella lista come buco, cosi'
       // una pausa interrompe il blocco invece di saldare insieme due tratti
       // veloci lontani fra loro.
-      out.add(_Window(zone, elapsed.toDouble()));
-
-      windowStart = i;
-      windowMeters = 0;
+      out.add(_Window(
+        pace == null ? null : zones.zoneFor(pace),
+        finestra.seconds,
+      ));
     }
-
     return out;
   }
 

@@ -276,6 +276,8 @@ run_coach_app/
 │   │   ├── records_service.dart     # record personali per distanza
 │   │   ├── elevation_service.dart   # dislivello, al netto del rumore GPS
 │   │   ├── map_tile_service.dart    # riquadri di mappa: vista, memoria, costo
+│   │   ├── route_windows.dart       # tracciato -> finestre (una strada sola)
+│   │   ├── run_profile.dart         # passo e quota lungo il percorso
 │   │   ├── storage_service.dart     # salvataggio locale JSON
 │   │   └── native_bridge.dart       # schermo acceso + permesso notifiche
 │   ├── providers/
@@ -291,6 +293,7 @@ run_coach_app/
 │   │   ├── plan_screen.dart         # il piano attivo
 │   │   ├── plan_setup_screen.dart   # creazione del piano
 │   │   ├── week_edit_screen.dart    # i giorni di UNA settimana sola
+│   │   ├── backup_screen.dart       # copia di sicurezza: salva e rimetti
 │   │   ├── share_screen.dart        # l'immagine della corsa da mandare
 │   │   ├── unlock_screen.dart       # cosa e' gratis, cosa si paga
 │   │   ├── welcome_screen.dart      # primo avvio: chiede il nome
@@ -310,6 +313,7 @@ run_coach_app/
 │   │   ├── route_shape.dart       # il disegno del giro
 │   │   ├── route_map.dart         # il giro sopra la mappa vera
 │   │   ├── load_chart.dart        # condizione e fatica negli ultimi mesi
+│   │   ├── run_profile_chart.dart # passo e altimetria di una corsa
 │   │   ├── share_card.dart        # la scheda che diventa immagine
 │   │   ├── inset_list.dart
 │   │   ├── metric_card.dart
@@ -619,6 +623,131 @@ mappa da numero di settimana a settimana dichiarata, e il piano viene
 ricalcolato da quella. Per questo si torna indietro senza perdere niente, e per
 questo un piano salvato prima di questa funzione si riapre identico a com'era.
 
+### Come e' andata, metro per metro
+
+La tabella dei giri dice il passo di ogni chilometro, e va benissimo per un lento
+regolare. Non serve a niente per capire **dentro** un chilometro: una ripetuta da
+400 metri sparisce nella media del suo chilometro, un calo negli ultimi due
+minuti pure, e una salita che ti ha fatto perdere venti secondi sembra una
+giornata storta.
+
+Il dettaglio di una corsa mostra adesso il **passo lungo tutto il percorso**, con
+il **profilo altimetrico** sotto. Messi uno sopra l'altro si spiegano a vicenda:
+si vede il passo che cede esattamente dove la strada sale, e si capisce che non
+era una giornata storta, era in pendenza.
+
+#### Due riquadri, non due linee sovrapposte
+
+Passo e quota si misurano in cose diverse - minuti al chilometro e metri - e
+mettere **due scale verticali sullo stesso disegno** e' il modo piu' comune di
+mentire con un grafico: scegliendo le due scale si puo' far sembrare che le linee
+salgano insieme, che si incrocino, che una anticipi l'altra. Sono illusioni della
+scala, non cose vere. Due riquadri impilati che condividono **solo l'asse
+orizzontale** dicono la stessa cosa senza poterla falsare.
+
+#### Tre scelte che sembrano dettagli
+
+**Il passo e' capovolto.** Sul passo il numero piccolo e' il risultato migliore:
+4:00 e' piu' veloce di 6:00. Disegnato dritto, il grafico scenderebbe quando si
+va forte, e l'occhio legge "verso il basso" come "va peggio". In alto si corre
+forte.
+
+**Le interruzioni sono vere.** Dove il passo non si puo' dire - una sosta, un
+buco di segnale - la linea si interrompe. Non scende a zero e non viene ricucita:
+un ponte disegnato sopra un buco e' un dato inventato, e sarebbe pure quello piu'
+bello da guardare.
+
+**Un dislivello piccolo non viene stirato.** Sotto i venti metri il profilo
+altimetrico tiene una scala fissa invece di riempire il riquadro: venti metri su
+dieci chilometri sono una pianura, e disegnarli come una montagna sarebbe la
+stessa bugia del dislivello gonfiato, fatta con il disegno invece che con i
+numeri.
+
+#### Niente conti nuovi
+
+I numeri vengono da `RouteWindows` e da `ElevationService`, cioe' **dagli stessi
+conti** che producono la distanza, il dislivello, l'intensita' della seduta e il
+carico. Per farlo, la pulizia della quota e' diventata un metodo pubblico
+(`smoothedAltitudes`) che usano sia il grafico sia chi conta il dislivello: il
+numero scritto sotto il disegno e' quello del disegno.
+
+Un grafico che si calcolasse i suoi numeri per conto proprio prima o poi
+mostrerebbe una corsa diversa da quella scritta sopra. E' l'errore che questo
+progetto ha gia' fatto quattro volte.
+
+### Il passo, non solo la distanza
+
+La distanza adesso viene dalla velocita' del chip. Ma a corsa finita l'app
+rilegge il tracciato per capire **che seduta e' stata** (soglia? ripetute?
+lento?) e **quanto e' costata**, e per farlo misurava il passo dalle posizioni:
+lo stesso difetto gia' corretto, un passo piu' in la'.
+
+Misurato con un errore GPS realistico, su ripetute con passo vero 3:50/km sul
+forte e 6:00/km sul recupero:
+
+| errore GPS | dalle posizioni | dalla velocita' |
+|---|---|---|
+| 3 m | 3:49 / 5:44 | **3:52 / 5:54** |
+| 5 m | 3:49 / 5:42 | **3:52 / 5:54** |
+| 8 m | 3:47 / 5:38 | **3:52 / 5:54** |
+
+Pochi secondi, ma sempre nella stessa direzione: il forte sembra piu' veloce e
+il recupero pure, cioe' **la seduta sembra piu' dura di com'e' stata**. Nel
+motore del carico quello scarto viene elevato al quadrato.
+
+#### Una strada sola, finalmente
+
+Lo stesso conto era scritto **due volte**: nel classificatore e nel motore del
+carico. Due copie, scritte in momenti diversi, che prima o poi divergono - e' la
+quarta volta in questo progetto (il piano che leggeva un indice diverso da
+quello della schermata Forma, il trofeo che non sapeva dei personali dichiarati,
+la media settimanale che non era quella del punto di partenza, il grafico che
+poteva finire su un numero diverso da quello scritto sopra).
+
+Adesso c'e' `RouteWindows`, e tutti e due chiamano quello. Correggerlo significa
+correggerlo per tutti.
+
+I tracciati vecchi non hanno la velocita' nei punti: per quelli si torna alle
+posizioni, cioe' al comportamento di prima. Peggio, ma mai peggio di prima.
+
+### La copia di sicurezza
+
+Falcata tiene tutto nel telefono e non manda niente a nessuno. E' la scelta
+giusta, ma aveva un prezzo che pagava l'utente senza saperlo: **si cambia
+telefono e sparisce tutto**. Anni di corse, i record, il piano. Un archivio che
+non si puo' portare via non e' tuo, e' in prestito dal telefono che hai adesso.
+
+La copia e' **un file solo, in JSON leggibile**. Non un formato chiuso: se un
+giorno Falcata non esiste piu', quel file si apre lo stesso e dentro ci sono le
+corse. E lo si mette dove si vuole: l'app apre il selettore di Android e decide
+l'utente, cosi' la copia non finisce in un posto scelto da noi che poi non si
+trova. Nessun permesso sulla memoria, nessun account, nessun server.
+
+#### Il rischio non e' salvare, e' rimettere
+
+Salvare non puo' rompere niente: nel peggiore dei casi non si salva. Il
+ripristino invece **scrive sopra l'archivio buono**, ed e' esattamente il
+momento in cui l'utente non ha una seconda copia a cui tornare.
+
+Quindi la regola e' una sola: **prima si controlla tutto, poi si scrive.** Si
+verifica il marcatore, si verifica che ogni pezzo sia JSON valido, e solo se e'
+passato tutto si tocca il disco. Un pezzo danneggiato ferma **tutto** il
+ripristino: scrivere i pezzi buoni e saltare i rotti lascerebbe l'archivio meta'
+nuovo e meta' vecchio, e nessuno saprebbe quale meta'.
+
+Due dettagli che sembrano piccoli e non lo sono:
+
+- **La conferma si chiede prima di aprire il selettore.** Dopo aver scelto il
+  file l'utente ha gia' in testa che l'operazione e' partita, e una domanda a
+  quel punto si risponde senza leggerla.
+- **Dopo il ripristino i provider rileggono dal disco.** Senza, l'app
+  continuerebbe a mostrare l'archivio di prima finche' non viene riaperta, e
+  sembrerebbe che il ripristino non abbia funzionato.
+
+La corsa che si sta registrando in quel momento non entra nella copia: non fa
+ancora parte dell'archivio, e rimetterla su un altro telefono farebbe comparire
+una corsa a meta' che non si e' mai fatta.
+
 ### La distanza: il difetto piu' grave che l'app abbia avuto
 
 Una corsa vera, sua: 10,32 km in 51:40, passo 5:00. Carlo ha detto *"mi e'
@@ -630,29 +759,46 @@ forma, i record, il carico, i ritmi del piano. Nessun calcolo a valle puo'
 rimediare a un numero sbagliato in ingresso: se la distanza e' gonfiata del 15%
 l'app ti crede piu' veloce di quello che sei e ti allena a ritmi che non reggi.
 
-#### Il metodo che sembra ovvio, e perche' non funziona
+#### Il metodo che sembra ovvio, e quanto sbagliava davvero
 
-Falcata sommava la distanza fra un punto GPS e il successivo. E' la cosa ovvia
-da fare, ed e' sbagliata: ogni posizione ha un errore di qualche metro, e un
-corridore a 5:00/km avanza 3,3 metri al secondo. **Il passo vero e l'errore sono
-della stessa misura**, quindi la somma misura in buona parte il rumore.
+Falcata sommava la distanza fra un punto GPS e il successivo. Misurato su corse
+simulate con un errore del GPS **realistico** - che deriva lentamente invece di
+cambiare a ogni secondo:
 
-Aggiungere i filtri che sembrano risolverlo - una distanza minima per ignorare
-le oscillazioni, un tetto di velocita' per i salti - non toglie l'errore: gli
-fa cambiare segno in modo imprevedibile. Misurato su corse simulate di 50
-minuti di cui si conosceva la distanza vera:
-
-| errore del GPS | metodo vecchio | metodo nuovo |
+| caso | metodo vecchio | metodo nuovo |
 |---|---|---|
-| 2 m | da +2% a +32% (secondo il passo) | **-0,0%** |
-| 3 m | da -18% a +33% | **-0,0%** |
-| 5 m | circa -39% | **-0,0%** |
-| 8 m | circa -69% | **-0,0%** |
-| ripetute, 8 m | -73% | **-0,0%** |
-| con semafori, 3 m | +11% | **+0,3%** |
+| corsa continua | da +2,5% a +3,1% | **0,0%** |
+| ripetute | da -2,4% a -4,2% | **-0,2%** |
+| con soste e semafori | da +5,0% a +8,3% | **+0,1%** |
 
-Un'app che su una corsa vera puo' sbagliare di settanta chilometri su cento non
-sta misurando: sta tirando a indovinare.
+Tre per cento su dieci chilometri sono trecento metri. Sembra poco, e la cosa
+che lo rende grave non e' la grandezza: e' che **il segno cambia secondo il tipo
+di seduta**. Le corse con soste venivano allungate, le ripetute accorciate.
+Confrontare una seduta con l'altra - che e' esattamente quello che fa l'indice
+di forma - voleva dire confrontare due misure storte in direzioni opposte.
+
+#### Una lezione su come si misura, piu' importante della correzione
+
+La prima versione di questa analisi concludeva che il metodo vecchio sbagliava
+**fino al 69%**. Quel numero e' finito nel README, in tre file di codice e in
+due file di test, scritto come se fosse una misura. **Era falso.**
+
+L'errore stava nell'ipotesi, non nel conto: il rumore del GPS era stato
+modellato come **indipendente a ogni secondo**. L'errore vero invece deriva
+lentamente - multipath, geometria dei satelliti e ionosfera cambiano in minuti,
+non in secondi - quindi due posizioni consecutive hanno quasi lo stesso errore,
+e la differenza fra loro e' molto piu' pulita di quanto quel modello prevedesse.
+
+A smontarlo non e' stato il codice: e' stato chi l'app la usa, con *"non mi
+sembrava che sbagliasse cosi' tanto"*. Aveva ragione, e la verifica l'ha data
+lui senza saperlo: la sua corsa segnava 10,32 km, e +2,7% su 10,05 fa
+esattamente 10,32.
+
+Una simulazione vale quanto la sua ipotesi piu' debole. Quando il risultato
+contraddice l'esperienza di chi guarda i numeri veri, e' quasi sempre l'ipotesi
+a essere sbagliata - e vale la pena scriverlo qui, perche' la tentazione di
+fidarsi del proprio modello e' esattamente il modo in cui si costruiscono app
+che misurano male con grande sicurezza.
 
 #### Il dato giusto c'era gia', e veniva buttato
 

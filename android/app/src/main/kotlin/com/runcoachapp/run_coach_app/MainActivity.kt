@@ -31,12 +31,23 @@ import io.flutter.plugin.common.MethodChannel
  *    chiedere all'utente, e la finestra la apre il sistema;
  *  - openAppSettings: per i telefoni con un gestore proprio (Xiaomi, Huawei,
  *    Oppo), dove l'esenzione standard non basta;
- *  - shareRunImage: condivide l'immagine di una corsa.
+ *  - shareRunImage: condivide l'immagine di una corsa;
+ *  - saveTextFile / openTextFile: la copia di sicurezza dell'archivio, salvata
+ *    e riletta dove decide l'utente.
  */
 class MainActivity : FlutterActivity() {
 
     private val deviceChannel = "com.runcoachapp.run_coach_app/device"
     private val notificationRequestCode = 4711
+
+    // La copia di sicurezza passa dal selettore di file di Android (SAF):
+    // l'utente sceglie dove scrivere e cosa rileggere, e l'app non ha bisogno
+    // di nessun permesso sulla memoria. La risposta arriva piu' tardi, in
+    // onActivityResult, quindi la richiesta Flutter va tenuta da parte.
+    private val saveFileCode = 4713
+    private val openFileCode = 4714
+    private var pendingResult: MethodChannel.Result? = null
+    private var pendingContent: String? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -164,9 +175,98 @@ class MainActivity : FlutterActivity() {
                         result.success(shareRunImage(png, text))
                     }
 
+                    // Chiede dove salvare la copia e la scrive li'.
+                    "saveTextFile" -> {
+                        if (pendingResult != null) {
+                            result.success(false)
+                        } else {
+                            val nome = call.argument<String>("name") ?: "falcata.json"
+                            pendingContent = call.argument<String>("content") ?: ""
+                            pendingResult = result
+                            try {
+                                val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                                    addCategory(Intent.CATEGORY_OPENABLE)
+                                    type = "application/json"
+                                    putExtra(Intent.EXTRA_TITLE, nome)
+                                }
+                                startActivityForResult(intent, saveFileCode)
+                            } catch (error: Exception) {
+                                pendingResult = null
+                                pendingContent = null
+                                result.success(false)
+                            }
+                        }
+                    }
+
+                    // Chiede quale copia rileggere e ne restituisce il testo.
+                    "openTextFile" -> {
+                        if (pendingResult != null) {
+                            result.success(null)
+                        } else {
+                            pendingResult = result
+                            try {
+                                val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                                    addCategory(Intent.CATEGORY_OPENABLE)
+                                    // Non si filtra per application/json: tanti
+                                    // gestori di file e servizi cloud
+                                    // restituiscono i .json come tipo generico,
+                                    // e filtrando l'utente non vedrebbe la
+                                    // propria copia.
+                                    type = "*/*"
+                                }
+                                startActivityForResult(intent, openFileCode)
+                            } catch (error: Exception) {
+                                pendingResult = null
+                                result.success(null)
+                            }
+                        }
+                    }
+
                     else -> result.notImplemented()
                 }
             }
+    }
+
+    /**
+     * La risposta del selettore di file.
+     *
+     * Vale per tutte e due le direzioni: salvataggio e rilettura. La richiesta
+     * Flutter rimasta in sospeso viene chiusa qui, **sempre** - anche quando
+     * l'utente annulla o qualcosa va storto. Una richiesta lasciata aperta
+     * bloccherebbe per sempre il pulsante nell'app, e non si capirebbe perche'.
+     */
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != saveFileCode && requestCode != openFileCode) return
+
+        val risposta = pendingResult
+        val contenuto = pendingContent
+        pendingResult = null
+        pendingContent = null
+        if (risposta == null) return
+
+        val annullato = resultCode != RESULT_OK || data?.data == null
+        if (annullato) {
+            risposta.success(if (requestCode == saveFileCode) false else null)
+            return
+        }
+
+        val uri = data!!.data!!
+        try {
+            if (requestCode == saveFileCode) {
+                contentResolver.openOutputStream(uri)?.use { out ->
+                    out.write((contenuto ?: "").toByteArray(Charsets.UTF_8))
+                }
+                risposta.success(true)
+            } else {
+                val testo = contentResolver.openInputStream(uri)?.use { input ->
+                    input.readBytes().toString(Charsets.UTF_8)
+                }
+                risposta.success(testo)
+            }
+        } catch (error: Exception) {
+            risposta.success(if (requestCode == saveFileCode) false else null)
+        }
     }
 
     /**
