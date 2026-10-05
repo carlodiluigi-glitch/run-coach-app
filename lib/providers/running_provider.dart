@@ -92,6 +92,21 @@ class RunningProvider extends ChangeNotifier {
   /// che ha messo l'app a dormire.
   static const int gpsStallSeconds = 30;
 
+  // ------------------------------------------------------- prova in auto
+  bool _provaInAuto = false;
+
+  /// `true` se il tetto di velocita' della corsa e' spento per una prova.
+  ///
+  /// Non si salva: alla chiusura dell'app torna spento da solo, cosi' non
+  /// resta acceso per sbaglio nelle corse vere.
+  bool get provaInAuto => _provaInAuto;
+
+  void setProvaInAuto(bool acceso) {
+    _provaInAuto = acceso;
+    _filter.senzaLimiteVelocita = acceso;
+    notifyListeners();
+  }
+
   int _lastSnapshotSecond = -999;
   bool _snapshotInFlight = false;
 

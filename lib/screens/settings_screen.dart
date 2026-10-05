@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../app/app.dart';
 import '../app/routes.dart';
 import '../models/user_settings.dart';
+import '../providers/running_provider.dart';
 import '../providers/settings_provider.dart';
 import '../services/map_tile_service.dart';
 import '../widgets/app_card.dart';
@@ -321,6 +322,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 'corsa, nessuna posizione registrata e nessun nome. Tutto il '
                 'resto dell\'app - piano, passi, carico, archivio - funziona '
                 'anche in aereo.',
+              ),
+            ),
+
+            const SizedBox(height: 20),
+            const SectionTitle('Prova della distanza'),
+            AppCard(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              child: SwitchListTile(
+                value: context.watch<RunningProvider>().provaInAuto,
+                onChanged: context.read<RunningProvider>().setProvaInAuto,
+                title: const Text('Prova in auto'),
+                subtitle: const Text(
+                  'Spegne il limite di velocita\' della corsa, per misurare '
+                  'un tragitto noto in macchina. Si spegne da solo quando '
+                  'chiudi l\'app. La registrazione di prova va poi '
+                  'cancellata, altrimenti entra nei record e nell\'indice di '
+                  'forma.',
+                ),
               ),
             ),
 

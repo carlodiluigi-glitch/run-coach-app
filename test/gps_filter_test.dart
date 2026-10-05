@@ -278,13 +278,45 @@ void main() {
     });
 
     test('un buco lungo non si riempie di distanza inventata', () {
-      // Il telefono tace per un minuto. Moltiplicare l'ultima velocita' nota
-      // per quel minuto sarebbe regalare trecento metri.
+      // Il telefono tace per un minuto e sei rimasto fermo. Moltiplicare
+      // l'ultima velocita' nota per quel minuto sarebbe regalare duecento
+      // metri: la linea dritta e' zero, e zero si somma.
+      filter.process(
+          latitude: 45.0, longitude: 9.0, accuracy: 5, timestamp: t0,
+          speed: 3.3);
+      filter.process(
+        latitude: 45.0,
+        longitude: 9.0,
+        accuracy: 5,
+        timestamp: t0.add(const Duration(seconds: 60)),
+        speed: 3.3,
+      );
+      expect(filter.totalMeters, 0);
+    });
+
+    test('un buco lungo conta la linea dritta, non di piu\'', () {
+      // Un minuto di silenzio, ma nel frattempo ci si e' spostati di circa
+      // 120 metri verso nord: si contano quelli, non 3,3 x 60 = 198.
       filter.process(
           latitude: 45.0, longitude: 9.0, accuracy: 5, timestamp: t0,
           speed: 3.3);
       final GpsFilterResult r = filter.process(
-        latitude: 45.0,
+        latitude: 45.0 + 120 / 111195.0,
+        longitude: 9.0,
+        accuracy: 5,
+        timestamp: t0.add(const Duration(seconds: 60)),
+        speed: 3.3,
+      );
+      expect(r.accepted, isTrue);
+      expect(filter.totalMeters, closeTo(120, 2));
+    });
+
+    test('un salto impossibile durante un buco resta scartato', () {
+      filter.process(
+          latitude: 45.0, longitude: 9.0, accuracy: 5, timestamp: t0,
+          speed: 3.3);
+      final GpsFilterResult r = filter.process(
+        latitude: 45.1, // undici chilometri in un minuto
         longitude: 9.0,
         accuracy: 5,
         timestamp: t0.add(const Duration(seconds: 60)),
@@ -293,6 +325,21 @@ void main() {
       expect(r.accepted, isFalse);
       expect(r.reason, GpsRejectReason.gpsJump);
       expect(filter.totalMeters, 0);
+    });
+
+    test('in prova in auto la velocita\' da automobile si conta', () {
+      filter.senzaLimiteVelocita = true;
+      filter.process(
+          latitude: 45.0, longitude: 9.0, accuracy: 5, timestamp: t0,
+          speed: 25);
+      filter.process(
+        latitude: 45.0,
+        longitude: 9.0003,
+        accuracy: 5,
+        timestamp: t0.add(const Duration(seconds: 1)),
+        speed: 25, // 90 km/h
+      );
+      expect(filter.totalMeters, closeTo(25, 0.01));
     });
 
     test('campioni troppo ravvicinati vengono ignorati', () {

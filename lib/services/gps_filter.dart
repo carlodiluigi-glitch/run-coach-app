@@ -105,17 +105,30 @@ class GpsFilter {
   /// ~2:05 al km: oltre non e' una corsa a piedi.
   final double maxSpeedMetersPerSecond;
 
+  /// PROVA IN AUTO: spegne il tetto di velocita'.
+  ///
+  /// Serve solo a verificare la misura della distanza su un tragitto noto
+  /// senza aspettare una corsa. Non si salva: alla chiusura dell'app torna
+  /// spento da solo. Il tetto resta comunque a 100 m/s (360 km/h), che
+  /// nessuna auto raggiunge e che ferma ancora i salti assurdi del segnale.
+  bool senzaLimiteVelocita = false;
+
+  double get _velocitaMassima =>
+      senzaLimiteVelocita ? 100.0 : maxSpeedMetersPerSecond;
+
   /// Sotto questa velocita' si sta fermi o si cammina appena: non si somma.
   ///
   /// Mezzo metro al secondo e' un passo molto lento. Sotto, e' quasi sempre il
   /// chip che riporta il tremolio di chi e' in piedi al semaforo.
   final double minMovingSpeed;
 
-  /// Oltre questo silenzio non si somma niente.
+  /// Oltre questo silenzio non si usa la velocita', ma la linea dritta.
   ///
   /// Se il telefono smette di dare punti per piu' di dieci secondi, quello che
   /// e' successo nel mezzo non lo sa nessuno. Moltiplicare l'ultima velocita'
-  /// nota per un minuto di buco e' inventare, e inventare al rialzo.
+  /// nota per un minuto di buco e' inventare, e inventare al rialzo: si conta
+  /// solo la linea dritta fra il punto prima e quello dopo, che e' il minimo
+  /// certo.
   final int maxGapSeconds;
 
   /// Quanti campioni entrano nella media delle posizioni (solo nel ripiego).
@@ -212,16 +225,48 @@ class GpsFilter {
 
     final double deltaSec = deltaMs / 1000.0;
 
-    // Buco lungo: non si somma niente e si riparte da qui. Quello che e'
-    // successo nel mezzo non lo sa nessuno.
+    // BUCO LUNGO: SI CONTA ALMENO LA LINEA DRITTA.
+    //
+    // Quello che e' successo nel mezzo non lo sa nessuno, quindi moltiplicare
+    // l'ultima velocita' per il buco sarebbe inventare. Ma una cosa si sa per
+    // certo: sei passato dal punto di prima a quello di adesso, e la linea
+    // dritta fra i due e' il MINIMO che hai percorso. Su una strada dritta e'
+    // quasi esatta, in curva e' un po' corta: non puo' mai gonfiare.
+    //
+    // Prima il tratto si buttava intero. Su un telefono che manda un punto
+    // ogni cinque secondi basta saltarne uno per superare i dieci, e una corsa
+    // vera di 12,74 km (percorso misurato) e' uscita da 11,45: il 10% perso
+    // in silenzio, perche' l'avviso vocale scatta solo dopo trenta secondi.
     if (deltaSec > maxGapSeconds) {
+      final _Campione? ultimo = _finestra.isEmpty ? null : _finestra.last;
       dropReference();
       _ricorda(latitude, longitude, timestamp);
-      return GpsFilterResult.rejected(GpsRejectReason.gpsJump);
+      if (ultimo == null) {
+        return GpsFilterResult.rejected(GpsRejectReason.gpsJump);
+      }
+      final double dritto =
+          haversineMeters(ultimo.lat, ultimo.lon, latitude, longitude);
+      if (dritto / deltaSec > _velocitaMassima) {
+        return GpsFilterResult.rejected(GpsRejectReason.gpsJump);
+      }
+      // Sotto l'errore del GPS non si distingue uno spostamento da un
+      // tremolio: chi e' rimasto fermo durante il buco non somma niente.
+      final double sogliaBuco =
+          math.max(minDistanceMeters, accuracy * accuracyFactor);
+      if (dritto < sogliaBuco) {
+        return GpsFilterResult.accepted(0.0);
+      }
+      _totalMeters += dritto;
+      _positionSamples++;
+      return GpsFilterResult.accepted(
+        dritto,
+        instantSpeed: dritto / deltaSec,
+        source: DistanceSource.position,
+      );
     }
 
     // ------------------------------------------------- la strada principale
-    if (speed != null && speed > 0 && speed <= maxSpeedMetersPerSecond) {
+    if (speed != null && speed > 0 && speed <= _velocitaMassima) {
       _ricorda(latitude, longitude, timestamp);
 
       // IL RIFERIMENTO DEL RIPIEGO VA SPOSTATO ANCHE QUI.
@@ -279,7 +324,7 @@ class GpsFilter {
 
     if (dtMedia <= 0) return GpsFilterResult.accepted(0.0);
 
-    if (distanza / dtMedia > maxSpeedMetersPerSecond) {
+    if (distanza / dtMedia > _velocitaMassima) {
       // Anche dopo la media e' troppo: il segnale ha saltato.
       _mediaLat = media.lat;
       _mediaLon = media.lon;

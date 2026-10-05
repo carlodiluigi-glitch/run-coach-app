@@ -272,6 +272,13 @@ class _RunScreenState extends State<RunScreen> {
   }
 
   String _gpsQualityLabel(RunningProvider run) {
+    final String segnale = _gpsSignalLabel(run);
+    if (!run.provaInAuto) return segnale;
+    return '$segnale\nPROVA IN AUTO: limite di velocita\' spento. '
+        'Si spegne da solo alla chiusura dell\'app.';
+  }
+
+  String _gpsSignalLabel(RunningProvider run) {
     switch (run.gpsQuality) {
       case 3:
         return 'Segnale ottimo (precisione ${run.accuracy?.round()} m).';

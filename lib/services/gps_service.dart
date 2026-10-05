@@ -85,19 +85,29 @@ class GpsService {
   }) async {
     if (_running) return;
 
+    // UN PUNTO AL SECONDO, CHIESTO ESPLICITAMENTE.
+    //
+    // Senza intervalDuration Android decide da solo, e con questo pacchetto
+    // di solito manda un punto ogni cinque secondi. Il filtro della distanza
+    // e' pensato per un punto al secondo: con cinque, basta perderne uno per
+    // avere un buco di dieci e passa. Vale anche per l'anteprima prima dello
+    // START, cosi' il GPS e' gia' a regime quando si parte.
+    const Duration ogniSecondo = Duration(seconds: 1);
     final LocationSettings settings = background
         ? AndroidSettings(
             accuracy: LocationAccuracy.best,
             distanceFilter: distanceFilterMeters,
+            intervalDuration: ogniSecondo,
             foregroundNotificationConfig: ForegroundNotificationConfig(
               notificationTitle: notificationTitle,
               notificationText: notificationText,
               enableWakeLock: true,
             ),
           )
-        : LocationSettings(
+        : AndroidSettings(
             accuracy: LocationAccuracy.best,
             distanceFilter: distanceFilterMeters,
+            intervalDuration: ogniSecondo,
           );
 
     try {
