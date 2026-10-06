@@ -623,6 +623,51 @@ mappa da numero di settimana a settimana dichiarata, e il piano viene
 ricalcolato da quella. Per questo si torna indietro senza perdere niente, e per
 questo un piano salvato prima di questa funzione si riapre identico a com'era.
 
+### La Home: ordinata male, non brutta
+
+*"Questa schermata e' poco accattivante"* - e il problema non era estetico.
+
+Dall'alto c'erano: **"Ciao Carlo" grandissimo**, che era la cosa piu' grande
+dello schermo e non diceva niente; la prontezza; **la settimana che diceva zero
+tre volte** (un anello vuoto, "0.0 km - 0 uscite", e sotto "Nessuna corsa questa
+settimana"); e poi, forse, cosa fare oggi.
+
+Si apre un'app di allenamento per rispondere a una domanda sola: **cosa faccio
+oggi**. Quella risposta stava al quarto posto - e **spariva del tutto** nei
+giorni senza seduta in calendario.
+
+Cosa e' cambiato:
+
+**Il blocco "Oggi" e' la testata, e non puo' essere vuoto.** Ha quattro facce:
+la seduta del giorno con il pulsante che fa partire proprio quella; "riposo", e
+perche' conta; "non hai un piano", con il pulsante per farlo; o niente di tutto
+cio', e si corre e basta. Il vuoto non e' una risposta: *"oggi riposo"* e *"non
+hai un piano"* sono due risposte diverse, utili tutte e due, e nessuna si legge
+da un'assenza.
+
+**La prontezza entra come pillola accanto a "OGGI".** Il suo verdetto - pronto,
+normale, solo facile, riposa - serve *mentre si guarda la seduta*, non dieci
+centimetri piu' su: e' li' che decide se uscire. Il numero e i motivi restano
+nella scheda piu' in basso, per chi li vuole.
+
+**La settimana mostra un bersaglio, non uno zero.** Con un piano attivo: *"0.0
+km di 42 previsti, restano 42"*, con l'anello che si riempie. Lo stesso numero,
+e si legge al contrario: uno zero accanto a un bersaglio e' un invito, uno zero
+da solo e' un rimprovero.
+
+**Il saluto diventa una riga** accanto al nome dell'app, e lo spazio va a quello
+che serve a decidere.
+
+**Un accento solo per schermata.** "Allenamenti" era rosso e "Corsa libera"
+nero: l'occhio cadeva sull'azione secondaria. Adesso il rosso sta su quella che
+si usa davvero.
+
+Un dettaglio che vale la regola generale: il colore della banda di prontezza
+adesso lo calcola **una funzione sola**, usata sia dalla pillola in cima sia
+dalla scheda in fondo. Due copie dello stesso switch finiscono per divergere, e
+li' si sarebbe visto subito - lo stesso stato con due colori nella stessa
+schermata.
+
 ### Come e' andata, metro per metro
 
 La tabella dei giri dice il passo di ogni chilometro, e va benissimo per un lento

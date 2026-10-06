@@ -46,21 +46,29 @@ class HomeScreen extends StatelessWidget {
           ),
           children: <Widget>[
             // ------------------------------------------------ intestazione
+            //
+            // "Ciao Carlo" era la cosa piu' grande dello schermo e non diceva
+            // niente: il carattere piu' grosso era andato all'informazione con
+            // meno contenuto. Adesso e' una riga, e lo spazio va a quello che
+            // serve a decidere.
             Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: <Widget>[
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  child: Row(
                     children: <Widget>[
                       Text(
                         RunCoachApp.appName.toUpperCase(),
                         style: AppText.label.copyWith(color: p.accent),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        settings.settings.greeting,
-                        style: AppText.largeTitle.copyWith(color: p.ink),
+                      const SizedBox(width: 10),
+                      Flexible(
+                        child: Text(
+                          settings.settings.greeting,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppText.caption.copyWith(color: p.inkFaint),
+                        ),
                       ),
                     ],
                   ),
@@ -68,26 +76,27 @@ class HomeScreen extends StatelessWidget {
                 IconButton(
                   onPressed: () =>
                       Navigator.of(context).pushNamed(AppRoutes.settings),
-                  icon: Icon(Icons.settings_outlined, size: 26, color: p.inkSoft),
+                  icon: Icon(Icons.settings_outlined, size: 24, color: p.inkSoft),
                   tooltip: 'Impostazioni',
+                  visualDensity: VisualDensity.compact,
                 ),
               ],
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 10),
 
             // ------------------------------- una corsa che non si e' persa
             const _RecoveryCard(),
 
-            // ------------------------------------------------- prontezza
-            const _ReadinessCard(),
-
-            // -------------------------------------------- questa settimana
-            _WeekCard(stats: stats),
-
-            if (today != null) ...<Widget>[
-              const SectionTitle('Oggi in programma'),
-              _TodayCard(session: today),
-            ],
+            // ------------------------------------------------------- OGGI
+            //
+            // IL BLOCCO CHE C'E' SEMPRE.
+            //
+            // Si apre l'app per rispondere a una domanda: cosa faccio oggi.
+            // Prima quella risposta compariva solo se in calendario c'era una
+            // seduta, e stava al quarto posto - sotto il saluto, la prontezza e
+            // una settimana che diceva zero tre volte. Quando non c'era, non
+            // c'era niente al suo posto: e il vuoto non e' una risposta.
+            _OggiCard(session: today),
 
             const SizedBox(height: 14),
 
@@ -96,8 +105,8 @@ class HomeScreen extends StatelessWidget {
               children: <Widget>[
                 Expanded(
                   child: _StartTile(
-                    background: p.isDark ? p.surfaceElevated : Colors.black,
-                    foreground: Colors.white,
+                    background: p.accent,
+                    foreground: p.onAccent,
                     overline: 'Parti subito',
                     title: 'Corsa libera',
                     icon: Icons.directions_run_rounded,
@@ -107,9 +116,14 @@ class HomeScreen extends StatelessWidget {
                 ),
                 const SizedBox(width: 12),
                 Expanded(
+                  // UN SOLO ACCENTO PER SCHERMATA.
+                  //
+                  // Prima questo era rosso e "Corsa libera" nero: l'occhio
+                  // cadeva sull'azione secondaria. Il rosso adesso sta su
+                  // quella che si usa davvero.
                   child: _StartTile(
-                    background: p.accent,
-                    foreground: p.onAccent,
+                    background: p.surfaceElevated,
+                    foreground: p.ink,
                     overline: 'Programmato',
                     title: 'Allenamenti',
                     icon: Icons.repeat_rounded,
@@ -119,6 +133,17 @@ class HomeScreen extends StatelessWidget {
                 ),
               ],
             ),
+            const SizedBox(height: 14),
+
+            // -------------------------------------------- questa settimana
+            _WeekCard(
+              stats: stats,
+              obiettivoKm: plans.weekFor(DateTime.now())?.targetKm,
+            ),
+
+            // ------------------------------------------------- prontezza
+            const SizedBox(height: 14),
+            const _ReadinessCard(),
 
             // ------------------------------------------------ ultima uscita
             const SectionTitle('Ultima uscita'),
@@ -336,22 +361,9 @@ class _ReadinessCard extends StatelessWidget {
 
     final Readiness r = activities.readiness;
 
-    Color colore() {
-      switch (r.band) {
-        case ReadinessBand.ready:
-          return p.green;
-        case ReadinessBand.normal:
-          return p.blue;
-        case ReadinessBand.easy:
-          return p.orange;
-        case ReadinessBand.rest:
-          return p.red;
-      }
-    }
+    Color colore() => coloreBanda(r.band, p);
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
-      child: AppCard(
+    return AppCard(
         onTap: () => Navigator.of(context).pushNamed(AppRoutes.checkIn),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -437,15 +449,199 @@ class _ReadinessCard extends StatelessWidget {
             ),
           ],
         ),
-      ),
     );
   }
 }
 
+/// Cosa si fa oggi. Il blocco che c'e' sempre.
+///
+/// PERCHE' STA IN CIMA E PERCHE' NON SPARISCE MAI
+/// ----------------------------------------------
+/// Si apre un'app di allenamento per rispondere a una domanda sola: **cosa
+/// faccio oggi**. Nella Home di prima quella risposta compariva solo se in
+/// calendario c'era una seduta, e stava al quarto posto - sotto il saluto, la
+/// prontezza, e una settimana che diceva zero tre volte.
+///
+/// Quando la seduta non c'era, al suo posto non c'era niente. Ma **il vuoto non
+/// e' una risposta**: "oggi riposo" e "non hai un piano" sono due risposte
+/// diverse, utili tutte e due, e nessuna delle due si legge da un'assenza.
+///
+/// Quindi questo blocco ha quattro facce e non puo' essere vuoto:
+///
+///  - c'e' una seduta -> la seduta, con il pulsante che fa partire proprio
+///    quella;
+///  - c'e' il piano ma oggi no -> riposo, e perche' conta;
+///  - non c'e' un piano -> si puo' farlo, da qui;
+///  - nessuna delle tre -> si corre e basta, che va benissimo.
+class _OggiCard extends StatelessWidget {
+  const _OggiCard({required this.session});
+
+  final PlannedSession? session;
+
+  @override
+  Widget build(BuildContext context) {
+    final PlanProvider plans = context.watch<PlanProvider>();
+
+    if (session != null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          const _OggiIntestazione(),
+          const SizedBox(height: 8),
+          _TodayCard(session: session!),
+        ],
+      );
+    }
+
+    final AppPalette p = AppPalette.of(context);
+    final bool conPiano = plans.hasPlan;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        const _OggiIntestazione(),
+        const SizedBox(height: 8),
+        AppCard(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+          onTap: conPiano
+              ? null
+              : () => Navigator.of(context).pushNamed(AppRoutes.planSetup),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Row(
+                children: <Widget>[
+                  Icon(
+                    conPiano ? Icons.hotel_rounded : Icons.calendar_month_rounded,
+                    size: 19,
+                    color: conPiano ? p.blue : p.accent,
+                  ),
+                  const SizedBox(width: 9),
+                  Text(
+                    conPiano ? 'Riposo' : 'Non hai un piano',
+                    style: AppText.title.copyWith(color: p.ink),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                conPiano
+                    ? 'Il riposo e\' quando il corpo trasforma in allenamento '
+                        'quello che hai corso. Saltarlo non ti rende piu\' '
+                        'allenato: ti rende piu\' stanco alla prossima seduta.'
+                    : 'Falcata puo\' scriverti le settimane sui giorni e sul '
+                        'tempo che hai davvero, con i passi calcolati sulla tua '
+                        'forma di adesso.',
+                style: AppText.body.copyWith(color: p.inkSoft),
+              ),
+              if (!conPiano) ...<Widget>[
+                const SizedBox(height: 13),
+                SizedBox(
+                  height: 46,
+                  child: FilledButton.icon(
+                    onPressed: () =>
+                        Navigator.of(context).pushNamed(AppRoutes.planSetup),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: p.accent,
+                      foregroundColor: p.onAccent,
+                    ),
+                    icon: const Icon(Icons.add_rounded),
+                    label: const Text('Crea un piano'),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// "OGGI", con il verdetto della prontezza accanto.
+///
+/// La prontezza era una scheda grande per conto suo, prima di tutto il resto.
+/// Ma il suo verdetto - pronto, normale, solo facile, riposa - serve **mentre
+/// si guarda la seduta**, non dieci centimetri piu' su: e' li' che decide se
+/// uscire. Il numero e i motivi restano nella scheda piu' in basso, per chi li
+/// vuole.
+class _OggiIntestazione extends StatelessWidget {
+  const _OggiIntestazione();
+
+  @override
+  Widget build(BuildContext context) {
+    final AppPalette p = AppPalette.of(context);
+    final ActivityProvider activities = context.watch<ActivityProvider>();
+
+    final bool haCarico = activities.trainingZones != null &&
+        !activities.trainingLoad.isEmpty;
+    final bool mostraProntezza =
+        haCarico || activities.todayCheckIn != null;
+    final Readiness r = activities.readiness;
+
+    return Row(
+      children: <Widget>[
+        Text('OGGI', style: AppText.label.copyWith(color: p.inkFaint)),
+        const Spacer(),
+        if (mostraProntezza)
+          GestureDetector(
+            onTap: () => Navigator.of(context).pushNamed(AppRoutes.checkIn),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: coloreBanda(r.band, p).withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(AppRadius.pill),
+              ),
+              child: Text(
+                '${r.band.label} · ${r.score}',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: coloreBanda(r.band, p),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// Il colore di una banda di prontezza.
+///
+/// Sta qui fuori perche' lo usano sia la pillola in cima sia la scheda in
+/// fondo: due copie dello stesso switch finirebbero per divergere, e si
+/// vedrebbe - lo stesso stato con due colori nella stessa schermata.
+Color coloreBanda(ReadinessBand banda, AppPalette p) {
+  switch (banda) {
+    case ReadinessBand.ready:
+      return p.green;
+    case ReadinessBand.normal:
+      return p.blue;
+    case ReadinessBand.easy:
+      return p.orange;
+    case ReadinessBand.rest:
+      return p.red;
+  }
+}
+
 class _WeekCard extends StatelessWidget {
-  const _WeekCard({required this.stats});
+  const _WeekCard({required this.stats, this.obiettivoKm});
 
   final RunningStats stats;
+
+  /// I chilometri che il piano prevede per questa settimana.
+  ///
+  /// PERCHE' CAMBIA TUTTO
+  /// --------------------
+  /// Senza, la scheda diceva "0.0 km - 0 uscite - Nessuna corsa questa
+  /// settimana": tre modi di dire che non hai fatto niente, in prima pagina,
+  /// con un anello vuoto a fianco. Non e' neutro, e' un rimprovero.
+  ///
+  /// Uno zero **accanto a un bersaglio** - 0 di 42 km, con l'anello che si
+  /// riempie man mano - e' un invito. Lo stesso numero, e si legge al
+  /// contrario.
+  final double? obiettivoKm;
 
   @override
   Widget build(BuildContext context) {
@@ -461,21 +657,31 @@ class _WeekCard extends StatelessWidget {
     // stessa identica regola - mediana delle settimane intere, niente
     // confronto sotto le tre - invece di riscriverla qui. Due strade che
     // calcolano la stessa cosa finiscono sempre per divergere.
+    // Il bersaglio del piano viene prima: e' una cosa che hai deciso tu, non
+    // una media ricavata. Senza piano si ripiega sul confronto con il solito.
     final double? riferimento = stats.suggestedWeeklyKm;
+    final double? bersaglio = obiettivoKm;
     final bool hasHistory = riferimento != null;
-    final double ratio = hasHistory
-        ? stats.weekKm / riferimento
-        : (stats.weekKm > 0 ? 1.0 : 0.0);
 
+    final double ratio;
     final String note;
-    if (!hasHistory) {
+    if (bersaglio != null && bersaglio > 0) {
+      ratio = stats.weekKm / bersaglio;
+      final double restano = bersaglio - stats.weekKm;
+      note = restano <= 0.5
+          ? 'Settimana completata: ${bersaglio.toStringAsFixed(0)} km fatti'
+          : 'di ${bersaglio.toStringAsFixed(0)} km previsti  ·  '
+              'restano ${restano.toStringAsFixed(0)}';
+    } else if (hasHistory) {
+      ratio = stats.weekKm / riferimento;
+      note = stats.weekKm >= riferimento
+          ? 'Sopra le tue ${riferimento.toStringAsFixed(0)} km di solito'
+          : 'Di solito fai ${riferimento.toStringAsFixed(0)} km a settimana';
+    } else {
+      ratio = stats.weekKm > 0 ? 1.0 : 0.0;
       note = stats.weekKm > 0
           ? 'Ancora poche settimane per un confronto'
-          : 'Nessuna corsa questa settimana';
-    } else if (stats.weekKm >= riferimento) {
-      note = 'Sopra le tue ${riferimento.toStringAsFixed(0)} km di solito';
-    } else {
-      note = 'Di solito fai ${riferimento.toStringAsFixed(0)} km a settimana';
+          : 'La prima corsa della settimana la decidi tu';
     }
 
     return AppCard(
