@@ -10,6 +10,7 @@ import '../models/user_settings.dart';
 import '../models/workout.dart';
 import '../models/workout_step.dart';
 import '../services/audio_coach_service.dart';
+import '../services/cadence.dart';
 import '../services/gps_filter.dart';
 import '../services/gps_service.dart';
 import '../services/permission_service.dart';
@@ -92,6 +93,10 @@ class RunningProvider extends ChangeNotifier {
   // secondo, e su un totale cumulativo un secondo non cambia la cadenza.
   bool _stepsOn = false;
   int? _stepsNow;
+
+  /// I passi contati quando e' cominciato il giro in corso: la cadenza del
+  /// giro e' la differenza con quelli di adesso.
+  int? _lapStartSteps;
   int _lastStepsReadSecond = -10;
   bool _readingSteps = false;
 
@@ -335,6 +340,7 @@ class RunningProvider extends ChangeNotifier {
     // identica, solo senza cadenza.
     _stepsOn = await _native.startStepCounter();
     _stepsNow = _stepsOn ? 0 : null;
+    _lapStartSteps = _stepsNow;
 
     _startTime = DateTime.now();
     _state = RunState.running;
@@ -509,6 +515,7 @@ class RunningProvider extends ChangeNotifier {
     _lostSeconds = 0;
     _warnedAboutStall = false;
     _stepsNow = null;
+    _lapStartSteps = null;
     _lastStepsReadSecond = -10;
   }
 
@@ -849,25 +856,107 @@ class RunningProvider extends ChangeNotifier {
       stepLabel: stepLabel,
       stepKind: stepKind,
     );
+    // Il giro precedente va preso PRIMA di aggiungere questo, se no il
+    // confronto sarebbe fra il giro e se stesso.
+    final Lap? precedente = _laps.isEmpty ? null : _laps.last;
     _laps.add(lap);
 
-    _lapStartDistance += lapDistance;
-    _lapStartSeconds = totalSeconds;
+    // La cadenza del giro: i passi di adesso meno quelli di quando il giro e'
+    // cominciato. Si aggiorna il riferimento comunque, anche quando la cadenza
+    // non si puo' dire, se no il giro dopo userebbe un riferimento vecchio e
+    // la cadenza uscirebbe gonfiata.
+    final int? passiGiro =
+        (_stepsNow != null && _lapStartSteps != null && _stepsNow! >= _lapStartSteps!)
+            ? _stepsNow! - _lapStartSteps!
+            : null;
+    _lapStartSteps = _stepsNow;
 
     if (announce) {
-      unawaited(_coach.speak(
-        // I numeri vanno passati in forma pronunciabile: "cinque e ventitre"
-        // si capisce correndo, "5:23" viene letto male dalla sintesi vocale.
-        _coach.phrases.lapCompleted(
-          lapNumber: lap.number,
-          distanceLabel: spokenDistance(lap.distanceMeters),
-          timeLabel: spokenDuration(lap.durationSeconds),
-          paceLabel: spokenPace(lap.paceSecondsPerKm),
-        ),
-      ));
+      unawaited(_coach.speak(_annuncioGiro(lap, precedente, passiGiro)));
     }
 
     return lap;
+  }
+
+  /// Compone l'annuncio vocale di fine giro, secondo quanto l'utente vuole
+  /// sentire.
+  ///
+  /// I numeri vanno passati in forma pronunciabile: "cinque e ventitre" si
+  /// capisce correndo, "5:23" viene letto male dalla sintesi vocale.
+  String _annuncioGiro(Lap lap, Lap? precedente, int? passiGiro) {
+    final SpokenDetail quanto = _coach.detail;
+    final bool essenziale = quanto == SpokenDetail.essenziale;
+    final bool tutto = quanto == SpokenDetail.tutto;
+
+    // Il giro e' "standard" quando dura esattamente la distanza impostata per
+    // il lap automatico: li' il tempo del giro E' il passo, e ripeterlo
+    // sarebbe dire due volte lo stesso numero.
+    final double attesa = _settings.autoLapDistanceMeters;
+    final bool standard =
+        !lap.manual && (lap.distanceMeters - attesa).abs() < attesa * 0.02;
+
+    // Il confronto col giro prima ha senso solo fra giri confrontabili: due
+    // parziali di lunghezza diversa non si confrontano al secondo.
+    double? scarto;
+    if (!essenziale && precedente != null) {
+      final double? adesso = lap.paceSecondsPerKm;
+      final double? prima = precedente.paceSecondsPerKm;
+      final bool stessaLunghezza = (lap.distanceMeters -
+                  precedente.distanceMeters)
+              .abs() <
+          lap.distanceMeters * 0.1;
+      if (adesso != null && prima != null && stessaLunghezza) {
+        scarto = adesso - prima;
+      }
+    }
+
+    return _coach.phrases.lapFull(
+      lapNumber: lap.number,
+      distanceLabel: spokenDistance(lap.distanceMeters),
+      timeLabel: spokenDuration(lap.durationSeconds),
+      standardLength: standard,
+      paceLabel: spokenPace(lap.paceSecondsPerKm),
+      deltaSeconds: scarto,
+      totalDistanceLabel:
+          essenziale ? null : spokenDistance(_distanceMeters),
+      totalTimeLabel: essenziale ? null : spokenDuration(lap.totalTimeSeconds),
+      cadence: tutto && passiGiro != null
+          ? Cadence.spm(
+              steps: passiGiro,
+              seconds: lap.durationSeconds.toDouble(),
+            )?.round()
+          : null,
+      remainingLabel: tutto ? _quantoManca() : null,
+    );
+  }
+
+  /// Quanto manca alla fine della **fase in corso** di un allenamento
+  /// programmato.
+  ///
+  /// PERCHE' LA FASE E NON TUTTO L'ALLENAMENTO
+  /// -----------------------------------------
+  /// Perche' la fase e' quello che stai facendo adesso, e sapere che mancano
+  /// trecento metri alla fine della ripetuta cambia come li corri. Quanto
+  /// manca alla fine di tutta la seduta non cambia niente nel momento.
+  ///
+  /// La frase dice "a fine fase" per non lasciare dubbi: durante un lento da
+  /// cinquanta minuti, un "mancano venti minuti" senza il resto della frase
+  /// si capirebbe al contrario.
+  ///
+  /// `null` nella corsa libera: li' non c'e' una fine da raggiungere, e dire
+  /// "mancano zero chilometri" sarebbe peggio di non dire niente.
+  String? _quantoManca() {
+    final WorkoutEngine? engine = _engine;
+    if (engine == null) return null;
+    final double? metri = engine.remainingMeters;
+    if (metri != null && metri > 50) {
+      return 'A fine fase mancano ${spokenDistance(metri)}.';
+    }
+    final int? secondi = engine.remainingSeconds;
+    if (secondi != null && secondi > 30) {
+      return 'A fine fase mancano ${spokenDuration(secondi)}.';
+    }
+    return null;
   }
 
   void _updateWorkout() {

@@ -111,6 +111,35 @@ class SettingsProvider extends ChangeNotifier {
   Future<void> setWeeklyAvailability(WeeklyAvailability availability) =>
       update(_settings.copyWith(weeklyAvailability: availability));
 
+  /// Chiaro, scuro, o come il telefono.
+  Future<void> setTheme(ThemeChoice choice) =>
+      update(_settings.copyWith(theme: choice));
+
+  /// Quanto deve dire la voce a ogni chilometro.
+  Future<void> setSpokenDetail(SpokenDetail detail) =>
+      update(_settings.copyWith(spokenDetail: detail));
+
+  /// Sceglie una delle voci installate sul telefono. Stringa vuota = la
+  /// sceglie l'app.
+  Future<void> setVoice(String name) =>
+      update(_settings.copyWith(ttsVoice: name));
+
+  /// Le voci italiane installate sul telefono.
+  Future<List<CoachVoice>> availableVoices() => _coach.availableVoices();
+
+  /// Fa sentire una voce **senza sceglierla**.
+  ///
+  /// Dopo la prova si riapplicano le impostazioni, cosi' la voce in uso torna
+  /// quella vera: provarne una non deve cambiarla di nascosto.
+  Future<void> previewVoice(CoachVoice voce) async {
+    await _coach.previewVoice(
+      voce,
+      'Giro tre. Un chilometro in cinque e dieci. '
+      'Due secondi piu\' veloce. Cadenza centosessantotto.',
+    );
+    await _coach.applySettings(_settings);
+  }
+
   /// Prova la voce del coach con la personalita' attualmente selezionata.
   Future<void> testVoice() async {
     await _coach.applySettings(_settings);

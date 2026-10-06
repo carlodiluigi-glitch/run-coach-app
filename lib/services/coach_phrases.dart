@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import '../models/user_settings.dart';
+import '../utils/speech_formatters.dart';
 
 /// Tutte le frasi del coach vocale, centralizzate in un unico posto.
 ///
@@ -172,6 +173,82 @@ class CoachPhrases {
       buffer.write(' Passo $paceLabel.');
     }
     return buffer.toString();
+  }
+
+  /// L'annuncio completo di fine giro.
+  ///
+  /// PERCHE' NON DICE PIU' "PASSO CINQUE E DIECI" DOPO "UN CHILOMETRO IN
+  /// CINQUE E DIECI"
+  /// -------------------------------------------------------------------
+  /// Perche' su un giro da un chilometro quelle due frasi sono lo stesso
+  /// numero detto due volte. Il passo si annuncia solo quando il giro **non**
+  /// e' della lunghezza standard - un parziale chiuso a mano, una ripetuta da
+  /// 400 metri - cioe' quando il tempo da solo non basta a capire l'andatura.
+  ///
+  /// PERCHE' IL CONFRONTO COL GIRO PRIMA VIENE SUBITO DOPO
+  /// -----------------------------------------------------
+  /// Perche' e' l'unica informazione su cui si puo' ancora agire. Il tempo del
+  /// chilometro appena fatto e' storia; "quattro secondi piu' lento" dice cosa
+  /// fare nel chilometro che comincia adesso, mentre si e' ancora in tempo.
+  ///
+  /// [deltaSeconds] e' positivo se questo giro e' stato **piu' lento**.
+  /// La prima lettera maiuscola.
+  ///
+  /// Le etichette arrivano in minuscolo perche' nascono in mezzo a una frase
+  /// ("in un chilometro"), ma qui a volte una frase ci comincia. Non cambia
+  /// come suona - cambia che la frase e' scritta giusta, e un giorno queste
+  /// stringhe finiranno anche sullo schermo.
+  static String _maiuscola(String testo) {
+    if (testo.isEmpty) return testo;
+    return testo[0].toUpperCase() + testo.substring(1);
+  }
+
+  String lapFull({
+    required int lapNumber,
+    required String distanceLabel,
+    required String timeLabel,
+    required bool standardLength,
+    String? paceLabel,
+    double? deltaSeconds,
+    String? totalDistanceLabel,
+    String? totalTimeLabel,
+    int? cadence,
+    String? remainingLabel,
+  }) {
+    final StringBuffer b = StringBuffer();
+    b.write('Giro $lapNumber. ${_maiuscola(distanceLabel)} in $timeLabel.');
+    if (!standardLength && paceLabel != null) {
+      b.write(' Passo $paceLabel.');
+    }
+
+    if (deltaSeconds != null) {
+      final int scarto = deltaSeconds.round();
+      // Sotto i due secondi non e' un cambio di passo, e' rumore: annunciarlo
+      // farebbe correggere l'andatura a chi sta gia' andando giusto. Per
+      // questo il singolare non serve: il numero piu' piccolo che esce e' due.
+      if (scarto.abs() < 2) {
+        b.write(' Stesso passo di prima.');
+      } else if (scarto < 0) {
+        b.write(' ${_maiuscola(spokenNumber(scarto.abs()))} secondi piu\' '
+            'veloce.');
+      } else {
+        b.write(' ${_maiuscola(spokenNumber(scarto))} secondi piu\' lento.');
+      }
+    }
+
+    if (cadence != null) {
+      b.write(' Cadenza $cadence.');
+    }
+
+    if (totalDistanceLabel != null && totalTimeLabel != null) {
+      b.write(' Totale $totalDistanceLabel in $totalTimeLabel.');
+    }
+
+    if (remainingLabel != null) {
+      b.write(' $remainingLabel');
+    }
+
+    return b.toString();
   }
 
   /// Annuncio di fine fase in un allenamento programmato.

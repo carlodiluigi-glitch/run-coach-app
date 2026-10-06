@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/workout.dart';
 import '../screens/backup_screen.dart';
 import '../screens/battery_screen.dart';
+import '../screens/voice_screen.dart';
 import '../screens/checkin_screen.dart';
 import '../screens/activity_detail_screen.dart';
 import '../screens/activity_history_screen.dart';
@@ -78,6 +79,9 @@ class AppRoutes {
 
   /// Portare dentro le corse gia' fatte, da file GPX.
   static const String importa = '/importa';
+
+  /// Quale voce usa il coach, e quanto deve dire.
+  static const String voce = '/voce';
 
   /// Generatore delle rotte con gestione degli argomenti.
   static Route<dynamic> onGenerateRoute(RouteSettings routeSettings) {
@@ -162,6 +166,12 @@ class AppRoutes {
       case battery:
         return MaterialPageRoute<void>(
           builder: (_) => const BatteryScreen(),
+          settings: routeSettings,
+        );
+
+      case voce:
+        return MaterialPageRoute<void>(
+          builder: (_) => const VoiceScreen(),
           settings: routeSettings,
         );
 

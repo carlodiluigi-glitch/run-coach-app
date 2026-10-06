@@ -29,9 +29,10 @@ chiave privata**.
 8. [Permessi Android](#permessi-android)
 9. [Funzioni implementate](#funzioni-implementate)
 10. [La cadenza](#la-cadenza)
-11. [Funzioni predisposte per il futuro](#funzioni-predisposte-per-il-futuro)
-12. [Note tecniche](#note-tecniche)
-13. [Risoluzione problemi](#risoluzione-problemi)
+11. [La voce](#la-voce)
+12. [Funzioni predisposte per il futuro](#funzioni-predisposte-per-il-futuro)
+13. [Note tecniche](#note-tecniche)
+14. [Risoluzione problemi](#risoluzione-problemi)
 
 ---
 
@@ -460,6 +461,32 @@ restano nella cartella privata dell'app.
 L'aspetto dell'app segue le convenzioni di iOS, adattate ad Android. Tutte le
 scelte passano da un unico file, `lib/app/tokens.dart`: cambiando un colore
 li' cambia ovunque.
+
+### Chiaro, scuro, o come il telefono
+
+La scelta sta in Impostazioni → Aspetto, e non dipende dal telefono. Sono due
+decisioni diverse: il telefono sta chiaro tutto il giorno per leggere i messaggi
+al sole, un'app che si riapre dopo una corsa puo' voler stare scura lo stesso.
+Legarle costringerebbe a cambiare tutto il telefono per cambiare un'app.
+
+### Perche' il tema chiaro non e' piu' bianco
+
+La prima versione era quella delle impostazioni iOS: sfondo grigio chiarissimo
+(`F2F2F7`) e schede bianche piene. Su Android, con la luminosita' alta, il
+risultato e' una schermata **quasi tutta bianca**: schede e sfondo distano
+cinque punti di grigio su duecentocinquanta, cioe' non si distinguono, e quello
+che si vede e' un foglio acceso.
+
+Adesso lo sfondo scende parecchio e prende un filo di calore (`E8E4E1`) - il
+grigio perfettamente neutro, accanto a un accento rosso, legge freddo - e le
+schede smettono di essere bianco puro (`FBFAF9`). Il risultato e' che lo stacco
+fra scheda e sfondo **cresce**, quindi si vede meglio dove finisce una scheda,
+mentre la quantita' di bianco cala: sono due cose diverse che prima andavano
+insieme per sbaglio.
+
+Gli altri colori sono stati abbassati di conseguenza - un accento acceso su uno
+sfondo meno acceso griderebbe - e il testo principale non e' piu' nero assoluto
+ma quasi (`1A1718`), che su uno sfondo caldo affatica meno.
 
 **Nero mentre corri, chiaro quando ti riposi.** La schermata di corsa e'
 sempre nera, in qualunque tema. Non e' una scelta estetica: il bianco su nero
@@ -1999,6 +2026,83 @@ chiusa. Viene staccato in tutti i modi in cui una corsa puo' finire - stop,
 annullo, chiusura della schermata, `onDestroy` dell'Activity - perche' basta
 una strada dimenticata per avere esattamente il difetto che questa app passa il
 tempo a evitare.
+
+---
+
+## La voce
+
+### La voce non e' dell'app
+
+E' del telefono. Falcata puo' chiedere al sistema di parlare e puo' **scegliere
+fra le voci installate** - non puo' fabbricarne una. E' la cosa che nessuno si
+aspetta, ed e' la ragione per cui esiste una schermata intera
+([`lib/screens/voice_screen.dart`](lib/screens/voice_screen.dart)) invece di un
+interruttore.
+
+Prima l'app diceva al telefono solo "parla italiano" e si teneva quella che
+capitava. Un telefono Android ne ha quasi sempre piu' d'una: una di base,
+piccola e offline, che e' quella che suona meccanica, e altre migliori da
+scaricare. E su parecchi telefoni il motore vocale predefinito non e' nemmeno
+quello di Google, che e' il piu' naturale.
+
+Adesso all'avvio l'app guarda cosa c'e' davvero installato e sceglie il meglio:
+preferisce il motore Google se c'e', scarta i motori di ripiego (`espeak`,
+`pico`) e preferisce le voci Google (`it-it-x-...`).
+
+**Le voci di rete non vengono mai scelte da sole.** Sono le migliori - le
+sintetizzano i server di Google - ma **tacciono dove non c'e' campo**, e una
+voce che sparisce a meta' corsa e' peggio di una voce meno bella. Le puo'
+scegliere l'utente, che sa dove corre; l'app no.
+
+Se nessuna convince, la schermata spiega in due passaggi come scaricare una
+voce Google dalle impostazioni Android. E' lo stesso ragionamento della
+schermata sul risparmio energetico: un difetto che sembra dell'app e invece sta
+nel telefono si risolve spiegandolo bene una volta, non nascondendolo.
+
+#### Perche' quelle chiamate passano da `dynamic`
+
+Elencare voci e motori e' la parte del pacchetto TTS che cambia da una versione
+all'altra e da una piattaforma all'altra, ed e' una funzione **accessoria**: se
+non risponde, la voce deve continuare a funzionare con quella predefinita.
+Passando da `dynamic`, un metodo che non c'e' finisce nel `catch` invece di
+impedire la compilazione o spegnere il coach. Tutto il resto - `speak`,
+`setVolume`, `setLanguage` - resta tipizzato.
+
+### Quanto deve dire: tre livelli, non cinque interruttori
+
+Cinque interruttori separati - dimmi il totale, dimmi il confronto, dimmi la
+cadenza - costringono a decidere cinque volte una cosa sola: **quanto vuoi
+sentire parlare mentre corri.** Tre livelli rispondono alla domanda vera, e chi
+li prova capisce la differenza senza leggere niente.
+
+| livello | cosa dice a ogni chilometro |
+|---|---|
+| Essenziale | «Giro 3. Un chilometro in cinque e dieci.» |
+| Completo | + «Quattro secondi piu' veloce. Totale tre chilometri in quindici minuti.» |
+| Tutto | + «Cadenza 168. A fine fase mancano 400 metri.» |
+
+### Due regole che sembrano dettagli
+
+**Il passo non si ripete.** Prima l'annuncio diceva «Un chilometro in cinque e
+dieci. Passo cinque e dieci»: lo stesso numero due volte, perche' su un giro da
+un chilometro il tempo *e'* il passo. Adesso il passo si annuncia solo quando il
+giro **non** e' della lunghezza standard - un parziale chiuso a mano, una
+ripetuta da 400 metri - cioe' quando il tempo da solo non basta a capire
+l'andatura.
+
+**Il confronto col giro prima viene subito dopo il tempo**, perche' e' l'unica
+informazione su cui si puo' ancora agire: il tempo del chilometro appena fatto
+e' storia, "quattro secondi piu' lento" dice cosa fare nel chilometro che
+comincia adesso. Due condizioni lo governano: si confrontano solo giri di
+lunghezza simile (due parziali diversi non si confrontano al secondo), e sotto i
+**due secondi** di scarto si dice "stesso passo" invece di un numero - due
+secondi su un chilometro sono rumore, e annunciarli farebbe correggere
+l'andatura a chi sta gia' andando giusto.
+
+**"A fine fase", non "mancano".** Il conto alla rovescia riguarda la fase in
+corso dell'allenamento, non tutta la seduta: durante un lento da cinquanta
+minuti un "mancano venti minuti" senza il resto della frase si capirebbe al
+contrario.
 
 ---
 

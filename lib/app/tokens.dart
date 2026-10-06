@@ -74,20 +74,35 @@ class AppPalette {
   final bool isDark;
 
   /// Palette per il tema chiaro.
+  ///
+  /// PERCHE' NON E' PIU' BIANCA
+  /// --------------------------
+  /// La prima versione era quella delle impostazioni iOS: sfondo grigio
+  /// chiarissimo (F2F2F7) e schede bianche piene. Su un telefono Android, con
+  /// la luminosita' alta, il risultato e' una schermata che e' quasi tutta
+  /// bianca - le schede e lo sfondo distano cinque punti di grigio su
+  /// duecentocinquanta, cioe' non si distinguono, e quello che si vede e' un
+  /// foglio acceso.
+  ///
+  /// Qui lo sfondo scende di piu' e prende un filo di calore (il grigio
+  /// perfettamente neutro, accanto a un accento rosso, legge freddo), e le
+  /// schede smettono di essere bianco puro. Lo stacco fra scheda e sfondo
+  /// **cresce** - adesso si vede che sono schede - ma la quantita' di bianco
+  /// cala. Sono due cose diverse che prima andavano insieme per sbaglio.
   static const AppPalette light = AppPalette(
-    background: Color(0xFFF2F2F7),
-    surface: Color(0xFFFFFFFF),
-    surfaceElevated: Color(0xFFEFEFF4),
-    ink: Color(0xFF000000),
-    inkSoft: Color(0xFF5B5B61),
-    inkFaint: Color(0xFF8E8E93),
-    separator: Color(0xFFD8D8DE),
-    accent: Color(0xFFFF2D55),
+    background: Color(0xFFE8E4E1),
+    surface: Color(0xFFFBFAF9),
+    surfaceElevated: Color(0xFFF1EEEC),
+    ink: Color(0xFF1A1718),
+    inkSoft: Color(0xFF5B5558),
+    inkFaint: Color(0xFF8A8286),
+    separator: Color(0xFFD6D0CD),
+    accent: Color(0xFFE02047),
     onAccent: Color(0xFFFFFFFF),
-    green: Color(0xFF248A3D),
-    orange: Color(0xFFC05600),
-    blue: Color(0xFF007AFF),
-    red: Color(0xFFFF3B30),
+    green: Color(0xFF1F7A37),
+    orange: Color(0xFFB04E00),
+    blue: Color(0xFF0066D6),
+    red: Color(0xFFD32F26),
     isDark: false,
   );
 

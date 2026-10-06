@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../app/app.dart';
 import '../app/routes.dart';
+import '../app/tokens.dart';
 import '../models/user_settings.dart';
 import '../providers/settings_provider.dart';
 import '../services/map_tile_service.dart';
@@ -75,6 +76,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final SettingsProvider provider = context.watch<SettingsProvider>();
     final UserSettings settings = provider.settings;
     final ColorScheme scheme = Theme.of(context).colorScheme;
+    final AppPalette p = AppPalette.of(context);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Impostazioni')),
@@ -111,6 +113,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     child: const Text('SALVA NOME'),
                   ),
                 ],
+              ),
+            ),
+
+            const SizedBox(height: 20),
+            const SectionTitle('Aspetto'),
+            AppCard(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              child: Column(
+                children: <Widget>[
+                  for (final ThemeChoice scelta in ThemeChoice.values)
+                    _OptionTile(
+                      selected: settings.theme == scelta,
+                      title: scelta.label,
+                      subtitle: scelta.description,
+                      onTap: () => provider.setTheme(scelta),
+                    ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(left: 4, top: 8),
+              child: Text(
+                'La schermata di corsa resta nera in ogni caso: il bianco su '
+                'nero e\' quello che si legge meglio al sole, e sugli schermi '
+                'OLED il nero pieno non consuma batteria.',
+                style: AppText.caption.copyWith(color: p.inkFaint),
               ),
             ),
 
@@ -205,6 +233,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ],
               ),
+            ),
+            const SizedBox(height: 10),
+            InsetList(
+              children: <Widget>[
+                AppListRow(
+                  title: 'La voce',
+                  subtitle: 'Quale voce usa fra quelle del telefono, quanto '
+                      'deve dire a ogni chilometro, e come averne una meno '
+                      'robotica.',
+                  onTap: () => Navigator.of(context).pushNamed(AppRoutes.voce),
+                ),
+              ],
             ),
 
             const SizedBox(height: 20),

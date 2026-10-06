@@ -53,6 +53,103 @@ WeeklyAvailability? _availabilityFromJson(dynamic raw) {
   return letta.isEmpty ? null : letta;
 }
 
+/// Chiaro, scuro, o come il telefono.
+///
+/// PERCHE' UNA SCELTA DENTRO L'APP E NON SOLO QUELLA DI SISTEMA
+/// ------------------------------------------------------------
+/// Perche' sono due decisioni diverse. Il telefono e' chiaro tutto il giorno
+/// per leggere i messaggi al sole; un'app che si guarda la sera, o che si
+/// riapre dopo una corsa, puo' voler stare scura lo stesso. Legare le due cose
+/// costringe a cambiare tutto il telefono per cambiare un'app.
+enum ThemeChoice { sistema, chiaro, scuro }
+
+extension ThemeChoiceLabel on ThemeChoice {
+  String get label {
+    switch (this) {
+      case ThemeChoice.sistema:
+        return 'Come il telefono';
+      case ThemeChoice.chiaro:
+        return 'Chiaro';
+      case ThemeChoice.scuro:
+        return 'Scuro';
+    }
+  }
+
+  String get description {
+    switch (this) {
+      case ThemeChoice.sistema:
+        return 'Segue l\'impostazione di Android.';
+      case ThemeChoice.chiaro:
+        return 'Sempre chiaro, anche di notte.';
+      case ThemeChoice.scuro:
+        return 'Sempre scuro. Su uno schermo OLED consuma anche meno.';
+    }
+  }
+
+  String get storageKey => name;
+
+  static ThemeChoice fromStorage(String? value) {
+    for (final ThemeChoice t in ThemeChoice.values) {
+      if (t.name == value) return t;
+    }
+    return ThemeChoice.sistema;
+  }
+}
+
+/// Quanto deve dire la voce a ogni chilometro.
+///
+/// PERCHE' UNA SCELTA E NON UN INTERRUTTORE PER OGNI COSA
+/// ------------------------------------------------------
+/// Perche' cinque interruttori separati - dimmi il totale, dimmi il confronto,
+/// dimmi la cadenza - costringono a decidere cinque volte una cosa sola: quanto
+/// vuoi sentire parlare mentre corri. Tre livelli rispondono alla domanda vera,
+/// e chi li prova capisce subito la differenza senza leggere niente.
+enum SpokenDetail {
+  /// Solo il chilometro e il suo passo. Il minimo per non guardare il telefono.
+  essenziale,
+
+  /// Aggiunge il confronto col chilometro prima e il totale: e' il livello che
+  /// serve a correggere l'andatura mentre sei ancora in tempo.
+  completo,
+
+  /// Aggiunge la cadenza e, negli allenamenti, quanto manca alla fine.
+  tutto,
+}
+
+extension SpokenDetailLabel on SpokenDetail {
+  String get label {
+    switch (this) {
+      case SpokenDetail.essenziale:
+        return 'Essenziale';
+      case SpokenDetail.completo:
+        return 'Completo';
+      case SpokenDetail.tutto:
+        return 'Tutto';
+    }
+  }
+
+  String get description {
+    switch (this) {
+      case SpokenDetail.essenziale:
+        return 'Il chilometro e il suo passo, e basta.';
+      case SpokenDetail.completo:
+        return 'Aggiunge quanto sei andato piu\' veloce o piu\' piano del '
+            'chilometro prima, e il totale fin li\'.';
+      case SpokenDetail.tutto:
+        return 'Aggiunge la cadenza e, negli allenamenti, quanto manca.';
+    }
+  }
+
+  String get storageKey => name;
+
+  static SpokenDetail fromStorage(String? value) {
+    for (final SpokenDetail d in SpokenDetail.values) {
+      if (d.name == value) return d;
+    }
+    return SpokenDetail.completo;
+  }
+}
+
 class UserSettings {
   const UserSettings({
     this.userName = '',
@@ -69,6 +166,10 @@ class UserSettings {
     this.backgroundTrackingEnabled = true,
     this.welcomeDone = false,
     this.mapEnabled = false,
+    this.ttsVoice = '',
+    this.ttsEngine = '',
+    this.spokenDetail = SpokenDetail.completo,
+    this.theme = ThemeChoice.sistema,
     this.weeklyAvailability,
   });
 
@@ -98,6 +199,29 @@ class UserSettings {
 
   /// Velocita' di lettura del TTS (0.0 - 1.0 su Android).
   final double speechRate;
+
+  /// La voce scelta dall'utente, fra quelle installate sul telefono.
+  ///
+  /// PERCHE' SI SALVA IL NOME E NON LA VOCE
+  /// --------------------------------------
+  /// Perche' la voce non e' dell'app, e' del telefono: l'app puo' solo
+  /// chiedere al sistema di usarne una fra quelle che ci sono. Se un giorno
+  /// quella voce viene disinstallata, il nome qui dentro non corrisponde piu'
+  /// a niente e si torna automaticamente alla scelta migliore disponibile -
+  /// che e' meglio di restare muti.
+  ///
+  /// Vuoto = la sceglie l'app.
+  final String ttsVoice;
+
+  /// Il motore vocale scelto (su Android ce n'e' spesso piu' d'uno).
+  /// Vuoto = quello predefinito del telefono.
+  final String ttsEngine;
+
+  /// Quanto deve dire il coach a ogni chilometro.
+  final SpokenDetail spokenDetail;
+
+  /// Chiaro, scuro, o come il telefono.
+  final ThemeChoice theme;
 
   /// Continua a registrare con lo schermo spento e l'app in secondo piano.
   ///
@@ -161,6 +285,10 @@ class UserSettings {
     bool? backgroundTrackingEnabled,
     bool? welcomeDone,
     bool? mapEnabled,
+    String? ttsVoice,
+    String? ttsEngine,
+    SpokenDetail? spokenDetail,
+    ThemeChoice? theme,
     WeeklyAvailability? weeklyAvailability,
   }) =>
       UserSettings(
@@ -181,6 +309,10 @@ class UserSettings {
             backgroundTrackingEnabled ?? this.backgroundTrackingEnabled,
         welcomeDone: welcomeDone ?? this.welcomeDone,
         mapEnabled: mapEnabled ?? this.mapEnabled,
+        ttsVoice: ttsVoice ?? this.ttsVoice,
+        ttsEngine: ttsEngine ?? this.ttsEngine,
+        spokenDetail: spokenDetail ?? this.spokenDetail,
+        theme: theme ?? this.theme,
         weeklyAvailability: weeklyAvailability ?? this.weeklyAvailability,
       );
 
@@ -199,6 +331,10 @@ class UserSettings {
         'backgroundTrackingEnabled': backgroundTrackingEnabled,
         'welcomeDone': welcomeDone,
         'mapEnabled': mapEnabled,
+        'ttsVoice': ttsVoice,
+        'ttsEngine': ttsEngine,
+        'spokenDetail': spokenDetail.name,
+        'theme': theme.name,
         if (weeklyAvailability != null)
           'weeklyAvailability': weeklyAvailability!.toJson(),
       };
@@ -225,6 +361,11 @@ class UserSettings {
         welcomeDone: json['welcomeDone'] as bool? ??
             ((json['userName'] as String? ?? '').trim().isNotEmpty),
         mapEnabled: json['mapEnabled'] as bool? ?? false,
+        ttsVoice: json['ttsVoice'] as String? ?? '',
+        ttsEngine: json['ttsEngine'] as String? ?? '',
+        spokenDetail:
+            SpokenDetailLabel.fromStorage(json['spokenDetail'] as String?),
+        theme: ThemeChoiceLabel.fromStorage(json['theme'] as String?),
         weeklyAvailability: _availabilityFromJson(json['weeklyAvailability']),
       );
 }
