@@ -1,0 +1,70 @@
+name: run_coach_app
+description: "Run Coach - app Android per la corsa: GPS, allenamenti a intervalli, coach vocale, storico e gestione scarpe."
+publish_to: 'none'
+
+version: 2.5.1+28
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+  flutter: ">=3.22.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Traduzioni dei pezzi di interfaccia che arrivano da Flutter: il
+  # calendario, i pulsanti Annulla/OK, i nomi dei mesi. Fa parte dell'SDK,
+  # non e' un pacchetto di terzi.
+  flutter_localizations:
+    sdk: flutter
+
+  # State management semplice e stabile
+  provider: ">=6.1.0 <7.0.0"
+
+  # GPS / posizione
+  geolocator: ">=13.0.0 <15.0.0"
+
+  # Implementazione Android di geolocator. Viene gia' installata da geolocator,
+  # ma la dichiariamo perche' la usiamo direttamente: serve per AndroidSettings
+  # e ForegroundNotificationConfig, cioe' la registrazione in background.
+  # "any" lascia scegliere a pub la versione compatibile con geolocator.
+  geolocator_android: any
+
+  # Coach vocale (Text To Speech)
+  flutter_tts: ">=4.0.0 <5.0.0"
+
+  # Percorso della cartella documenti dell'app (storage locale JSON)
+  path_provider: ">=2.1.0 <3.0.0"
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ">=4.0.0 <7.0.0"
+
+flutter:
+  uses-material-design: true
+
+  # Inter, il carattere dell'interfaccia.
+  #
+  # PERCHE' NON IL CARATTERE DI SISTEMA: su Android il carattere predefinito e'
+  # Roboto, che cambia aspetto da telefono a telefono (i produttori lo
+  # sostituiscono). Inter e' incluso nell'app, quindi l'aspetto e' identico
+  # ovunque. E' anche il carattere libero piu' vicino al San Francisco di
+  # Apple, che e' lo stile scelto per l'app.
+  #
+  # I file sono "ridotti": contengono solo i caratteri latini che servono
+  # (circa 60 KB l'uno invece di 420 KB). Se un giorno servisse un alfabeto
+  # diverso, vanno rigenerati dai font originali di rsms.me/inter.
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Inter-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Inter-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Inter-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Inter-ExtraBold.ttf
+          weight: 800
