@@ -154,6 +154,76 @@ class NativeBridge {
     }
   }
 
+  // ------------------------------------------------------- la cadenza
+  //
+  // PERCHE' I PASSI LI CONTA IL TELEFONO E NON L'APP
+  // ------------------------------------------------
+  // Perche' il conteggio dei passi e' l'unica misura in cui un telefono batte
+  // il GPS: la fanno gli accelerometri dentro al telefono, e il chip dei
+  // sensori la tiene anche mentre Android dorme. Non dipende dai satelliti,
+  // dai palazzi, dagli alberi.
+  //
+  // Rifarlo in Dart vorrebbe dire leggere l'accelerometro a 50 volte al
+  // secondo per un'ora, filtrare, cercare i picchi - cioe' tenere sveglia la
+  // CPU per riprodurre peggio una cosa che il telefono fa gia' in hardware,
+  // consumando niente.
+
+  /// Chiede il permesso per leggere il sensore dei passi (da Android 10).
+  ///
+  /// Risponde `false` se non e' ancora concesso: la richiesta vera e' una
+  /// finestra di sistema e la risposta arriva dopo. Non si aspetta - la corsa
+  /// parte comunque e la cadenza, al massimo, comincia dalla prossima.
+  Future<bool> requestStepPermission() async {
+    try {
+      final bool? ok =
+          await _channel.invokeMethod<bool>('requestStepPermission');
+      return ok ?? false;
+    } catch (error) {
+      debugPrint('NativeBridge: permesso passi non disponibile ($error)');
+      return false;
+    }
+  }
+
+  /// Comincia a contare i passi da adesso.
+  ///
+  /// `false` se non si puo': permesso negato, o telefono senza sensore di
+  /// passo. In quel caso la corsa va avanti senza cadenza.
+  Future<bool> startStepCounter() async {
+    try {
+      final bool? ok = await _channel.invokeMethod<bool>('startStepCounter');
+      return ok ?? false;
+    } catch (error) {
+      debugPrint('NativeBridge: contapassi non disponibile ($error)');
+      return false;
+    }
+  }
+
+  /// Quanti passi dall'avvio del conteggio. `null` se non si sta contando.
+  ///
+  /// `null` e zero sono due cose diverse e non vanno confuse: zero vuol dire
+  /// "fermo", `null` vuol dire "non lo so". E' lo stesso errore che aveva
+  /// azzerato corse intere quando la velocita' zero del GPS veniva letta come
+  /// "sta fermo" invece di "il chip non l'ha riportata".
+  Future<int?> stepCount() async {
+    try {
+      final int? passi = await _channel.invokeMethod<int>('stepCount');
+      if (passi == null || passi < 0) return null;
+      return passi;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  /// Smette di contare (e stacca l'ascoltatore del sensore: un ascoltatore
+  /// lasciato aperto consuma batteria a corsa finita).
+  Future<void> stopStepCounter() async {
+    try {
+      await _channel.invokeMethod<void>('stopStepCounter');
+    } catch (error) {
+      debugPrint('NativeBridge: contapassi non fermabile ($error)');
+    }
+  }
+
   /// Chiede il permesso di mostrare notifiche (necessario da Android 13).
   ///
   /// Se l'utente rifiuta, la registrazione in background funziona comunque:

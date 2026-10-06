@@ -9,6 +9,7 @@ import '../models/running_shoe.dart';
 import '../providers/activity_provider.dart';
 import '../providers/settings_provider.dart';
 import '../providers/shoe_provider.dart';
+import '../services/cadence.dart';
 import '../services/elevation_service.dart';
 import '../services/pace_zone_engine.dart';
 import '../services/run_profile.dart';
@@ -60,6 +61,8 @@ class ActivityDetailScreen extends StatelessWidget {
     final ElevationSummary dislivello =
         const ElevationService().of(activity.route);
     final List<ProfileSample> profilo = RunProfile.of(activity.route);
+    final double? cadenza = Cadence.average(activity.route);
+    final int? passiTotali = Cadence.totalSteps(activity.route);
 
     final TrainingZones? zones = provider.trainingZones;
     final SessionAnalysis? analysis = zones == null
@@ -155,6 +158,55 @@ class ActivityDetailScreen extends StatelessWidget {
               ],
             ),
 
+            // ------------------------------------------------- la cadenza
+            //
+            // Quanti appoggi al minuto. Non dice se si andava forte - dice COME
+            // si correva: due persone allo stesso passo, una a 155 e una a 175,
+            // stanno facendo due cose diverse.
+            //
+            // Compare solo se c'e': i telefoni senza sensore di passo esistono,
+            // il permesso si puo' negare, e le corse registrate prima di questa
+            // versione non ce l'hanno. Un riquadro con "--" dentro sarebbe
+            // peggio di nessun riquadro.
+            if (cadenza != null) ...<Widget>[
+              const SizedBox(height: 12),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Expanded(
+                    child: MetricCard(
+                      label: 'Cadenza',
+                      value: '${cadenza.round()}',
+                      unit: 'passi/min',
+                      valueFontSize: 28,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: MetricCard(
+                      label: 'Passi',
+                      value: passiTotali == null
+                          ? '--'
+                          : formatThousands(passiTotali),
+                      valueFontSize: 28,
+                    ),
+                  ),
+                ],
+              ),
+              Padding(
+                padding: const EdgeInsets.only(left: 4, top: 8),
+                child: Text(
+                  'I passi li conta il sensore del telefono, non il GPS: e\' '
+                  'l\'unica misura qui dentro che i satelliti non possono '
+                  'sbagliare. Ne conta qualcuno in meno del vero, e quanto in '
+                  'meno dipende da dove tieni il telefono - in mano, in tasca, '
+                  'in fascia. Quindi guarda come cambia fra le tue corse, non '
+                  'il confronto con l\'orologio di un altro.',
+                  style: AppText.caption.copyWith(color: p.inkFaint),
+                ),
+              ),
+            ],
+
             // ------------------------------------- com'e' andata, metro per metro
             //
             // La tabella dei giri dice il passo di ogni chilometro, e va bene
@@ -170,9 +222,17 @@ class ActivityDetailScreen extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.only(left: 4, top: 8),
                 child: Text(
-                  'In alto si corre forte. Tieni il dito sul grafico per '
-                  'leggere un punto preciso. Dove la linea si interrompe il '
-                  'passo non si poteva dire: una sosta, o un buco di segnale.',
+                  RunProfile.mostlyFromSpeed(profilo)
+                      ? 'In alto si corre forte. Tieni il dito sul grafico per '
+                          'leggere un punto preciso. Dove la linea si '
+                          'interrompe il passo non si poteva dire: una sosta, '
+                          'o un buco di segnale.'
+                      : 'In alto si corre forte. Questa corsa e\' stata '
+                          'registrata prima che Falcata ricavasse il passo '
+                          'dalla velocita\' del chip, quindi qui viene dalle '
+                          'posizioni: la linea e\' piu\' mossa di com\'eri '
+                          'tu, e gran parte di quei picchi sono il GPS che '
+                          'balla. Le corse nuove hanno la linea pulita.',
                   style: AppText.caption.copyWith(color: p.inkFaint),
                 ),
               ),

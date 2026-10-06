@@ -28,9 +28,10 @@ chiave privata**.
 7. [Struttura del progetto](#struttura-del-progetto)
 8. [Permessi Android](#permessi-android)
 9. [Funzioni implementate](#funzioni-implementate)
-10. [Funzioni predisposte per il futuro](#funzioni-predisposte-per-il-futuro)
-11. [Note tecniche](#note-tecniche)
-12. [Risoluzione problemi](#risoluzione-problemi)
+10. [La cadenza](#la-cadenza)
+11. [Funzioni predisposte per il futuro](#funzioni-predisposte-per-il-futuro)
+12. [Note tecniche](#note-tecniche)
+13. [Risoluzione problemi](#risoluzione-problemi)
 
 ---
 
@@ -364,6 +365,8 @@ Dichiarati in `android/app/src/main/AndroidManifest.xml`:
 | `FOREGROUND_SERVICE_LOCATION`  | tipo del servizio (obbligatorio da Android 14)       |
 | `WAKE_LOCK`                    | tiene la CPU attiva a schermo spento                 |
 | `POST_NOTIFICATIONS`           | notifica della registrazione (da Android 13)         |
+| `INTERNET`                     | solo i riquadri di mappa, solo se la mappa e' accesa |
+| `ACTIVITY_RECOGNITION`         | il sensore dei passi, per la cadenza (da Android 10) |
 
 **Non** e' richiesto `ACCESS_BACKGROUND_LOCATION` (il permesso "Consenti
 sempre"). Usando un foreground service avviato mentre l'app e' in primo piano,
@@ -442,6 +445,9 @@ restano nella cartella privata dell'app.
   sommati automaticamente.
 - **Statistiche**: km settimana, ultime 4 settimane, grafico 8 settimane,
   passo medio, corsa piu' lunga, trend di miglioramento.
+- **Cadenza**: passi al minuto, misurati dal sensore di passo del telefono (non
+  dal GPS), con la media e i passi totali nella scheda della corsa e un riquadro
+  nel grafico. Vedi [La cadenza](#la-cadenza).
 - **Impostazioni** complete e persistenti.
 - **Storage locale** su file JSON: i dati restano dopo la chiusura dell'app.
 - Gestione degli errori: GPS spento, permesso negato, permesso negato in modo
@@ -737,18 +743,25 @@ minuti pure, e una salita che ti ha fatto perdere venti secondi sembra una
 giornata storta.
 
 Il dettaglio di una corsa mostra adesso il **passo lungo tutto il percorso**, con
-il **profilo altimetrico** sotto. Messi uno sopra l'altro si spiegano a vicenda:
-si vede il passo che cede esattamente dove la strada sale, e si capisce che non
-era una giornata storta, era in pendenza.
+la **cadenza** e il **profilo altimetrico** sotto. Messi uno sopra l'altro si
+spiegano a vicenda: si vede il passo che cede esattamente dove la strada sale, e
+si capisce che non era una giornata storta, era in pendenza; e si vede la cadenza
+che crolla negli ultimi chilometri di un lungo, che e' la stanchezza vera (vedi
+[La cadenza](#la-cadenza)).
 
-#### Due riquadri, non due linee sovrapposte
+I riquadri compaiono solo se c'e' qualcosa da metterci: una corsa senza cadenza
+ne ha due, una senza quota nemmeno quello. Il passo si prende lo spazio che
+resta, invece di essere schiacciato per lasciare posto a un riquadro vuoto.
 
-Passo e quota si misurano in cose diverse - minuti al chilometro e metri - e
-mettere **due scale verticali sullo stesso disegno** e' il modo piu' comune di
-mentire con un grafico: scegliendo le due scale si puo' far sembrare che le linee
-salgano insieme, che si incrocino, che una anticipi l'altra. Sono illusioni della
-scala, non cose vere. Due riquadri impilati che condividono **solo l'asse
-orizzontale** dicono la stessa cosa senza poterla falsare.
+#### Riquadri impilati, non linee sovrapposte
+
+Passo, cadenza e quota si misurano in cose diverse - minuti al chilometro, passi
+al minuto, metri - e mettere **piu' scale verticali sullo stesso disegno** e' il
+modo piu' comune di mentire con un grafico: scegliendo le scale si puo' far
+sembrare che le linee salgano insieme, che si incrocino, che una anticipi
+l'altra. Sono illusioni della scala, non cose vere. Riquadri impilati che
+condividono **solo l'asse orizzontale** dicono la stessa cosa senza poterla
+falsare.
 
 #### Tre scelte che sembrano dettagli
 
@@ -766,13 +779,20 @@ bello da guardare.
 altimetrico tiene una scala fissa invece di riempire il riquadro: venti metri su
 dieci chilometri sono una pianura, e disegnarli come una montagna sarebbe la
 stessa bugia del dislivello gonfiato, fatta con il disegno invece che con i
-numeri.
+numeri. Lo stesso vale per la cadenza, con venticinque passi al minuto come
+banda minima: una cadenza che sta fra 166 e 171 per un'ora e' una cadenza
+ottima, e stirata per riempire il riquadro sembrerebbe un disastro.
+
+**La cadenza non e' capovolta.** Lo e' solo il passo, perche' solo sul passo il
+numero piccolo e' il risultato migliore. Per questo i riquadri hanno
+un'etichetta: con tre linee impilate, una che sale puo' essere la cadenza o la
+salita, e sono due letture opposte della stessa corsa.
 
 #### Niente conti nuovi
 
-I numeri vengono da `RouteWindows` e da `ElevationService`, cioe' **dagli stessi
-conti** che producono la distanza, il dislivello, l'intensita' della seduta e il
-carico. Per farlo, la pulizia della quota e' diventata un metodo pubblico
+I numeri vengono da `RouteWindows`, da `ElevationService` e da `Cadence`, cioe'
+**dagli stessi conti** che producono la distanza, il dislivello, la cadenza media
+scritta sopra, l'intensita' della seduta e il carico. Per farlo, la pulizia della quota e' diventata un metodo pubblico
 (`smoothedAltitudes`) che usano sia il grafico sia chi conta il dislivello: il
 numero scritto sotto il disegno e' quello del disegno.
 
@@ -1839,6 +1859,107 @@ Gli scenari della specifica sono test veri:
 
 ---
 
+## La cadenza
+
+La cadenza e' quanti appoggi al minuto: piede destro, piede sinistro, due
+passi. Un adulto che corre sta in genere fra i 150 e i 180.
+
+**Non dice se si va forte.** Dice *come* si corre. Due persone allo stesso
+passo, una a 155 e una a 175, stanno facendo due cose diverse: la prima fa
+falcate piu' lunghe e sta piu' tempo in aria, la seconda appoggi piu' brevi e
+piu' frequenti. Non c'e' un numero giusto - c'e' il tuo.
+
+Quello che vale la pena guardare e' la **costanza**. La cadenza di una persona
+e' abbastanza sua e cambia poco fra lento e medio; quando crolla negli ultimi
+chilometri di un lungo, quello e' il segnale che l'appoggio si e' sfasciato per
+la stanchezza. E si vede nel grafico **prima** che si veda nel passo, perche' il
+passo lo si tiene a forza di volonta' e la cadenza no.
+
+### Perche' i passi li conta il telefono
+
+Perche' e' l'unica misura di questa app che il GPS non puo' sbagliare: il GPS
+non la fa. I passi li contano gli accelerometri dentro al telefono, e li tiene
+il chip dei sensori - non la CPU. Niente satelliti, niente palazzi, niente
+alberi.
+
+Due sensori Android fanno questo lavoro e la scelta fra i due non e' un
+dettaglio:
+
+| Sensore | Come funziona | Perche' |
+|---|---|---|
+| `TYPE_STEP_COUNTER` | totale cumulativo dall'accensione, tenuto dal chip | **si usa questo**: continua a contare anche mentre Android dorme, e quando l'evento arriva in ritardo il valore e' comunque giusto |
+| `TYPE_STEP_DETECTOR` | un evento per ogni passo | ripiego, solo sui telefoni senza contatore: i passi fatti mentre il processo era sospeso li perde |
+
+Rifare il conteggio in Dart vorrebbe dire leggere l'accelerometro cinquanta
+volte al secondo per un'ora, filtrare, cercare i picchi - cioe' tenere sveglia
+la CPU per riprodurre peggio una cosa che il telefono fa in hardware
+consumando niente. Ed e' la stessa app che ha una schermata intera dedicata al
+risparmio energetico.
+
+### Perche' i passi sono salvati cumulativi
+
+Nel tracciato ogni punto porta **quanti passi dall'inizio**
+([`RoutePoint.steps`](lib/models/running_activity.dart)), non "quanti passi in
+questo tratto". E' la scelta da cui dipende tutto il resto.
+
+Un totale che cresce si ricuce da solo: la cadenza fra due punti qualsiasi e'
+la differenza divisa per il tempo, e **se manca un punto in mezzo la differenza
+fra quello prima e quello dopo e' ancora giusta**. Con "i passi di questo
+tratto", invece, unire due tratti vorrebbe dire sommarli, e un punto perso li
+perderebbe per sempre.
+
+Questo conta davvero, perche' il grafico deve ridurre centocinquanta finestre a
+settanta punti per starci nello schermo: unire e' la cosa che fa sempre, non un
+caso limite.
+
+L'unico posto dove un buco pesa e' quando cade **sul bordo** di una finestra:
+li' la cadenza di quella finestra non si sa, e resta un buco nella linea. La
+regola, in [`RunProfile`](lib/services/run_profile.dart), e' che un gruppo con un
+buco dentro non ha cadenza: sommare solo le finestre buone darebbe "meno passi
+nello stesso tempo", cioe' una cadenza crollata che non e' mai esistita - un
+grafico piu' bello e un dato falso.
+
+### Quanto ci si puo' fidare
+
+Il contapassi di un telefono e' bravo ma non perfetto: tende a contarne
+qualcuno **in meno**, e quanto in meno dipende da dove tieni il telefono - in
+mano, in tasca, in fascia da braccio. Quindi 168 va letto come "fra 165 e 172",
+e confrontato **con le tue altre corse**, non con il numero dell'orologio di un
+altro. L'app lo scrive sotto il riquadro, invece di far finta che sia una misura
+esatta.
+
+I limiti del verosimile stanno in [`lib/services/cadence.dart`](lib/services/cadence.dart),
+in un posto solo: sotto 100 passi al minuto non e' una corsa (e' una camminata,
+o il sensore che ha perso dei pezzi), sopra 240 non e' un essere umano (e' il
+telefono che sbatte in uno zaino e conta le buche). Fuori da quella forbice non
+esce un numero sbagliato: non esce niente.
+
+### Il permesso, e quando si chiede
+
+Da Android 10 leggere il sensore dei passi richiede `ACTIVITY_RECOGNITION`.
+Non da' accesso a nient'altro: non alla posizione, non alla salute, non allo
+storico attivita' di Google.
+
+Si chiede **aprendo la schermata corsa**, mentre si aspetta il segnale GPS - non
+allo START. Una finestra di sistema che compare nell'istante in cui si schiaccia
+START arriva sopra una corsa gia' partita: la si chiude di fretta, senza
+leggerla, e spesso la si chiude col "no". Chi sta fermo ad aspettare i satelliti
+invece ha il tempo di guardarla.
+
+Se il permesso e' negato, o il telefono non ha il sensore, o la corsa e' stata
+registrata prima della 2.5.0, non compare nessun riquadro vuoto e nessun "--":
+semplicemente la cadenza non c'e', e tutto il resto funziona identico.
+
+### Il sensore si stacca
+
+Un ascoltatore di sensore lasciato aperto consuma batteria anche con l'app
+chiusa. Viene staccato in tutti i modi in cui una corsa puo' finire - stop,
+annullo, chiusura della schermata, `onDestroy` dell'Activity - perche' basta
+una strada dimenticata per avere esattamente il difetto che questa app passa il
+tempo a evitare.
+
+---
+
 ## Funzioni predisposte per il futuro
 
 Il modello dati e' gia' pronto, ma **nessun valore viene inventato o stimato**:
@@ -1847,8 +1968,9 @@ i campi restano `null` finche' non ci sara' una sorgente reale.
 - Frequenza cardiaca: `heartRateAverage`, `heartRateMax`, `heartRateSamples`.
 - HRV: `rmssd`, `sdnn`, `restingHeartRate` (`HrvData`).
 - Sonno: durata, sonno profondo, REM, veglia, punteggio (`SleepData`).
-- Dinamiche di corsa: `cadenceSpm`, `strideLengthMeters`,
-  `verticalOscillationCm`, `groundContactTimeMs` (`RunningDynamics`).
+- Dinamiche di corsa: `strideLengthMeters`, `verticalOscillationCm`,
+  `groundContactTimeMs` (`RunningDynamics`). La **cadenza** non e' piu' fra
+  queste: dalla 2.5.0 viene misurata davvero, vedi "La cadenza" sotto.
 - Bluetooth: non implementato nell'MVP. L'architettura a servizi permette di
   aggiungere un `HeartRateService` che alimenta gli stessi campi, senza
   toccare UI o storage.

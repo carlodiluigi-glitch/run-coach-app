@@ -48,6 +48,21 @@ String formatDurationShort(int seconds) {
   return '${hours}h ${_two(restMinutes)}min';
 }
 
+/// Un numero intero con il punto delle migliaia, come si scrive in italiano.
+///
+/// `8543` -> `8.543`. Serve per i numeri grandi e contati - i passi di una
+/// corsa - dove `8543` si legge male e `8.543` si legge al volo.
+String formatThousands(int value) {
+  final bool negativo = value < 0;
+  final String cifre = value.abs().toString();
+  final StringBuffer out = StringBuffer();
+  for (int i = 0; i < cifre.length; i++) {
+    if (i > 0 && (cifre.length - i) % 3 == 0) out.write('.');
+    out.write(cifre[i]);
+  }
+  return negativo ? '-$out' : out.toString();
+}
+
 /// Distanza nell'unita' scelta, con [decimals] decimali (default 2).
 ///
 /// `8543.2` -> `8.54` in chilometri, `5.31` in miglia.

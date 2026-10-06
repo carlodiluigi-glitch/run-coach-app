@@ -65,6 +65,23 @@
          Senza questo permesso l'app funziona interamente, mappa esclusa. -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- ========== LA CADENZA ==========
+         Da Android 10 leggere il sensore dei passi richiede questo permesso.
+         Serve SOLO per la cadenza di corsa - quanti appoggi al minuto - e non
+         da' accesso a nient'altro: non alla posizione, non alla salute, non
+         allo storico delle attivita' di Google.
+
+         Se l'utente lo nega l'app funziona esattamente come prima, solo senza
+         il grafico della cadenza. Per questo non viene chiesto all'avvio ma
+         alla prima corsa, e non si insiste. -->
+    <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
+
+    <!-- Il sensore dei passi non c'e' su tutti i telefoni: l'app si installa
+         comunque e la cadenza semplicemente non compare. -->
+    <uses-feature
+        android:name="android.hardware.sensor.stepcounter"
+        android:required="false" />
+
     <!-- Il GPS e' fortemente consigliato ma non obbligatorio per installare. -->
     <uses-feature
         android:name="android.hardware.location.gps"

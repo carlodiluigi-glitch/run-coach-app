@@ -53,6 +53,7 @@ class RoutePoint {
     required this.elapsedSeconds,
     this.altitude,
     this.speed,
+    this.steps,
   });
 
   final double latitude;
@@ -83,12 +84,31 @@ class RoutePoint {
   /// riportano: in quel caso si torna alle posizioni.
   final double? speed;
 
+  /// Passi contati dall'inizio della corsa fino a questo punto.
+  ///
+  /// PERCHE' CUMULATIVI E NON "I PASSI DI QUESTO TRATTO"
+  /// ---------------------------------------------------
+  /// Perche' un totale che cresce non si puo' sbagliare a rileggere: la cadenza
+  /// fra due punti qualsiasi e' la differenza divisa per il tempo, e funziona
+  /// anche raggruppando dieci punti in uno - che e' esattamente quello che fa
+  /// il grafico per starci nello schermo. Se qui ci fosse "i passi di questo
+  /// tratto", unire dei tratti vorrebbe dire sommarli, e un punto perso li
+  /// perderebbe per sempre.
+  ///
+  /// Un totale, invece, si ricuce da solo: se manca un punto in mezzo, la
+  /// differenza fra quello prima e quello dopo e' ancora giusta.
+  ///
+  /// `null` sulle corse registrate prima della cadenza, sui telefoni senza
+  /// sensore di passo, e quando il permesso e' stato negato.
+  final int? steps;
+
   Map<String, dynamic> toJson() => <String, dynamic>{
         'lat': latitude,
         'lon': longitude,
         't': elapsedSeconds,
         'alt': altitude,
         if (speed != null) 'v': speed,
+        if (steps != null) 'p': steps,
       };
 
   factory RoutePoint.fromJson(Map<String, dynamic> json) => RoutePoint(
@@ -97,6 +117,7 @@ class RoutePoint {
         elapsedSeconds: (json['t'] as num?)?.toInt() ?? 0,
         altitude: (json['alt'] as num?)?.toDouble(),
         speed: (json['v'] as num?)?.toDouble(),
+        steps: (json['p'] as num?)?.toInt(),
       );
 }
 

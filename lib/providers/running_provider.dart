@@ -77,6 +77,24 @@ class RunningProvider extends ChangeNotifier {
   final List<RoutePoint> _route = <RoutePoint>[];
   int _lastRoutePointSecond = -10;
 
+  // ------------------------------------------------------------- i passi
+  //
+  // La cadenza arriva dal sensore di passo del telefono, non dal GPS. Il
+  // conteggio lo tiene Android: qui si legge e ogni tanto si annota.
+  //
+  // PERCHE' IL VALORE VIENE TENUTO DA PARTE E NON LETTO AL MOMENTO
+  // -------------------------------------------------------------
+  // Perche' leggerlo e' una chiamata al codice nativo, cioe' una cosa che si
+  // aspetta. Il punto del tracciato invece si scrive dentro l'arrivo di un
+  // campione GPS, dove non si puo' aspettare niente senza rischiare di
+  // perdere il campione dopo. Quindi il ticker legge e mette qui l'ultimo
+  // valore, e il punto prende quello che trova: al massimo e' vecchio di un
+  // secondo, e su un totale cumulativo un secondo non cambia la cadenza.
+  bool _stepsOn = false;
+  int? _stepsNow;
+  int _lastStepsReadSecond = -10;
+  bool _readingSteps = false;
+
   // ----------------------------------------------- la corsa non si perde
   /// Ogni quanti secondi la corsa viene scritta su disco.
   ///
@@ -91,21 +109,6 @@ class RunningProvider extends ChangeNotifier {
   /// Trenta secondi: sotto e' un semaforo o un sottopasso, sopra e' Android
   /// che ha messo l'app a dormire.
   static const int gpsStallSeconds = 30;
-
-  // ------------------------------------------------------- prova in auto
-  bool _provaInAuto = false;
-
-  /// `true` se il tetto di velocita' della corsa e' spento per una prova.
-  ///
-  /// Non si salva: alla chiusura dell'app torna spento da solo, cosi' non
-  /// resta acceso per sbaglio nelle corse vere.
-  bool get provaInAuto => _provaInAuto;
-
-  void setProvaInAuto(bool acceso) {
-    _provaInAuto = acceso;
-    _filter.senzaLimiteVelocita = acceso;
-    notifyListeners();
-  }
 
   int _lastSnapshotSecond = -999;
   bool _snapshotInFlight = false;
@@ -242,6 +245,21 @@ class RunningProvider extends ChangeNotifier {
       _state = RunState.ready;
       // Si avvia subito lo stream per agganciare il segnale prima dello START.
       await _startGpsStream();
+
+      // Il permesso per il sensore dei passi si chiede QUI, mentre si aspetta
+      // il segnale, e non allo START.
+      //
+      // PERCHE' IL MOMENTO CONTA
+      // -----------------------
+      // Perche' una finestra di sistema che compare nell'istante in cui si
+      // schiaccia START arriva sopra una corsa gia' partita: la si chiude di
+      // fretta, senza leggerla, e spesso la si chiude col "no". Qui invece
+      // l'utente sta fermo ad aspettare i satelliti, e ha il tempo di
+      // guardarla.
+      //
+      // Non si aspetta la risposta e non cambia niente se e' no: la cadenza e'
+      // un dato in piu', non una condizione per correre.
+      if (request) unawaited(_native.requestStepPermission());
     }
     notifyListeners();
     return _gpsAvailability;
@@ -288,6 +306,13 @@ class RunningProvider extends ChangeNotifier {
     if (_settings.backgroundTrackingEnabled) {
       await _native.requestNotificationPermission();
     }
+
+    // La cadenza: si comincia a contare i passi da adesso. Il permesso e' gia'
+    // stato chiesto aprendo la schermata (vedi `prepare`); se e' stato negato,
+    // o il telefono non ha il sensore, qui esce `false` e la corsa va avanti
+    // identica, solo senza cadenza.
+    _stepsOn = await _native.startStepCounter();
+    _stepsNow = _stepsOn ? 0 : null;
 
     _startTime = DateTime.now();
     _state = RunState.running;
@@ -352,6 +377,7 @@ class RunningProvider extends ChangeNotifier {
     _stopTicker();
     await _stopGpsStream();
     await _native.setKeepScreenOn(false);
+    await _stopSteps();
 
     // Chiude l'ultimo spezzone rimasto, ma solo se vale davvero qualcosa.
     //
@@ -393,6 +419,7 @@ class RunningProvider extends ChangeNotifier {
     _stopTicker();
     await _stopGpsStream();
     await _native.setKeepScreenOn(false);
+    await _stopSteps();
     // La corsa e' stata salvata o buttata: il file di recupero non serve piu'.
     await _storage?.clearRunSnapshot();
     _resetInternals();
@@ -427,6 +454,17 @@ class RunningProvider extends ChangeNotifier {
   }
 
   // -------------------------------------------------------------- internals
+  /// Stacca l'ascoltatore del sensore di passo.
+  ///
+  /// Un sensore lasciato in ascolto a corsa finita continua a consumare
+  /// batteria con l'app chiusa - cioe' esattamente il difetto per cui questa
+  /// app ha una schermata intera dedicata al risparmio energetico.
+  Future<void> _stopSteps() async {
+    if (!_stepsOn) return;
+    _stepsOn = false;
+    await _native.stopStepCounter();
+  }
+
   void _resetInternals() {
     _filter.reset();
     _stopwatch
@@ -448,6 +486,8 @@ class RunningProvider extends ChangeNotifier {
     _stalledSince = null;
     _lostSeconds = 0;
     _warnedAboutStall = false;
+    _stepsNow = null;
+    _lastStepsReadSecond = -10;
   }
 
   Future<void> _startGpsStream({bool background = false}) async {
@@ -538,10 +578,34 @@ class RunningProvider extends ChangeNotifier {
         // che dice quanto si stava andando forte, non la distanza fra due
         // posizioni rumorose.
         speed: sample.speed,
+        // I passi fatti fin qui. Cumulativi: la cadenza di un tratto e' la
+        // differenza fra due punti, divisa per il tempo.
+        steps: _stepsOn ? _stepsNow : null,
       ));
     }
 
     _pushPaceSample();
+  }
+
+  /// Legge il contapassi, una volta al secondo e non di piu'.
+  ///
+  /// Non aspetta la risposta: se il codice nativo e' lento, il cronometro non
+  /// deve rallentare. E se una lettura e' ancora in volo si salta il giro,
+  /// altrimenti su un telefono impallato le chiamate si accumulerebbero.
+  void _readSteps() {
+    if (!_stepsOn || _readingSteps) return;
+    final int seconds = elapsedSeconds;
+    if (seconds - _lastStepsReadSecond < 1) return;
+    _lastStepsReadSecond = seconds;
+    _readingSteps = true;
+    unawaited(_native.stepCount().then((int? passi) {
+      _readingSteps = false;
+      // Un valore nullo non azzera quello buono di prima: "non lo so adesso"
+      // non e' "sono tornato a zero passi".
+      if (passi != null) _stepsNow = passi;
+    }, onError: (Object _) {
+      _readingSteps = false;
+    }));
   }
 
   void _pushPaceSample() {
@@ -557,6 +621,7 @@ class RunningProvider extends ChangeNotifier {
     if (_state != RunState.running) return;
 
     _pushPaceSample();
+    _readSteps();
     _checkAutoLap();
     _updateWorkout();
     _checkPaceAlerts();
@@ -867,6 +932,7 @@ class RunningProvider extends ChangeNotifier {
     unawaited(_gpsSub?.cancel());
     unawaited(_gpsErrorSub?.cancel());
     unawaited(_native.setKeepScreenOn(false));
+    unawaited(_stopSteps());
     super.dispose();
   }
 }

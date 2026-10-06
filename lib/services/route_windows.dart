@@ -1,4 +1,5 @@
 import '../models/running_activity.dart';
+import 'cadence.dart';
 import 'gps_filter.dart';
 
 /// Il tracciato di una corsa, diviso in finestre di tempo con i metri fatti.
@@ -103,11 +104,23 @@ class RouteWindows {
       final bool fidatiDellaVelocita =
           passi > 0 && conVelocita / passi >= minSpeedShare;
 
+      // I passi della finestra: la differenza fra il totale di adesso e quello
+      // di quando la finestra si e' aperta. Si somma solo se entrambi i punti
+      // li hanno - su una corsa senza cadenza restano `null` e il grafico
+      // semplicemente non la disegna.
+      final int? passiInizio = route[inizio].steps;
+      final int? passiFine = adesso.steps;
+      final int? passiFinestra =
+          (passiInizio != null && passiFine != null && passiFine >= passiInizio)
+              ? passiFine - passiInizio
+              : null;
+
       out.add(RouteWindow(
         seconds: trascorsi.toDouble(),
         meters: fidatiDellaVelocita ? metriDaVelocita : metriDaPosizione,
         fromSpeed: fidatiDellaVelocita,
         endIndex: i,
+        steps: passiFinestra,
       ));
 
       inizio = i;
@@ -128,6 +141,7 @@ class RouteWindow {
     required this.meters,
     required this.fromSpeed,
     this.endIndex = 0,
+    this.steps,
   });
 
   final double seconds;
@@ -142,6 +156,10 @@ class RouteWindow {
   /// dentro - la quota, per esempio - senza rifare il conto di dove si era.
   final int endIndex;
 
+  /// I passi fatti dentro la finestra. `null` se non si sanno: corsa
+  /// registrata prima della cadenza, telefono senza sensore, permesso negato.
+  final int? steps;
+
   /// Il passo della finestra, in secondi al chilometro.
   ///
   /// `null` quando non si puo' dire: troppo pochi metri, o un valore
@@ -154,5 +172,17 @@ class RouteWindow {
     final double pace = seconds / (meters / 1000.0);
     if (pace <= 100 || pace >= 1500) return null;
     return pace;
+  }
+
+  /// La cadenza della finestra, in passi al minuto. `null` se non si sa.
+  ///
+  /// Niente tetto di durata qui: una finestra da venti secondi e' corta per
+  /// definizione, ed e' quello che serve per vedere la cadenza cedere dentro
+  /// un chilometro. I limiti del verosimile - sotto i 100 e sopra i 240 - li
+  /// mette [Cadence], in un posto solo.
+  double? get cadenceStepsPerMinute {
+    final int? p = steps;
+    if (p == null) return null;
+    return Cadence.spm(steps: p, seconds: seconds);
   }
 }

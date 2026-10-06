@@ -4,6 +4,10 @@ import android.Manifest
 import android.content.ContentValues
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
@@ -33,7 +37,11 @@ import io.flutter.plugin.common.MethodChannel
  *    Oppo), dove l'esenzione standard non basta;
  *  - shareRunImage: condivide l'immagine di una corsa;
  *  - saveTextFile / openTextFile: la copia di sicurezza dell'archivio, salvata
- *    e riletta dove decide l'utente.
+ *    e riletta dove decide l'utente;
+ *  - il contapassi (startStepCounter / stepCount / stopStepCounter): la
+ *    cadenza di corsa, cioe' quanti appoggi al minuto. E' l'unica cosa che un
+ *    telefono misura MEGLIO di quanto la misuri il GPS, perche' non dipende
+ *    dai satelliti: la contano gli accelerometri, dentro al telefono.
  */
 class MainActivity : FlutterActivity() {
 
@@ -48,6 +56,60 @@ class MainActivity : FlutterActivity() {
     private val openFileCode = 4714
     private var pendingResult: MethodChannel.Result? = null
     private var pendingContent: String? = null
+
+    // ====================== IL CONTAPASSI ======================
+    //
+    // PERCHE' DUE SENSORI E NON UNO
+    // -----------------------------
+    // TYPE_STEP_COUNTER e' un contatore cumulativo dall'accensione del
+    // telefono, e lo tiene il chip dei sensori, non la CPU: continua a contare
+    // anche mentre Android dorme. E' quello che serve a una corsa di un'ora con
+    // lo schermo spento - anche se gli eventi arrivano in ritardo, il valore
+    // cumulativo quando arriva e' giusto, quindi i passi totali non si perdono.
+    //
+    // TYPE_STEP_DETECTOR manda un evento per ogni passo e si perde quelli
+    // accaduti mentre il processo era sospeso. Si usa solo come ripiego sui
+    // telefoni che non hanno il contatore.
+    private val activityRequestCode = 4715
+    private var sensori: SensorManager? = null
+    private var passiAscolto = false
+    private var passiDaContatore = false
+
+    /// Il valore del contatore di sistema quando e' partita la corsa.
+    private var passiBase = -1f
+
+    /// L'ultimo valore letto dal contatore di sistema.
+    private var passiUltimo = -1f
+
+    /// I passi gia' messi al sicuro: quelli del rilevatore, e quelli raccolti
+    /// prima di un azzeramento del contatore (il telefono si e' riavviato a
+    /// meta' corsa). Senza questa somma a parte, un riavvio butterebbe via
+    /// tutta la prima parte.
+    private var passiMessiDaParte = 0
+
+    private val ascoltatorePassi = object : SensorEventListener {
+        override fun onSensorChanged(event: SensorEvent) {
+            if (event.values.isEmpty()) return
+            val valore = event.values[0]
+            if (event.sensor.type == Sensor.TYPE_STEP_COUNTER) {
+                if (passiBase < 0f) {
+                    passiBase = valore
+                } else if (valore < passiBase) {
+                    // Contatore azzerato: si mette da parte quello che si era
+                    // contato e si riparte da qui.
+                    if (passiUltimo >= passiBase) {
+                        passiMessiDaParte += (passiUltimo - passiBase).toInt()
+                    }
+                    passiBase = valore
+                }
+                passiUltimo = valore
+            } else {
+                passiMessiDaParte += 1
+            }
+        }
+
+        override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
+    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -222,9 +284,117 @@ class MainActivity : FlutterActivity() {
                         }
                     }
 
+                    // ------------------------------- la cadenza di corsa
+                    //
+                    // Il permesso ACTIVITY_RECOGNITION serve da Android 10 per
+                    // leggere i sensori di passo. Se l'utente lo nega non si
+                    // rompe niente: la corsa si registra come prima, solo
+                    // senza cadenza. Per questo non si insiste e non si blocca
+                    // mai la partenza aspettando una risposta.
+                    "requestStepPermission" -> {
+                        if (permessoPassi()) {
+                            result.success(true)
+                        } else {
+                            requestPermissions(
+                                arrayOf(Manifest.permission.ACTIVITY_RECOGNITION),
+                                activityRequestCode
+                            )
+                            result.success(false)
+                        }
+                    }
+
+                    "startStepCounter" -> result.success(avviaPassi())
+
+                    // -1 significa "non si sta contando": in Dart diventa
+                    // niente, non zero. Uno zero direbbe "fermo", che e' una
+                    // cosa diversa dal non saperlo.
+                    "stepCount" -> result.success(passiAdesso())
+
+                    "stopStepCounter" -> {
+                        fermaPassi()
+                        result.success(null)
+                    }
+
                     else -> result.notImplemented()
                 }
             }
+    }
+
+    // ===================== I PASSI =====================
+
+    /** Il permesso per leggere i sensori di passo (da Android 10). */
+    private fun permessoPassi(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return true
+        return checkSelfPermission(Manifest.permission.ACTIVITY_RECOGNITION) ==
+            PackageManager.PERMISSION_GRANTED
+    }
+
+    /**
+     * Comincia a contare i passi da adesso.
+     *
+     * Restituisce `false` - e non un errore - quando non si puo': permesso
+     * negato, nessun sensore di passo sul telefono. La corsa deve partire
+     * comunque, la cadenza e' un dato in piu'.
+     */
+    private fun avviaPassi(): Boolean {
+        if (!permessoPassi()) return false
+
+        val manager = sensori
+            ?: (getSystemService(SENSOR_SERVICE) as? SensorManager)
+                ?.also { sensori = it }
+            ?: return false
+
+        // Si azzera sempre: "avvia" vuol dire "da qui in poi", anche se si era
+        // gia' in ascolto da una corsa annullata.
+        passiBase = -1f
+        passiUltimo = -1f
+        passiMessiDaParte = 0
+        if (passiAscolto) return true
+
+        val contatore = manager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
+        val rilevatore = if (contatore == null) {
+            manager.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR)
+        } else {
+            null
+        }
+        val sensore = contatore ?: rilevatore ?: return false
+
+        passiDaContatore = contatore != null
+        val ok = manager.registerListener(
+            ascoltatorePassi,
+            sensore,
+            SensorManager.SENSOR_DELAY_NORMAL
+        )
+        passiAscolto = ok
+        return ok
+    }
+
+    /** Quanti passi dall'avvio. -1 se non si sta contando. */
+    private fun passiAdesso(): Int {
+        if (!passiAscolto) return -1
+        var totale = passiMessiDaParte
+        if (passiDaContatore && passiBase >= 0f && passiUltimo >= passiBase) {
+            totale += (passiUltimo - passiBase).toInt()
+        }
+        return totale
+    }
+
+    private fun fermaPassi() {
+        if (!passiAscolto) return
+        try {
+            sensori?.unregisterListener(ascoltatorePassi)
+        } catch (error: Exception) {
+            // Niente: smettere di ascoltare non puo' fallire in modo utile.
+        }
+        passiAscolto = false
+    }
+
+    override fun onDestroy() {
+        // Un ascoltatore di sensori lasciato aperto consuma batteria anche con
+        // l'app chiusa, ed e' esattamente il difetto che questa app passa il
+        // tempo a evitare.
+        fermaPassi()
+        super.onDestroy()
     }
 
     /**
