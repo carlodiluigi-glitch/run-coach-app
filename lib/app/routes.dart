@@ -8,6 +8,7 @@ import '../screens/activity_detail_screen.dart';
 import '../screens/activity_history_screen.dart';
 import '../screens/fitness_screen.dart';
 import '../screens/home_screen.dart';
+import '../screens/import_screen.dart';
 import '../screens/plan_screen.dart';
 import '../screens/plan_setup_screen.dart';
 import '../screens/profile_screen.dart';
@@ -74,6 +75,9 @@ class AppRoutes {
 
   /// Copia di sicurezza dell'archivio: salvare e rimettere.
   static const String backup = '/copia';
+
+  /// Portare dentro le corse gia' fatte, da file GPX.
+  static const String importa = '/importa';
 
   /// Generatore delle rotte con gestione degli argomenti.
   static Route<dynamic> onGenerateRoute(RouteSettings routeSettings) {
@@ -164,6 +168,12 @@ class AppRoutes {
       case backup:
         return MaterialPageRoute<void>(
           builder: (_) => const BackupScreen(),
+          settings: routeSettings,
+        );
+
+      case importa:
+        return MaterialPageRoute<void>(
+          builder: (_) => const ImportScreen(),
           settings: routeSettings,
         );
 

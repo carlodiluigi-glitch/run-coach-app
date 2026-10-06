@@ -275,6 +275,7 @@ run_coach_app/
 │   │   ├── stats_service.dart       # statistiche e trend
 │   │   ├── records_service.dart     # record personali per distanza
 │   │   ├── elevation_service.dart   # dislivello, al netto del rumore GPS
+│   │   ├── gpx_import.dart          # porta dentro lo storico da file GPX
 │   │   ├── map_tile_service.dart    # riquadri di mappa: vista, memoria, costo
 │   │   ├── route_windows.dart       # tracciato -> finestre (una strada sola)
 │   │   ├── run_profile.dart         # passo e quota lungo il percorso
@@ -294,6 +295,7 @@ run_coach_app/
 │   │   ├── plan_setup_screen.dart   # creazione del piano
 │   │   ├── week_edit_screen.dart    # i giorni di UNA settimana sola
 │   │   ├── backup_screen.dart       # copia di sicurezza: salva e rimetti
+│   │   ├── import_screen.dart       # importa le corse gia' fatte
 │   │   ├── share_screen.dart        # l'immagine della corsa da mandare
 │   │   ├── unlock_screen.dart       # cosa e' gratis, cosa si paga
 │   │   ├── welcome_screen.dart      # primo avvio: chiede il nome
@@ -622,6 +624,64 @@ Sul disco non finisce il piano, finisce il parametro: `weekOverrides` e' una
 mappa da numero di settimana a settimana dichiarata, e il piano viene
 ricalcolato da quella. Per questo si torna indietro senza perdere niente, e per
 questo un piano salvato prima di questa funzione si riapre identico a com'era.
+
+### Importare le corse che hai gia' fatto
+
+Chi scarica Falcata corre gia' da anni, e quegli anni stanno su Strava o su un
+orologio. Al primo avvio l'app guarda un archivio vuoto e dice la verita': non ho
+abbastanza per stimare la tua forma, non posso proporti un volume di partenza,
+non posso scriverti un piano.
+
+E' onesto, ed e' anche **il momento in cui l'app viene disinstallata**. E' lo
+stesso difetto dei "9 km a settimana" proposti a chi ne corre 60 - quello pero'
+capitava a un utente solo, questo capita a tutti, al primo minuto.
+
+Adesso si importano i file GPX, che e' il formato con cui Strava, Garmin, Polar e
+quasi chiunque altro esportano. Il selettore di file e' lo stesso della copia di
+sicurezza: scritto una volta, usato due.
+
+#### Non e' un lettore XML, ed e' una scelta
+
+Un GPX e' XML, e la cosa corretta sarebbe un lettore XML completo: cioe' una
+dipendenza in piu' su un progetto che per scelta ne ha cinque, e ogni dipendenza
+e' un pezzo che puo' rompersi al prossimo aggiornamento di Flutter (e' gia'
+successo con il plugin Gradle).
+
+Quello che c'e' e' un **estrattore di punti traccia**, che fa una cosa sola. Il
+modo in cui puo' fallire e' *"questo file non si importa"* - che si vede subito e
+non rovina niente - mai *"si importa storto"*. Regge il prefisso di spazio dei
+nomi (`<gpx:trkpt>`), gli attributi in ordine inverso (`lon` prima di `lat`, che
+in XML e' legittimo e rompe meta' dei lettori scritti in fretta), i punti
+auto-chiusi, il CDATA nei nomi e le tracce multiple.
+
+#### La distanza si ricalcola, non si copia
+
+Il file dice gia' una distanza, e sarebbe comodo prenderla. Non si fa: ogni app
+la calcola a modo suo, e una corsa importata da Strava accanto a una registrata
+da Falcata sarebbero due misure diverse messe nello stesso grafico.
+
+I punti passano invece per **lo stesso filtro che l'app usa mentre corri**, sulla
+strada del ripiego (posizioni mediate su nove campioni, soglia proporzionale
+all'incertezza). Su una traccia di prova da 1994 metri veri ne misura 1962, con
+un passo di 5:04 contro i 5:00 reali - e soprattutto li misura **come li
+misurerebbe su una corsa fatta oggi**, che e' l'unica cosa che rende i due numeri
+confrontabili.
+
+#### Quello che resta fuori
+
+- **Le pedalate e i viaggi in macchina.** Si riconoscono dal passo: sopra gli 8
+  metri al secondo il filtro non somma niente, e una traccia a quella velocita'
+  esce con zero metri e viene scartata. Un giro in bici nell'archivio
+  sposterebbe l'indice di forma di parecchio, e nella direzione sbagliata.
+- **Le tracce senza orari.** Senza durata non c'e' passo, e senza passo quella
+  riga falserebbe ogni stima.
+- **I doppioni.** Reimportare lo stesso file e' la cosa piu' probabile che
+  succeda - non si sa mai se e' andata, e si riprova. Due corse che cominciano
+  entro cinque minuti l'una dall'altra sono la stessa corsa.
+
+E niente entra nell'archivio prima che l'utente abbia visto **quante corse sono e
+quanti chilometri**: si sceglie il file, si legge cosa e' stato trovato, e solo
+dopo si conferma.
 
 ### La Home: ordinata male, non brutta
 
