@@ -967,6 +967,48 @@ di curve strette, dove la media taglia gli angoli. Nove campioni sono il
 compromesso misurato: a ventuno la pulizia e' migliore ma un giro con una curva
 ogni cento metri perde il 13%.
 
+#### I buchi di segnale: il 10% che spariva in silenzio
+
+Quando il telefono smette di mandare punti per piu' di dieci secondi, quello
+che e' successo nel mezzo non lo sa nessuno: moltiplicare l'ultima velocita'
+per il buco sarebbe inventare, e inventare al rialzo. Prima il tratto si
+buttava via intero.
+
+Il problema e' che su un telefono che manda un punto ogni cinque secondi basta
+perderne uno per superare i dieci. Una corsa vera su un percorso misurato di
+**12,74 km e' uscita 11,45**: il 10% perso senza che niente lo dicesse,
+perche' l'avviso vocale del segnale perso scatta solo dopo trenta secondi.
+
+Adesso una cosa si sa per certo: sei passato dal punto di prima a quello di
+adesso, e **la linea dritta fra i due e' il minimo che hai percorso**. Su una
+strada dritta e' quasi esatta, in curva e' un po' corta - non puo' mai
+gonfiare. Sotto la soglia dell'errore GPS resta zero, perche' li' uno
+spostamento e un tremolio non si distinguono: chi e' rimasto fermo durante il
+buco non somma niente.
+
+La causa a monte e' stata tolta lo stesso: ad Android adesso si chiede
+esplicitamente **un punto al secondo** (`intervalDuration`), anche
+nell'anteprima prima dello START, cosi' il GPS e' gia' a regime quando si
+parte. Senza chiederlo, il pacchetto ne manda di solito uno ogni cinque.
+
+#### La prova in auto
+
+Verificare la misura della distanza aspettando una corsa e' lento. Tenendo
+premuto sul riquadro dello stato GPS si accende la **prova in auto**: il tetto
+di velocita' del filtro passa da 8 m/s (29 km/h) a 100 m/s, e si puo' misurare
+un tragitto noto in macchina.
+
+Due cose per leggerla bene:
+
+- **non si salva.** Chiudendo l'app torna spenta da sola. Una modalita' di
+  prova lasciata accesa per sbaglio falserebbe una corsa vera senza dirlo, ed e'
+  anche il motivo per cui si accende con un gesto che non si fa per caso invece
+  che con un interruttore nelle impostazioni;
+- **prova il ripiego, non la strada principale.** Sopra i 29 km/h il filtro
+  smette comunque di fidarsi della velocita' del chip e misura dalle posizioni.
+  Un giro in macchina conferma quindi la misura dalle posizioni e la gestione
+  delle fermate, non il conto Doppler che l'app usa mentre corri.
+
 ### La deriva della quota
 
 Sulla stessa corsa l'app ha scritto **salita 21 m, discesa 35 m**. E' un giro

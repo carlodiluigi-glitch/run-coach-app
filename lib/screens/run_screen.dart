@@ -103,35 +103,48 @@ class _RunScreenState extends State<RunScreen> {
         32,
       ),
       children: <Widget>[
-        AppCard(
-          child: Row(
-            children: <Widget>[
-              Icon(
-                ready ? Icons.gps_fixed_rounded : Icons.gps_off_rounded,
-                size: 28,
-                color: ready ? p.green : p.red,
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      ready ? 'Stato GPS' : 'GPS non disponibile',
-                      style: AppText.title.copyWith(
-                        color: ready ? p.ink : p.red,
-                        fontSize: 17,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      ready ? _gpsQualityLabel(run) : availability.message,
-                      style: AppText.body.copyWith(color: p.inkSoft),
-                    ),
-                  ],
+        // La prova in auto si accende tenendo premuto qui.
+        //
+        // PERCHE' UN GESTO NASCOSTO E NON UN INTERRUTTORE
+        // -----------------------------------------------
+        // Perche' non e' una funzione per chi corre: e' uno strumento per
+        // verificare la misura su un tragitto noto. Un interruttore nelle
+        // impostazioni verrebbe acceso per curiosita' e dimenticato acceso, e
+        // da quel momento ogni corsa accetterebbe come buona qualunque
+        // velocita' il chip riporti - compresi gli errori. Tenere premuto non
+        // si fa per sbaglio, e il riquadro poi lo dice a chiare lettere.
+        GestureDetector(
+          onLongPress: () => run.impostaProvaInAuto(!run.provaInAuto),
+          child: AppCard(
+            child: Row(
+              children: <Widget>[
+                Icon(
+                  ready ? Icons.gps_fixed_rounded : Icons.gps_off_rounded,
+                  size: 28,
+                  color: ready ? p.green : p.red,
                 ),
-              ),
-            ],
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        ready ? 'Stato GPS' : 'GPS non disponibile',
+                        style: AppText.title.copyWith(
+                          color: ready ? p.ink : p.red,
+                          fontSize: 17,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        ready ? _gpsQualityLabel(run) : availability.message,
+                        style: AppText.body.copyWith(color: p.inkSoft),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
         if (!ready) ...<Widget>[

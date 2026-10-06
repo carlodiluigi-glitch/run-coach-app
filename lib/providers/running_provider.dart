@@ -161,6 +161,28 @@ class RunningProvider extends ChangeNotifier {
     return 1;
   }
 
+  // ------------------------------------------------------- prova in auto
+  //
+  // Spegne il tetto di velocita' del filtro, cosi' la misura della distanza si
+  // puo' verificare su un tragitto noto in macchina invece di aspettare una
+  // corsa. Non si salva da nessuna parte: alla chiusura dell'app torna spenta
+  // da sola, che e' giusto - una modalita' di prova lasciata accesa per sbaglio
+  // falserebbe una corsa vera senza dire niente.
+  //
+  // ATTENZIONE A COSA MISURA DAVVERO
+  // --------------------------------
+  // Sopra i 29 km/h il filtro smette comunque di fidarsi della velocita' del
+  // chip e torna alle posizioni. Quindi un giro in macchina mette alla prova
+  // la strada di ripiego, non quella usata quando si corre.
+  bool get provaInAuto => _filter.senzaLimiteVelocita;
+
+  /// Accende o spegne la prova in auto.
+  void impostaProvaInAuto(bool attiva) {
+    if (_filter.senzaLimiteVelocita == attiva) return;
+    _filter.senzaLimiteVelocita = attiva;
+    notifyListeners();
+  }
+
   double get distanceMeters => _distanceMeters;
   Duration get elapsed => _stopwatch.elapsed;
   int get elapsedSeconds => _stopwatch.elapsed.inSeconds;
