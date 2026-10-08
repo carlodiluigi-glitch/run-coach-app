@@ -44,28 +44,46 @@ Il testo definitivo, scritto da Carlo:
 
 ```
 FALCATA
-Paghi una volta. Corri quanto vuoi.
+Il tuo ritmo. I tuoi obiettivi.
 
 Si adatta ai tuoi turni, segue i tuoi progressi.
-Il tuo ritmo, i tuoi obiettivi.
+Paghi una volta, corri quanto vuoi.
 
 Fatta da chi corre, per chi corre.
 ```
 
-**Perché il prezzo in cima.** Delle quattro righe, è l'unica che un concorrente
-in abbonamento non può copiare. "Il tuo ritmo, i tuoi obiettivi" è vera e calda,
-ma la potrebbe scrivere chiunque: in cima ci va quello che gli altri non possono
-dire, il resto sostiene.
+**Perche' il prezzo non sta in cima.** Una versione precedente apriva con
+"Paghi una volta": e' la frase piu' forte che abbia Falcata, perche' un
+concorrente in abbonamento non puo' copiarla, ma messa come **prima riga**
+cambia di cosa parla tutto il resto. Chi guarda capisce "questa costa" prima
+ancora di sapere cosa fa, e legge il seguito con la mano sul portafoglio.
+Spostata sotto, la stessa frase smette di essere un cartellino del prezzo e
+diventa un sollievo: a quel punto chi legge sa gia' che non ci sono abbonamenti
+dietro l'angolo.
 
-**Perché la firma in fondo e non in cima.** "Fatta da chi corre, per chi corre"
-non dice cosa fa l'app, dice perché fidarsi — e quello si legge dopo. Chi si è
-fermato sulle prime righe trova lì il motivo per crederci. Ed è vera, che è
-l'unico motivo per cui vale la pena scriverla.
+**Perche' la firma in fondo e non in cima.** "Fatta da chi corre, per chi
+corre" non dice cosa fa l'app, dice perche' fidarsi - e quello si legge dopo.
+Chi si e' fermato sulle prime righe trova li' il motivo per crederci. Ed e'
+vera, che e' l'unico motivo per cui vale la pena scriverla.
 
 L'immagine si rigenera da [`immagine-in-evidenza.html`](immagine-in-evidenza.html):
-si apre in un browser a finestra 1024x500 e si fa una schermata. È tenuta come
-pagina e non solo come PNG perché fra sei mesi, quando una parola andrà
+si apre in un browser a finestra 1024x500 e si fa una schermata. E' tenuta come
+pagina e non solo come PNG perche' fra sei mesi, quando una parola andra'
 cambiata, si cambia la parola.
+
+### Il disegno
+
+Un corridore essenziale, bianco, con la traccia rossa del percorso sotto ai
+piedi - la stessa linea che l'app disegna sulle corse.
+
+E' volutamente scarno, quasi segnaletica: a 1024x500, visto piccolo in un
+elenco di app, un disegno dettagliato diventa poltiglia. Gli arti hanno spessori
+diversi (coscia piu' spessa dello stinco, braccio piu' spesso dell'avambraccio),
+ed e' quello che lo fa sembrare disegnato invece che un omino da cartello
+stradale.
+
+Bianco il corridore e rosso la traccia, non tutti e due rossi: da lontano due
+elementi dello stesso colore diventano una macchia sola.
 
 ---
 
