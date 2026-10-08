@@ -81,6 +81,54 @@ jobs:
         if: always()
         run: ls -lh build/app/outputs/flutter-apk/ || true
 
+      # 8-bis) IL PACCHETTO PER IL PLAY STORE (.aab)
+      #
+      # PERCHE' DUE PACCHETTI E DUE CHIAVI
+      # ----------------------------------
+      # L'APK qui sopra e' quello che Carlo si installa a mano, ed e' firmato
+      # con la chiave che sta nel repository: deve restare quella, se no
+      # Android rifiuta l'aggiornamento sopra l'installazione esistente e si
+      # perderebbero le corse.
+      #
+      # Il Play Store vuole invece un .aab firmato con una chiave di
+      # CARICAMENTO che non sta nel repository: arriva dai secret, e il file
+      # vero non tocca mai il disco del repo. Sono due comandi separati proprio
+      # per questo - stessa build, due firme diverse, senza che una tocchi
+      # l'altra.
+      #
+      # Finche' i secret non ci sono, questi passi si saltano da soli: il
+      # workflow continua a funzionare come prima.
+      - name: Prepara la chiave di caricamento
+        env:
+          CHIAVE: ${{ secrets.FALCATA_UPLOAD_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$CHIAVE" ]; then
+            printf '%s' "$CHIAVE" | base64 -d > "$RUNNER_TEMP/falcata-upload.jks"
+            echo "CHIAVE_PRONTA=1" >> "$GITHUB_ENV"
+            echo "Chiave di caricamento pronta."
+          else
+            echo "Nessuna chiave di caricamento nei secret: salto il pacchetto per il Play Store."
+          fi
+
+      - name: Pacchetto per il Play Store
+        if: env.CHIAVE_PRONTA == '1'
+        env:
+          FALCATA_UPLOAD_KEYSTORE: ${{ runner.temp }}/falcata-upload.jks
+          FALCATA_UPLOAD_PASSWORD: ${{ secrets.FALCATA_UPLOAD_PASSWORD }}
+          FALCATA_UPLOAD_ALIAS: falcata-upload
+        run: flutter build appbundle --release
+
+      # L'aab NON va nella Release pubblica: serve solo a essere caricato in
+      # Play Console, e si scarica da qui.
+      - name: Upload del pacchetto Play Store
+        if: env.CHIAVE_PRONTA == '1'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Falcata-PlayStore-aab
+          path: build/app/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+          retention-days: 30
+
       # 9) Pubblicazione dell'artifact scaricabile
       - name: Upload APK
         if: always()

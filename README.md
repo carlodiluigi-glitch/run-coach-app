@@ -1652,6 +1652,29 @@ dove toccare si segue in trenta secondi. **I nomi delle voci vanno verificati
 sul campo**: cambiano fra versioni della stessa interfaccia, e stanno tutti in
 `lib/utils/battery_advice.dart` per essere corretti in un posto solo.
 
+#### Il buco fra lo stop e il salvataggio
+
+Il salvataggio ogni quindici secondi protegge la corsa **mentre** corri. Restava
+scoperto il pezzo dopo: schiacciato stop, l'app chiedeva le scarpe e come era
+andata, e in quei secondi la corsa esisteva **solo nella memoria** del telefono.
+
+Non e' un caso teorico: e' successo. Una corsa persa perche' l'app, per un
+difetto nei giri, annunciava a voce chilometri mai fatti - e chi stava correndo
+l'ha chiusa. Giustamente: un'app che dice bugie mentre corri va chiusa. Solo che
+chiudendola si e' portata via anche la corsa.
+
+Adesso l'ordine e' rovesciato. **La corsa va su disco appena si schiaccia
+stop**, quando non c'e' ancora niente da chiedere; le scarpe e la fatica sono
+una *modifica* di una corsa che esiste gia'. Se l'app muore mentre rispondi, al
+massimo quella corsa resta senza scarpe - non sparisce.
+
+E il file di recupero si cancella **solo a salvataggio riuscito**. Prima lo si
+cancellava comunque, anche quando il salvataggio era fallito: cioe' si
+distruggeva l'unica copia rimasta esattamente nel caso in cui serviva.
+
+La regola che ne esce, e che vale oltre questo pezzo: **la copia di sicurezza si
+butta quando la copia buona esiste, non quando si e' finito di provarci.**
+
 ### Il carico: quanto e' costata una seduta
 
 Dieci chilometri lenti e dieci di ripetute sono la stessa riga sul diario e due

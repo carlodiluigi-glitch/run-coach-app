@@ -562,26 +562,39 @@ class _RunScreenState extends State<RunScreen> {
       }
     }
 
-    if (!mounted) return;
-    final String? shoeId = await _askShoe(context);
-
-    // La fatica percepita si chiede subito dopo, finche' la sensazione e'
-    // fresca: chiederla il giorno dopo darebbe un numero inventato.
-    if (!mounted) return;
-    final SessionFeedback? feedback = await askSessionFeedback(context);
-
+    // ================= PRIMA SU DISCO, POI LE DOMANDE =================
+    //
+    // PERCHE' QUEST'ORDINE, CHE SEMBRA SCOMODO
+    // ----------------------------------------
+    // Perche' prima era il contrario, e una corsa vera e' andata persa.
+    //
+    // Fra lo stop e il salvataggio l'app faceva due domande - le scarpe e come
+    // e' andata - e in quei secondi la corsa esisteva **solo nella memoria**
+    // del telefono. Chiunque chiuda l'app in quel momento, per qualunque
+    // motivo, la perde: e un motivo per chiudere l'app arrabbiati puo' sempre
+    // esserci. E' successo esattamente cosi'.
+    //
+    // Adesso la corsa va su disco appena si schiaccia stop, quando non c'e'
+    // ancora niente da chiedere. Le scarpe e la fatica diventano una
+    // **modifica** di una corsa che esiste gia': se l'app muore mentre
+    // rispondi, al massimo quella corsa resta senza scarpe - non sparisce.
+    //
+    // E il file di recupero si butta **solo a salvataggio riuscito**. Prima lo
+    // si buttava comunque: cioe' si distruggeva l'unica copia rimasta proprio
+    // nel caso in cui serviva.
     if (!mounted) return;
     final ActivityProvider activities = context.read<ActivityProvider>();
-    final RunningActivity toSave = activity.copyWith(
-      shoeId: shoeId,
-      feedback: feedback,
+    final RunningActivity appenaFinita = activity.copyWith(
       plannedSessionKey: _plannedSessionKey(context),
     );
-    final bool saved = await activities.add(toSave);
+    final bool saved = await activities.add(appenaFinita);
 
-    await run.reset();
+    if (saved) {
+      // Adesso la corsa e' al sicuro su disco: il file di recupero ha finito
+      // il suo lavoro.
+      await run.reset();
+    }
     if (!mounted) return;
-
     setState(() => _saving = false);
 
     if (!saved) {
@@ -591,11 +604,32 @@ class _RunScreenState extends State<RunScreen> {
               'Salvataggio non riuscito: controlla lo spazio disponibile.'),
         ),
       );
+      // Niente reset: il file di recupero resta, ed e' l'unica copia della
+      // corsa. Alla prossima apertura l'app la ripropone.
+      Navigator.of(context).pop();
+      return;
     }
+
+    // --------------------------------- adesso si puo' chiedere con calma
+    if (!mounted) return;
+    final String? shoeId = await _askShoe(context);
+
+    // La fatica percepita si chiede subito dopo, finche' la sensazione e'
+    // fresca: chiederla il giorno dopo darebbe un numero inventato.
+    if (!mounted) return;
+    final SessionFeedback? feedback = await askSessionFeedback(context);
+
+    if (shoeId != null || feedback != null) {
+      await activities.update(appenaFinita.copyWith(
+        shoeId: shoeId,
+        feedback: feedback,
+      ));
+    }
+    if (!mounted) return;
 
     Navigator.of(context).pushReplacementNamed(
       AppRoutes.activityDetail,
-      arguments: toSave.id,
+      arguments: appenaFinita.id,
     );
   }
 

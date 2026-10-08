@@ -59,6 +59,34 @@ if (hasReleaseKey) {
     }
 }
 
+// ---------------------------------------------------------------------------
+// LA CHIAVE DI CARICAMENTO DEL PLAY STORE
+// ---------------------------------------------------------------------------
+// E' una chiave diversa da quella qui sopra, e ci sono due motivi.
+//
+// 1. QUELLA SOPRA DEVE RESTARE COM'E'. L'APK che si installa a mano e' firmato
+//    con quella: cambiarla farebbe rifiutare ad Android ogni aggiornamento
+//    sopra l'installazione esistente, e si perderebbero le corse registrate.
+//
+// 2. QUESTA NON PUO' STARE NEL REPOSITORY. Chi ce l'ha puo' caricare
+//    aggiornamenti dell'app sul Play Store. Arriva quindi dalle variabili
+//    d'ambiente - sui runner di GitHub, dai secret - e il file vero non viene
+//    mai scritto qui dentro.
+//
+// Non e' la chiave con cui l'app arriva sui telefoni: quella la tiene Google
+// (Play App Signing). Questa serve solo a dire a Google "sono io che carico",
+// ed e' il motivo per cui, se si perde, si puo' farsela resettare. L'altra no.
+//
+// Senza queste variabili non cambia niente: si firma come prima.
+def uploadStorePath = System.getenv("FALCATA_UPLOAD_KEYSTORE")
+def uploadPassword = System.getenv("FALCATA_UPLOAD_PASSWORD")
+def uploadAlias = System.getenv("FALCATA_UPLOAD_ALIAS") ?: "falcata-upload"
+def hasUploadKey = uploadStorePath != null &&
+        !uploadStorePath.trim().isEmpty() &&
+        uploadPassword != null &&
+        !uploadPassword.trim().isEmpty() &&
+        file(uploadStorePath).exists()
+
 android {
     namespace = "com.runcoachapp.run_coach_app"
     // compileSdk e targetSdk seguono la versione di Flutter installata:
@@ -96,11 +124,24 @@ android {
                 keyPassword = keystoreProperties.getProperty("keyPassword")
             }
         }
+        upload {
+            if (hasUploadKey) {
+                storeFile = file(uploadStorePath)
+                storePassword = uploadPassword
+                keyAlias = uploadAlias
+                keyPassword = uploadPassword
+            }
+        }
     }
 
     buildTypes {
         release {
-            signingConfig = hasReleaseKey ? signingConfigs.release : signingConfigs.debug
+            // Con le variabili della chiave di caricamento presenti si firma
+            // per il Play Store; altrimenti resta la firma di sempre, quella
+            // dell'APK che si installa a mano.
+            signingConfig = hasUploadKey
+                    ? signingConfigs.upload
+                    : (hasReleaseKey ? signingConfigs.release : signingConfigs.debug)
             minifyEnabled = false
             shrinkResources = false
         }
