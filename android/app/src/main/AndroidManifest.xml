@@ -52,18 +52,21 @@
          notifica visibile. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
-    <!-- ========== MAPPE ==========
-         L'UNICA cosa per cui Falcata usa internet, e solo se l'utente accende
-         la mappa nelle impostazioni (nasce spenta).
+    <!-- ========== NIENTE INTERNET ==========
+         Falcata non dichiara il permesso INTERNET, e non e' una dimenticanza:
+         e' una promessa che si puo' verificare. Senza quel permesso Android
+         **impedisce** all'app di aprire una connessione, quindi non e' una
+         questione di fiducia - non puo' proprio, nemmeno per sbaglio e nemmeno
+         con un aggiornamento sbagliato.
 
-         Nessun dato esce da qui: la richiesta che parte e' "dammi il riquadro
-         di mappa numero X", identica per chiunque si trovi in quella zona.
-         Non viene mandata nessuna corsa, nessuna posizione registrata e
-         nessun identificativo. I riquadri scaricati restano nel telefono,
-         quindi la stessa corsa riaperta non chiede piu' niente.
+         Vuol dire che niente di quello che registri esce da questo telefono:
+         non le corse, non le posizioni, non il nome. Non ci sono account, non
+         c'e' un server, non c'e' niente da violare.
 
-         Senza questo permesso l'app funziona interamente, mappa esclusa. -->
-    <uses-permission android:name="android.permission.INTERNET" />
+         L'unica funzione che l'avrebbe voluto era la mappa vera sotto al
+         percorso, ed e' parcheggiata: il disegno del giro si fa senza rete.
+    -->
+
 
     <!-- ========== LA CADENZA ==========
          Da Android 10 leggere il sensore dei passi richiede questo permesso.

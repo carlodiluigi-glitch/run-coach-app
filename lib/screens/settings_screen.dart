@@ -6,7 +6,6 @@ import '../app/routes.dart';
 import '../app/tokens.dart';
 import '../models/user_settings.dart';
 import '../providers/settings_provider.dart';
-import '../services/map_tile_service.dart';
 import '../widgets/app_card.dart';
 import '../widgets/inset_list.dart';
 
@@ -337,39 +336,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ),
 
-            const SizedBox(height: 20),
-            const SectionTitle('Mappa'),
-            AppCard(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              child: SwitchListTile(
-                value: settings.mapEnabled,
-                onChanged: provider.setMapEnabled,
-                title: const Text('Mostra la mappa sotto al percorso'),
-                subtitle: Text(
-                  settings.mapEnabled
-                      ? 'I pezzi di mappa si scaricano una volta e restano nel '
-                          'telefono: la stessa corsa, riaperta, non chiede '
-                          'piu\' niente.'
-                      : 'Senza, resta il disegno del giro: si riconosce il '
-                          'percorso lo stesso, e senza internet.',
-                ),
-              ),
-            ),
-            if (settings.mapEnabled) ...<Widget>[
-              const SizedBox(height: 8),
-              const _MapCacheRow(),
-            ],
-            const SizedBox(height: 8),
-            AppCard(
-              child: Text(
-                'E\' l\'unica funzione di Falcata che usa internet, ed e\' '
-                'spenta finche\' non la accendi tu. Quello che parte e\' solo '
-                '"dammi il pezzo di mappa di questa zona": non esce nessuna '
-                'corsa, nessuna posizione registrata e nessun nome. Tutto il '
-                'resto dell\'app - piano, passi, carico, archivio - funziona '
-                'anche in aereo.',
-              ),
-            ),
+            // LA MAPPA E' PARCHEGGIATA, NON CANCELLATA.
+            //
+            // Il codice c'e' ancora (map_tile_service.dart, route_map.dart) ma
+            // non lo raggiunge piu' nessuno, e il permesso internet non e' piu'
+            // dichiarato. Il motivo non e' tecnico: i server di OpenStreetMap
+            // vietano l'uso da parte di un'app distribuita, e qualunque altro
+            // fornitore e' un costo che torna ogni mese contro un'app che si
+            // paga una volta sola.
+            //
+            // Toglierla cambia anche una cosa che si vede: Falcata adesso non
+            // parla con nessuno, e nel modulo di Google sui dati la risposta e'
+            // "niente", senza spiegazioni. Si riaccende il giorno in cui ci
+            // sara' un fornitore deciso.
 
             const SizedBox(height: 20),
             const SectionTitle('Falcata completa'),
@@ -475,71 +454,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ],
         ),
       ),
-    );
-  }
-}
-
-/// Quanto spazio occupano i pezzi di mappa tenuti, e come buttarli.
-///
-/// PERCHE' SI MOSTRA
-/// -----------------
-/// Perche' la memoria dei riquadri e' quello che rende la mappa sostenibile -
-/// si scaricano una volta e non si ripagano mai piu' - ma e' anche spazio che
-/// cresce in silenzio sul telefono di qualcun altro. Una funzione che occupa
-/// spazio senza dirlo e' il genere di cosa che si scopre quando il telefono e'
-/// pieno, e a quel punto si disinstalla l'app invece di cercare l'impostazione.
-///
-/// Svuotare non perde niente: i riquadri si riscaricano quando servono.
-class _MapCacheRow extends StatefulWidget {
-  const _MapCacheRow();
-
-  @override
-  State<_MapCacheRow> createState() => _MapCacheRowState();
-}
-
-class _MapCacheRowState extends State<_MapCacheRow> {
-  static const MapTileService _mappe = MapTileService();
-
-  int? _byte;
-
-  @override
-  void initState() {
-    super.initState();
-    _misura();
-  }
-
-  Future<void> _misura() async {
-    final int quanti = await _mappe.cacheBytes();
-    if (!mounted) return;
-    setState(() => _byte = quanti);
-  }
-
-  String get _testo {
-    final int? b = _byte;
-    if (b == null) return 'Conto in corso...';
-    if (b < 1024) return 'Niente ancora salvato';
-    if (b < 1024 * 1024) return '${(b / 1024).round()} KB salvati';
-    return '${(b / (1024 * 1024)).toStringAsFixed(1)} MB salvati';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return InsetList(
-      children: <Widget>[
-        AppListRow(
-          title: 'Pezzi di mappa tenuti nel telefono',
-          subtitle: 'Si riscaricano da soli quando servono: svuotare non fa '
-              'perdere niente.',
-          value: _testo,
-          showChevron: false,
-          onTap: (_byte ?? 0) <= 0
-              ? null
-              : () async {
-                  await _mappe.clearCache();
-                  await _misura();
-                },
-        ),
-      ],
     );
   }
 }

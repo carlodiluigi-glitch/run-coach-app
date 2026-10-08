@@ -23,12 +23,49 @@ e nel nome contano più che altrove.
 ## Descrizione breve (80 caratteri)
 
 ```
-Il piano di allenamento si scrive sui giorni e sul tempo che hai davvero.
+Si adatta ai tuoi turni, segue i tuoi progressi.
 ```
 
-72 caratteri. È la frase che compare sotto l'icona nei risultati di ricerca,
+47 caratteri. È la frase che compare sotto l'icona nei risultati di ricerca,
 quindi deve contenere la differenza, non il genere: "app per correre col GPS"
 sarebbe sprecata, lo sono tutte.
+
+**Perché non ripete la frase dell'immagine.** Il Play Store dà due spazi — questa
+riga e l'immagine in evidenza — e sono due occasioni, non una da usare due volte.
+L'immagine dice il prezzo («Paghi una volta. Corri quanto vuoi.»), che è la cosa
+su cui si decide; questa riga dice a chi serve. Insieme coprono due motivi
+diversi per scaricarla.
+
+---
+
+## Immagine in evidenza (1024x500)
+
+Il testo definitivo, scritto da Carlo:
+
+```
+FALCATA
+Paghi una volta. Corri quanto vuoi.
+
+Si adatta ai tuoi turni, segue i tuoi progressi.
+Il tuo ritmo, i tuoi obiettivi.
+
+Fatta da chi corre, per chi corre.
+```
+
+**Perché il prezzo in cima.** Delle quattro righe, è l'unica che un concorrente
+in abbonamento non può copiare. "Il tuo ritmo, i tuoi obiettivi" è vera e calda,
+ma la potrebbe scrivere chiunque: in cima ci va quello che gli altri non possono
+dire, il resto sostiene.
+
+**Perché la firma in fondo e non in cima.** "Fatta da chi corre, per chi corre"
+non dice cosa fa l'app, dice perché fidarsi — e quello si legge dopo. Chi si è
+fermato sulle prime righe trova lì il motivo per crederci. Ed è vera, che è
+l'unico motivo per cui vale la pena scriverla.
+
+L'immagine si rigenera da [`immagine-in-evidenza.html`](immagine-in-evidenza.html):
+si apre in un browser a finestra 1024x500 e si fa una schermata. È tenuta come
+pagina e non solo come PNG perché fra sei mesi, quando una parola andrà
+cambiata, si cambia la parola.
 
 ---
 
@@ -187,3 +224,64 @@ Pages.
    negozio — è una fondazione che paga quella banda con le donazioni. Serve un
    fornitore con un contratto (Thunderforest, MapTiler e simili). È una riga
    sola, e l'attribuzione va aggiornata di conseguenza.
+
+---
+
+## Il modulo "Sicurezza dei dati" (Data safety)
+
+Google lo chiede prima di pubblicare, e le risposte **devono** corrispondere a
+quello che l'app fa davvero: dichiarare meno di quanto si raccoglie e' il modo
+piu' rapido di farsi togliere dallo store.
+
+Nel caso di Falcata e' tutto semplice, perche' l'app non dichiara il permesso
+internet e quindi **non puo' mandare niente da nessuna parte**.
+
+| Domanda | Risposta |
+|---|---|
+| L'app raccoglie o condivide dati utente? | **No** |
+| I dati sono criptati in transito? | Non applicabile: non c'e' transito |
+| L'utente puo' chiedere la cancellazione dei dati? | Non applicabile: i dati sono solo sul suo telefono e si cancellano disinstallando |
+| L'app e' rivolta ai bambini? | No |
+| Ci sono annunci? | No |
+| Ci sono acquisti in-app? | Si', uno solo, una tantum |
+
+**Attenzione per il futuro:** se un giorno torna la mappa, torna anche il
+permesso internet, e questo modulo va rifatto. Anche solo scaricare riquadri di
+mappa significa che l'indirizzo IP dell'utente arriva a un fornitore, e va
+dichiarato.
+
+---
+
+## Pagina privacy
+
+Il file e' [`docs/privacy.html`](../docs/privacy.html), pronto da pubblicare
+gratis con GitHub Pages dal repository che c'e' gia'.
+
+Come accenderla, una volta sola:
+
+1. Sul sito di GitHub, nel repository: **Settings** → **Pages**
+2. Alla voce *Source* scegliere **Deploy from a branch**
+3. Branch: **main**, cartella: **/docs** → **Save**
+
+Dopo qualche minuto la pagina e' all'indirizzo:
+
+```
+https://carlodiluigi-glitch.github.io/run-coach-app/privacy.html
+```
+
+Quell'indirizzo va incollato nella Play Console, in *Informativa sulla privacy*.
+
+---
+
+## Quello che serve ancora, in ordine
+
+1. **Account sviluppatore** (25 dollari una tantum) — da fare per primo: finche'
+   non esiste, niente altro puo' partire.
+2. **Chiave di caricamento** + firma di Google (Play App Signing).
+3. **Pagina privacy pubblicata** (vedi sopra) e indirizzo incollato in console.
+4. **Immagini**: icona 512x512, immagine in evidenza 1024x500, e almeno due
+   schermate del telefono (vanno benissimo quelle vere).
+5. **Acquisto in-app** creato in console e collegato nel codice, al posto dello
+   sblocco da sviluppatore.
+6. **Test chiuso**: 12 persone iscritte per 14 giorni consecutivi.
+7. **Richiesta di accesso alla produzione**, con il modulo in tre parti.

@@ -11,6 +11,7 @@ import '../models/workout.dart';
 import '../models/workout_step.dart';
 import '../services/audio_coach_service.dart';
 import '../services/cadence.dart';
+import '../services/conto_giri.dart';
 import '../services/gps_filter.dart';
 import '../services/gps_service.dart';
 import '../services/permission_service.dart';
@@ -72,8 +73,12 @@ class RunningProvider extends ChangeNotifier {
   double? _rawGpsSpeed;
 
   final List<Lap> _laps = <Lap>[];
-  double _lapStartDistance = 0.0;
-  int _lapStartSeconds = 0;
+
+  /// Dove e' arrivato il giro in corso. Vedi [ContoGiri]: ci sta una classe
+  /// intera perche' queste due cifre, quando erano variabili sciolte qui
+  /// dentro, sono state perse in un rimpasto e hanno prodotto dieci giri
+  /// identici nella stessa corsa.
+  final ContoGiri _giri = ContoGiri();
 
   final List<RoutePoint> _route = <RoutePoint>[];
   int _lastRoutePointSecond = -10;
@@ -199,14 +204,12 @@ class RunningProvider extends ChangeNotifier {
 
   /// Distanza percorsa nel lap in corso.
   double get currentLapDistance {
-    final double value = _distanceMeters - _lapStartDistance;
-    return value < 0 ? 0 : value;
+    return _giri.metriDelGiro(_distanceMeters);
   }
 
   /// Tempo del lap in corso.
   int get currentLapSeconds {
-    final int value = elapsedSeconds - _lapStartSeconds;
-    return value < 0 ? 0 : value;
+    return _giri.secondiDelGiro(elapsedSeconds);
   }
 
   /// Passo medio dell'attivita' in secondi per chilometro.
@@ -500,8 +503,7 @@ class RunningProvider extends ChangeNotifier {
       ..reset();
     _distanceMeters = 0.0;
     _laps.clear();
-    _lapStartDistance = 0.0;
-    _lapStartSeconds = 0;
+    _giri.azzera();
     _route.clear();
     _lastRoutePointSecond = -10;
     _paceWindow.clear();
@@ -761,12 +763,23 @@ class RunningProvider extends ChangeNotifier {
     final double lapDistance = _settings.autoLapDistanceMeters;
     if (lapDistance < 100) return;
 
+    // IL CICLO SI FERMA SE IL RIFERIMENTO NON SI MUOVE.
+    //
+    // Il ciclo serve a un caso solo: un salto di distanza che copre piu' di un
+    // chilometro in un colpo (un buco di segnale lungo). Ma un ciclo che
+    // dipende da un effetto collaterale e' pericoloso - se quell'effetto
+    // sparisce, gira a vuoto e sforna giri finti finche' non sbatte contro il
+    // limite. E' esattamente quello che e' successo. Adesso la condizione di
+    // uscita non e' solo "ho fatto abbastanza giri": e' "il riferimento e'
+    // avanzato", cioe' la cosa che deve succedere perche' il ciclo abbia senso.
     int safety = 0;
     while (currentLapDistance >= lapDistance && safety < 10) {
       safety++;
+      final double primaDiChiudere = _giri.metriChiusi;
       // Il lap automatico a distanza esiste solo nella corsa libera, dove non
       // c'e' nessuna fase da scrivere.
       _closeLap(manual: false, stepLabel: null, exactDistance: lapDistance);
+      if (_giri.metriChiusi <= primaDiChiudere) break;
     }
   }
 
@@ -860,6 +873,13 @@ class RunningProvider extends ChangeNotifier {
     // confronto sarebbe fra il giro e se stesso.
     final Lap? precedente = _laps.isEmpty ? null : _laps.last;
     _laps.add(lap);
+
+    // SPOSTARE IL RIFERIMENTO E' LA PARTE CHE NON SI PUO' DIMENTICARE.
+    //
+    // Senza, i metri del giro restano sopra il chilometro e il giro automatico
+    // ne chiude uno dietro l'altro fino al limite di sicurezza, tutti con lo
+    // stesso tempo. E' successo davvero: vedi [ContoGiri].
+    _giri.chiudi(metri: lapDistance, secondiTotali: totalSeconds);
 
     // La cadenza del giro: i passi di adesso meno quelli di quando il giro e'
     // cominciato. Si aggiorna il riferimento comunque, anche quando la cadenza

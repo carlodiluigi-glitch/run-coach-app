@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="it"><head><meta charset="utf-8">
+<title>Falcata — immagine in evidenza 1024x500</title>
+<!--
+  L'IMMAGINE IN EVIDENZA DEL PLAY STORE, COME SORGENTE E NON COME PNG.
+
+  Google la chiede esattamente 1024x500. Tenerla qui come pagina invece che
+  come solo file immagine serve a una cosa sola: fra sei mesi, quando una
+  parola andra' cambiata, si cambia la parola - invece di ridisegnare tutto o
+  di cercare chi aveva il file originale.
+
+  Per rigenerarla: aprire questa pagina in un browser a finestra 1024x500 e
+  fare una schermata, oppure da riga di comando con un browser headless.
+
+  Il corridore e' disegnato a tratti di spessore diverso (coscia piu' spessa
+  dello stinco, braccio piu' spesso dell'avambraccio): e' quello che lo fa
+  sembrare disegnato invece che un omino di segnaletica. La traccia rossa
+  sotto ai piedi e' la stessa linea del percorso che l'app disegna.
+-->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+ *{margin:0;padding:0;box-sizing:border-box}
+ body{width:1024px;height:500px;overflow:hidden;background:#000;
+      font-family:Inter,system-ui,sans-serif;position:relative}
+ .wrap{position:absolute;inset:0;display:flex;align-items:center;padding:0 56px}
+ .txt{position:relative;z-index:2;width:560px}
+ .nome{color:#FF375F;font-size:16px;font-weight:800;letter-spacing:3.4px;
+       text-transform:uppercase;margin-bottom:14px}
+ .k{color:#fff;font-size:46px;font-weight:900;letter-spacing:-1.6px;line-height:1.1}
+ .s{color:#CFCDD1;font-size:19px;line-height:1.5;margin-top:16px}
+ .s b{color:#fff;font-weight:700}
+ .firma{margin-top:20px;padding-top:14px;border-top:1px solid #333;
+        color:#8E8E93;font-size:15.5px;font-weight:600}
+ .firma em{color:#FF375F;font-style:normal;font-weight:700}
+ svg{position:absolute;right:34px;bottom:0;height:470px;width:400px;z-index:1}
+ .glow{position:absolute;right:70px;top:50%;transform:translateY(-50%);
+       width:470px;height:470px;border-radius:50%;
+       background:radial-gradient(circle,rgba(255,55,95,.20) 0%,rgba(0,0,0,0) 64%)}
+</style></head><body>
+
+<div class="glow"></div>
+
+<svg viewBox="0 0 400 470" fill="none">
+  <!-- la traccia sotto ai piedi -->
+  <path d="M6 420 C 76 400, 138 412, 204 394 S 330 360, 396 336"
+        stroke="#FF375F" stroke-width="8" stroke-linecap="round"/>
+  <g stroke="#FFFFFF" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M198 250 L 272 260" stroke-width="26"/><!-- coscia avanti -->
+    <path d="M272 260 L 262 336" stroke-width="20"/><!-- stinco avanti -->
+    <path d="M262 336 L 294 344" stroke-width="14"/><!-- piede avanti -->
+    <path d="M198 250 L 146 292" stroke-width="26"/><!-- coscia dietro -->
+    <path d="M146 292 L 116 242" stroke-width="20"/><!-- stinco dietro, tallone su -->
+    <path d="M116 242 L 88 230" stroke-width="14"/><!-- piede dietro -->
+    <path d="M238 140 L 198 250" stroke-width="28"/><!-- busto, inclinato avanti -->
+    <path d="M236 160 L 288 198" stroke-width="21"/><!-- braccio avanti -->
+    <path d="M288 198 L 308 152" stroke-width="16"/><!-- avambraccio avanti -->
+    <path d="M236 160 L 182 190" stroke-width="21"/><!-- braccio dietro -->
+    <path d="M182 190 L 146 154" stroke-width="16"/><!-- avambraccio dietro -->
+    <path d="M244 130 L 236 146" stroke-width="20"/><!-- collo -->
+  </g>
+  <circle cx="258" cy="102" r="28" fill="#FFFFFF"/>
+</svg>
+
+<div class="wrap"><div class="txt">
+  <div class="nome">Falcata</div>
+  <div class="k">Paghi una volta.<br>Corri quanto vuoi.</div>
+  <div class="s">Si adatta ai tuoi <b>turni</b>, segue i tuoi progressi.<br>
+    Il tuo ritmo, i tuoi obiettivi.</div>
+  <div class="firma">Fatta da chi corre, <em>per chi corre</em>.</div>
+</div></div>
+
+</body></html>

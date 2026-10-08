@@ -29,10 +29,11 @@ chiave privata**.
 8. [Permessi Android](#permessi-android)
 9. [Funzioni implementate](#funzioni-implementate)
 10. [La cadenza](#la-cadenza)
-11. [La voce](#la-voce)
-12. [Funzioni predisposte per il futuro](#funzioni-predisposte-per-il-futuro)
-13. [Note tecniche](#note-tecniche)
-14. [Risoluzione problemi](#risoluzione-problemi)
+11. [I giri: due righe cadute](#i-giri-due-righe-cadute-dieci-giri-uguali)
+12. [La voce](#la-voce)
+13. [Funzioni predisposte per il futuro](#funzioni-predisposte-per-il-futuro)
+14. [Note tecniche](#note-tecniche)
+15. [Risoluzione problemi](#risoluzione-problemi)
 
 ---
 
@@ -366,7 +367,6 @@ Dichiarati in `android/app/src/main/AndroidManifest.xml`:
 | `FOREGROUND_SERVICE_LOCATION`  | tipo del servizio (obbligatorio da Android 14)       |
 | `WAKE_LOCK`                    | tiene la CPU attiva a schermo spento                 |
 | `POST_NOTIFICATIONS`           | notifica della registrazione (da Android 13)         |
-| `INTERNET`                     | solo i riquadri di mappa, solo se la mappa e' accesa |
 | `ACTIVITY_RECOGNITION`         | il sensore dei passi, per la cadenza (da Android 10) |
 
 **Non** e' richiesto `ACCESS_BACKGROUND_LOCATION` (il permesso "Consenti
@@ -1063,35 +1063,35 @@ Su un percorso da un punto a un altro la correzione **non** scatta: li' la
 differenza di quota e' vera, e toglierla cancellerebbe il dislivello di chi
 finisce in cima a una salita.
 
-### La mappa vera, e perche' nasce spenta
+### La mappa: parcheggiata prima di pubblicare
 
-Il disegno del percorso non costa niente e funziona senza rete. Una mappa vera
-no: i riquadri li serve un fornitore e si pagano a consumo. Il piu' economico
-per un'app come questa da' 150.000 riquadri al mese gratis e poi 125 dollari al
-mese - circa 700 utenti attivi, poi la bolletta. E' un **costo ricorrente in un
-prodotto che si vende una volta sola**, cioe' esattamente la trappola che
-l'acquisto unico esisteva per evitare.
+La mappa vera sotto al percorso e' stata scritta, ha funzionato, ed e' stata
+**tolta prima della pubblicazione**. Il motivo non e' tecnico.
 
-Quindi la mappa c'e', ma fatta in modo che quel conto resti governabile.
+I riquadri li serve un fornitore. Quelli di OpenStreetMap, che l'app usava in
+sviluppo, hanno una regola d'uso che **vieta** esplicitamente le applicazioni
+distribuite: sono server pagati da donazioni, non un servizio. Ogni altro
+fornitore serio e' un contratto con un costo **che torna ogni mese**, contro
+un'app che si paga **una volta sola**: ogni utente in piu' e' ricavo una volta
+e costo per sempre, che e' il contrario di un modello che sta in piedi.
 
-**Niente pacchetto, niente scorrimento.** I pacchetti per le mappe sanno fare
-zoom e trascinamento, e per farlo scaricano riquadri in continuazione: la spesa
-dipende da quanto l'utente gioca con la mappa, e non e' prevedibile. A Falcata
-serve l'opposto - una **figura ferma** che inquadra la corsa. Ferma vuol dire un
-numero di riquadri deciso in partenza: da due a sei per una corsa normale, con
-un tetto a 24 che non si puo' sfondare.
+Togliendola si perde il fondo della mappa e **non si perde il percorso**: il
+disegno del giro ([`RouteShape`](lib/widgets/route_shape.dart)) si fa dalle
+posizioni registrate, non costa niente e funziona in aereo.
 
-**I riquadri si tengono.** Scaricati una volta, restano nel telefono per un
-anno. La stessa corsa riaperta cento volte costa un download, non cento. Nelle
-impostazioni si vede quanto spazio occupano e si possono buttare - si
-riscaricano quando servono.
+In cambio si guadagna una cosa piu' grande di una mappa: Falcata **non dichiara
+piu' il permesso internet**. Non e' una promessa, e' una cosa che Android fa
+rispettare - senza quel permesso l'app non puo' aprire una connessione, nemmeno
+per sbaglio, nemmeno con un aggiornamento scritto male. Nel modulo di Google
+sulla sicurezza dei dati la risposta diventa "nessun dato raccolto", senza
+distinguo, e nell'informativa privacy si puo' scrivere una frase che quasi
+nessuna app di corsa puo' scrivere.
 
-**Nasce spenta.** Chi non l'accende non manda una richiesta a nessuno e non fa
-crescere nessun conto. Ed e' l'unica funzione per cui l'app ha bisogno di
-internet: il permesso nel manifest Android e' stato aggiunto adesso, per questa
-e solo per questa.
+Il codice resta nel repository ([`map_tile_service.dart`](lib/services/map_tile_service.dart),
+[`route_map.dart`](lib/widgets/route_map.dart)), non lo raggiunge piu' nessuno,
+e si riaccende il giorno in cui ci sara' un fornitore deciso.
 
-#### Due difetti trovati scrivendola
+### Due difetti trovati scrivendola
 
 Il primo e' nella proiezione, ed e' stato evitato perche' il test la confronta
 con la formula ufficiale di OpenStreetMap scritta in modo diverso. Non basta che
@@ -2026,6 +2026,67 @@ chiusa. Viene staccato in tutti i modi in cui una corsa puo' finire - stop,
 annullo, chiusura della schermata, `onDestroy` dell'Activity - perche' basta
 una strada dimenticata per avere esattamente il difetto che questa app passa il
 tempo a evitare.
+
+---
+
+## I giri: due righe cadute, dieci giri uguali
+
+Una corsa vera, registrata con la 2.7, e' uscita cosi':
+
+```
+Giro 1 - 1.00 km - 5:44
+Giro 2 - 1.00 km - 5:44
+Giro 3 - 1.00 km - 5:44
+...                        fino al decimo, identici al secondo
+```
+
+E mentre correva, allo scoccare del primo chilometro, la voce ha annunciato il
+giro due, il tre, il quattro, uno dietro l'altro, senza che fosse passato un
+metro.
+
+### Cos'era
+
+Il motore della corsa teneva due numeri sciolti - i metri e i secondi gia'
+assegnati ai giri chiusi - e chiudere un giro voleva dire spostarli avanti.
+Riscrivendo quel pezzo per aggiungerci la cadenza, **le due righe che li
+spostavano sono sparite nel rimpasto**.
+
+Da li' in poi il giro in corso restava sopra il chilometro per sempre, e il
+controllo del giro automatico ne chiudeva uno dietro l'altro finche' non
+sbatteva contro il suo limite di sicurezza - dieci. Tutti con lo stesso tempo,
+perche' fra il primo e il decimo non era passato un istante.
+
+### Perche' nessun controllo l'ha visto
+
+Perche' non era un errore di logica: il codice rimasto era **perfettamente
+valido**. Nessun analizzatore segnala due righe che non ci sono piu', e i
+controlli di questo progetto - struttura, costruttori, membri, import - cercano
+cose sbagliate, non cose mancanti. L'unica difesa possibile contro una riga
+caduta e' un test che verifichi l'effetto, e quel pezzo non ne aveva nessuno:
+era dentro un provider che i test non costruiscono.
+
+### La correzione, che non e' "stare piu' attenti"
+
+I due numeri sono diventati una classe,
+[`ContoGiri`](lib/services/conto_giri.dart), con un contratto scritto: chiudere
+un giro **sposta sempre** il riferimento, e lo dice (`chiudi` restituisce se ha
+consumato qualcosa). Due variabili sciolte non si possono provare; una classe
+si', e [`test/giri_test.dart`](test/giri_test.dart) tiene ferma la regola
+riproducendo esattamente quella corsa: dieci giri che devono chiudersi in dieci
+**momenti diversi**, a circa 344 secondi l'uno dall'altro.
+
+Il ciclo del giro automatico e' stato cambiato di conseguenza. Serviva per un
+caso solo - un buco di segnale che aggiunge piu' di un chilometro in un colpo -
+ma si fermava contando i giri, non guardando se stava succedendo qualcosa.
+Adesso esce appena il riferimento non avanza: se l'effetto che giustifica il
+ciclo non c'e', il ciclo finisce invece di sfornare giri finti.
+
+### Cosa resta sbagliato nelle corse gia' registrate
+
+Solo i parziali. **La distanza e il tempo totali sono giusti**: i giri non
+entrano nel conto dei metri, che viene dalla velocita' del chip. Una corsa
+registrata con la 2.6 o la 2.7 ha quindi il totale buono e la tabella dei giri
+da buttare.
 
 ---
 
