@@ -224,27 +224,122 @@ void main() {
       expect(media(stretto), closeTo(media(largo), 2.0));
     });
 
-    test('un buco dentro un gruppo lascia il gruppo senza cadenza', () {
-      // Questo e' il punto delicato: unendo dieci finestre di cui una senza
-      // passi, sommare le altre nove darebbe "meno passi nello stesso tempo",
-      // cioe' una cadenza crollata che non e' mai esistita. Meglio il buco.
+    test('letture mancanti non fanno un buco nel grafico', () {
+      // QUESTO TEST CHIEDEVA IL CONTRARIO, E CHIEDEVA LA COSA SBAGLIATA.
+      //
+      // Prima pretendeva che trenta punti senza lettura lasciassero il
+      // grafico vuoto li' in mezzo, per non "inventare una cadenza crollata".
+      // Ma i passi sono CUMULATIVI, e lo dice gia' il commento di questo
+      // file: un buco nella lettura non e' un buco nei passi. La lettura
+      // prima del buco e quella dopo bastano a dire esattamente quanti passi
+      // ci sono stati e in quanto tempo.
+      //
+      // Lasciare il vuoto non era prudenza, era buttare via una misura che
+      // c'era.
       final List<double?> c = List<double?>.filled(400, 170.0);
       for (int i = 100; i < 130; i++) {
         c[i] = null;
       }
       final List<ProfileSample> p =
           RunProfile.of(tracciato(cadenze: c), maxSamples: 20);
+
+      for (final ProfileSample s in p) {
+        expect(s.cadenceStepsPerMinute, isNotNull);
+        expect(s.cadenceStepsPerMinute!, closeTo(170.0, 8.0));
+      }
+    });
+
+    test('un contatore che consegna a lotti non spezza il grafico', () {
+      // IL GUASTO VERO, QUELLO CHE NESSUN TEST QUI DENTRO MODELLAVA.
+      //
+      // I test di questo file simulavano il sensore che "non risponde", cioe'
+      // un punto senza passi. Nella realta' non succede quasi mai: l'app
+      // tiene l'ultimo valore letto, quindi i punti hanno sempre un numero.
+      //
+      // Quello che succede davvero e' che il numero RESTA FERMO per decine di
+      // secondi e poi salta: il chip dei sensori accumula e consegna a lotti.
+      // Su una 16 km a 164 passi al minuto - media giusta, 14.789 passi
+      // totali giusti - il grafico usciva in cinque frammenti con il vuoto in
+      // mezzo, perche' ogni finestra divideva "i lotti capitati qui dentro"
+      // per la sua durata nominale.
+      //
+      // Qui si ricostruisce quella corsa: valore fermo per 45 secondi, poi il
+      // salto.
+      const double vera = 164.0;
+      const int lotto = 45;
+      final List<RoutePoint> corsa = <RoutePoint>[];
+      const double gradiLat = 1 / 111320.0;
+      double passiVeri = 0;
+      int consegnato = 0;
+      double metri = 0;
+      for (int t = 1; t <= 3600; t++) {
+        passiVeri += vera / 60.0;
+        metri += 3.0;
+        if (t % lotto == 0) consegnato = passiVeri.round();
+        corsa.add(RoutePoint(
+          latitude: 45.0 + metri * gradiLat,
+          longitude: 9.0,
+          elapsedSeconds: t,
+          altitude: 100.0,
+          speed: 3.0,
+          steps: consegnato,
+        ));
+      }
+
+      final List<ProfileSample> p = RunProfile.of(corsa);
+      expect(RunProfile.hasCadence(p), isTrue);
+
+      // NESSUN BUCO, e nessun valore inventato: la corsa era regolare, il
+      // grafico deve dirlo.
+      for (final ProfileSample s in p) {
+        expect(s.cadenceStepsPerMinute, isNotNull,
+            reason: 'un punto vuoto su una corsa a cadenza costante');
+        expect(s.cadenceStepsPerMinute!, closeTo(vera, 4.0),
+            reason: 'cadenza ${s.cadenceStepsPerMinute} invece di $vera');
+      }
+    });
+
+    test('un calo vero di cadenza si vede ancora', () {
+      // Il rovescio del test di sopra: la correzione misura su una base piu'
+      // lunga, e una base piu' lunga potrebbe spianare proprio la cosa per
+      // cui il grafico esiste. Non deve.
+      //
+      // Cadenza 174 per quaranta minuti, poi un calo a 154 negli ultimi
+      // dieci: e' il quadro della stanchezza in un lungo.
+      final List<double?> c = <double?>[
+        for (int i = 0; i < 1200; i++) i < 960 ? 174.0 : 154.0,
+      ];
+      final List<ProfileSample> p =
+          RunProfile.of(tracciato(cadenze: c, secondiFraPunti: 2));
+
+      final List<double> valori = <double>[
+        for (final ProfileSample s in p)
+          if (s.cadenceStepsPerMinute != null) s.cadenceStepsPerMinute!,
+      ];
+      expect(valori.length, greaterThan(p.length ~/ 2));
+
+      final double inizio = valori.first;
+      final double fine = valori.last;
+      expect(inizio, closeTo(174.0, 5.0), reason: 'inizio $inizio');
+      expect(fine, closeTo(154.0, 5.0), reason: 'fine $fine');
+      expect(inizio - fine, greaterThan(12.0),
+          reason: 'il calo da 174 a 154 si e\' spianato: $inizio -> $fine');
+    });
+
+    test('durante una sosta il grafico resta vuoto', () {
+      // Qui il buco e' la risposta giusta: se il contatore non cresce, di
+      // cadenza non ce n'e'. Riempirlo sarebbe inventare.
+      final List<double?> c = <double?>[
+        for (int i = 0; i < 900; i++) (i >= 400 && i < 480) ? 0.0 : 168.0,
+      ];
+      final List<ProfileSample> p =
+          RunProfile.of(tracciato(cadenze: c, secondiFraPunti: 2));
+
       final int senza = p
           .where((ProfileSample s) => s.cadenceStepsPerMinute == null)
           .length;
-      expect(senza, greaterThan(0));
-
-      // E quelli che ce l'hanno devono essere giusti, non trascinati in basso
-      // dal buco.
-      for (final ProfileSample s in p) {
-        final double? v = s.cadenceStepsPerMinute;
-        if (v != null) expect(v, closeTo(170.0, 8.0));
-      }
+      expect(senza, greaterThan(0),
+          reason: 'una sosta di quasi tre minuti deve lasciare il vuoto');
     });
 
     test('poca cadenza sparsa non basta per disegnare il riquadro', () {

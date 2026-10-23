@@ -1,0 +1,128 @@
+FALCATA 2.8.5 - LA CADENZA SPEZZETTATA
+======================================
+
+ATTENZIONE: tu sei fermo alla 2.8.1. Questo pacchetto contiene TUTTO quello
+che ti manca: 2.8.2, 2.8.3, 2.8.4 e 2.8.5 insieme. Applichi questo e sei a
+posto, non serve altro.
+
+
+IL GRAFICO DELLA CADENZA
+------------------------
+
+La tua 16 km: cadenza 164, 14.789 passi. Media giusta, totale giusto, e il
+grafico disegnato a pezzi con il vuoto in mezzo.
+
+Il sensore non c'entra. Il contapassi del telefono consegna A LOTTI: il
+numero resta fermo per 10, 30, anche 60 secondi, poi salta in avanti di
+tutti i passi di quel tratto. Il grafico calcolava "i passi comparsi in
+questo tratto, diviso la durata del tratto" - e con un contatore cosi' quel
+conto non misura la cadenza, misura quanti lotti sono capitati li' dentro.
+
+Rifatto al calcolatore su una corsa a 164 fissi:
+
+  consegne ogni 15 s  ->  nessun buco, ma valori da 123 a 185
+  consegne ogni 25 s  ->  nessun buco, ma valori da 153 a 206
+  consegne ogni 45 s  ->  23% di buchi
+  consegne ogni 60 s  ->  33% di buchi
+
+La riga peggiore non e' quella dei buchi. E' che ANCHE SENZA BUCHI il
+grafico ti mostrava una cadenza che ballava fra 123 e 206 mentre tu correvi
+a 164 fissi. Quei saliscendi che hai guardato finora non erano le tue gambe,
+era il sensore che consegna a lotti.
+
+LA CORREZIONE. I passi sono cumulativi, e questo basta: se a una lettura il
+contatore diceva 3.000 e a quella 50 secondi dopo diceva 3.137, in quei 50
+secondi hai fatto 137 passi. Esatto, non stimato. Adesso si tengono solo i
+momenti in cui il numero e' cambiato davvero e si misura fra quelli, su una
+base di almeno 45 secondi.
+
+Stessi tracciati simulati: NESSUN BUCO, valori fra 163 e 165 in tutti i casi.
+
+Il vuoto resta dove e' giusto che resti: durante una sosta (il contatore non
+cresce, di cadenza non ce n'e') e dopo che il sensore si e' fermato, cosi'
+non ti disegna una linea piatta e credibile su mezz'ora in cui non si e'
+contato niente.
+
+Si chiede anche al telefono di consegnare piu' spesso - al massimo un
+secondo di attesa. Non costa batteria, la CPU si sveglia gia' ogni secondo
+per il GPS. Se il telefono non accetta, il grafico resta giusto lo stesso:
+la correzione vera e' nel conto, non nella richiesta.
+
+
+PERCHE' NESSUN TEST L'AVEVA PRESO
+---------------------------------
+
+Perche' simulavano il guasto sbagliato: "il sensore non risponde", cioe' un
+punto senza passi. Nella realta' non succede quasi mai, perche' l'app tiene
+l'ultimo valore letto. Il guasto vero e' il numero CHE RESTA FERMO, e di
+quello non c'era una riga. Adesso c'e', con dentro la tua 16 km.
+
+
+E DENTRO C'E' ANCHE TUTTO IL RESTO
+----------------------------------
+
+2.8.2 e 2.8.3: la schermata della corsa e la preparazione del Play Store
+(chiave di caricamento, pacchetto .aab).
+
+2.8.4 - sei test rossi che da settimane non bloccavano la build. Due erano
+difetti veri:
+
+  * IL PASSO DEL LENTO. Il codice faceva scendere la frazione di ossigeno col
+    salire del livello; nella tabella di riferimento non scende. A indice 50
+    il lento usciva 12-16 secondi al km troppo lento, a indice 65 fino a 29.
+    Piu' miglioravi, piu' ti mandava piano.
+
+  * L'INDICE DI FORMA. Una corsa di scarico in archivio lo faceva crollare di
+    otto punti: un 10 km in 44:00 (46,5) diventava 38,5. Il motore partiva
+    dalla prestazione piu' vecchia senza guardarne il peso.
+
+  E da li' in avanti i test BLOCCANO la build: se un test e' rosso, non esce
+  l'APK.
+
+
+COSA TI ASPETTA DOPO L'AGGIORNAMENTO
+------------------------------------
+
+1. Il grafico della cadenza delle tue corse vecchie diventa una linea intera.
+   Non serve rifare le corse: il conto si rifa' sui dati gia' salvati.
+
+2. L'indice di forma probabilmente SALE. Guarda la schermata Forma.
+
+3. Nella schermata Piano potrebbe comparire una scheda "Adesso vali X, il
+   piano e' costruito su Y" con il pulsante per aggiornare i passi. Il
+   calendario non cambia, cambiano solo i ritmi.
+
+
+SE LA BUILD VA ROSSA
+--------------------
+
+I test adesso bloccano. Qui non posso eseguirli (non c'e' il compilatore
+Dart): ho verificato rifacendo i conti al calcolatore, caso per caso, sia
+sui test nuovi sia su quelli che c'erano gia'. Se per caso resta rosso,
+l'APK non esce: mandami il log del passo "flutter test" e lo sistemo. La
+2.8.1 che hai sul telefono continua a funzionare.
+
+
+FILE NEL PACCHETTO (20)
+-----------------------
+
+  pubspec.yaml                              2.8.1 -> 2.8.5+36
+  README.md
+  .github/workflows/android.yml
+  android/app/build.gradle
+  android/app/.../MainActivity.kt           consegna piu' frequente
+  negozio/chiave-di-caricamento.md
+  lib/app/app.dart
+  lib/screens/run_screen.dart
+  lib/services/cadence.dart                 il conto nuovo
+  lib/services/run_profile.dart             il grafico lo usa
+  lib/services/route_windows.dart
+  lib/services/fitness_service.dart
+  lib/services/pace_zone_engine.dart
+  lib/services/run_index_engine.dart
+  lib/services/map_tile_service.dart
+  test/cadenza_test.dart                    + 4 test nuovi
+  test/fitness_service_test.dart
+  test/plan_service_test.dart
+  test/copia_di_sicurezza_test.dart
+  test/run_index_engine_test.dart

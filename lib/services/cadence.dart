@@ -137,4 +137,170 @@ class Cadence {
     if (seconds < minimumSeconds) return null;
     return spm(steps: steps, seconds: seconds.toDouble());
   }
+
+  // ------------------------------------------------- la cadenza lungo la corsa
+  /// Base minima su cui misurare una cadenza locale, in secondi.
+  ///
+  /// Da trenta a novanta secondi il risultato non cambia: provato su un calo
+  /// vero da 170 a 150 negli ultimi venti minuti, tutte e quattro le basi lo
+  /// mostrano identico. Quarantacinque sta in mezzo - abbastanza lunga da
+  /// reggere un contatore che consegna a lotti, abbastanza corta da vedere la
+  /// cadenza cedere dentro un chilometro.
+  static const int localBaselineSeconds = 45;
+
+  /// Le letture VERE del contapassi: solo i punti in cui il numero e' cambiato.
+  ///
+  /// PERCHE' SERVE DISTINGUERLE DAI PUNTI DEL TRACCIATO
+  /// --------------------------------------------------
+  /// Perche' il contapassi del telefono non risponde a ogni secondo. Il chip
+  /// accumula e **consegna a lotti**: il valore resta fermo per dieci,
+  /// trenta, a volte sessanta secondi, poi salta in avanti di tutti i passi
+  /// di quel tratto. Ogni punto del tracciato porta l'ultimo valore
+  /// consegnato, quindi i punti hanno quasi sempre un numero - solo che fra
+  /// due punti vicini quel numero spesso e' lo stesso.
+  ///
+  /// Qui si tengono solo i momenti in cui e' cambiato davvero. Fra due di
+  /// quelli, passi e secondi sono tutti e due misurati: il rapporto e' la
+  /// cadenza, esatta.
+  static List<StepReading> readings(List<RoutePoint> route) {
+    final List<StepReading> out = <StepReading>[];
+    int? ultimo;
+    for (final RoutePoint punto in route) {
+      final int? p = punto.steps;
+      if (p == null) continue;
+      if (ultimo == null || p != ultimo) {
+        out.add(StepReading(seconds: punto.elapsedSeconds, steps: p));
+        ultimo = p;
+      }
+    }
+    return out;
+  }
+
+  /// La cadenza attorno a un istante della corsa, in passi al minuto.
+  ///
+  /// DA DOVE NASCE QUESTO METODO
+  /// ---------------------------
+  /// Da un grafico della cadenza spezzettato: una corsa di 16 km a 164 passi
+  /// al minuto - media giusta, 14.789 passi totali giusti - disegnata come
+  /// cinque frammenti con il vuoto in mezzo.
+  ///
+  /// La causa non era il sensore. Era che la cadenza di ogni tratto si
+  /// calcolava come "i passi apparsi in questa finestra, diviso la durata
+  /// della finestra". Con un contatore che consegna a lotti quel conto non
+  /// misura niente: dipende da quanti lotti capitano dentro la finestra, che
+  /// e' un numero intero piccolo. Riprodotto al calcolatore, con lotti ogni
+  /// 45 secondi: **un terzo dei punti fuori scala** (buttati, da cui i
+  /// buchi), e quelli rimasti a 122 o 185 invece di 164.
+  ///
+  /// E il difetto era peggio dei buchi. Anche con lotti ogni 15 o 25 secondi,
+  /// dove nessun punto veniva buttato, il grafico mostrava una cadenza che
+  /// ballava fra 123 e 206 su una corsa tenuta a 164 fissi. Chi lo guardava
+  /// non leggeva "il sensore consegna a lotti", leggeva "la mia cadenza va a
+  /// strappi".
+  ///
+  /// COME SI MISURA INVECE
+  /// ---------------------
+  /// Fra due **letture vere**, con i loro tempi veri, su una base di almeno
+  /// [localBaselineSeconds]. Non importa quando il sensore ha consegnato: se
+  /// a una lettura il contatore diceva 3.000 e a quella 50 secondi dopo
+  /// diceva 3.137, in quei 50 secondi si sono fatti 137 passi, punto.
+  /// Rifatto il conto sugli stessi tracciati simulati: **nessun buco**, e
+  /// valori fra 163 e 165 in tutti i casi.
+  ///
+  /// Resta `null` dove e' giusto: durante una sosta il contatore non cresce,
+  /// la cadenza esce sotto il minimo e il grafico mostra il vuoto - che li'
+  /// e' la risposta onesta.
+  static double? at(
+    List<StepReading> readings,
+    int seconds, {
+    int baseline = localBaselineSeconds,
+  }) {
+    if (readings.length < 2 || baseline <= 0) return null;
+
+    final int half = baseline ~/ 2;
+    int a = _lastNotAfter(readings, seconds - half);
+    int b = _firstNotBefore(readings, seconds + half);
+    if (b <= a) b = a + 1 < readings.length ? a + 1 : a;
+
+    // Vicino all'inizio o alla fine la base sborda: ci si appoggia al bordo e
+    // si allarga dall'altra parte. Una base spostata resta una misura vera;
+    // una base corta no.
+    while (readings[b].seconds - readings[a].seconds < baseline) {
+      if (b < readings.length - 1) {
+        b++;
+      } else if (a > 0) {
+        a--;
+      } else {
+        break;
+      }
+    }
+
+    // NON SI MISURA DOVE NON SI E' MISURATO.
+    //
+    // Se il sensore si e' fermato a meta' corsa - schermo spento, risparmio
+    // energetico spinto, permesso revocato - le letture finiscono li'. Senza
+    // questo controllo, ogni punto successivo si appoggerebbe alle ultime due
+    // letture disponibili e uscirebbe con la cadenza di allora: una linea
+    // piatta e credibile su mezz'ora in cui non si e' contato niente.
+    //
+    // E' lo stesso errore della coda congelata in [average], un passo piu' in
+    // la'. Fuori dal tratto davvero misurato la risposta e' il vuoto.
+    final int inizio = readings[a].seconds;
+    final int fine = readings[b].seconds;
+    if (seconds < inizio - baseline || seconds > fine + baseline) return null;
+
+    return spm(
+      steps: readings[b].steps - readings[a].steps,
+      seconds: (fine - inizio).toDouble(),
+    );
+  }
+
+  /// Ultima lettura che non va oltre [seconds]. La prima, se non ce n'e'.
+  static int _lastNotAfter(List<StepReading> readings, int seconds) {
+    int low = 0;
+    int high = readings.length - 1;
+    int out = 0;
+    while (low <= high) {
+      final int mid = (low + high) ~/ 2;
+      if (readings[mid].seconds <= seconds) {
+        out = mid;
+        low = mid + 1;
+      } else {
+        high = mid - 1;
+      }
+    }
+    return out;
+  }
+
+  /// Prima lettura che non precede [seconds]. L'ultima, se non ce n'e'.
+  static int _firstNotBefore(List<StepReading> readings, int seconds) {
+    int low = 0;
+    int high = readings.length - 1;
+    int out = readings.length - 1;
+    while (low <= high) {
+      final int mid = (low + high) ~/ 2;
+      if (readings[mid].seconds >= seconds) {
+        out = mid;
+        high = mid - 1;
+      } else {
+        low = mid + 1;
+      }
+    }
+    return out;
+  }
+}
+
+/// Un momento in cui il contapassi del telefono e' cambiato davvero.
+///
+/// Non un punto del tracciato: quelli hanno tutti un numero di passi, ma per
+/// lunghi tratti e' lo stesso numero, perche' il sensore consegna a lotti.
+/// Vedi [Cadence.readings].
+class StepReading {
+  const StepReading({required this.seconds, required this.steps});
+
+  /// Secondi dall'inizio della corsa.
+  final int seconds;
+
+  /// Passi contati dall'inizio della corsa, cumulativi.
+  final int steps;
 }

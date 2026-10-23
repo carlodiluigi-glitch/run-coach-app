@@ -63,9 +63,18 @@ jobs:
         continue-on-error: true
         run: flutter analyze --no-fatal-infos --no-fatal-warnings
 
-      # 6) Test unitari (non bloccanti)
+      # 6) Test unitari. BLOCCANTI.
+      #
+      # Fino alla 2.8.3 questo passo aveva continue-on-error: true, e la
+      # conseguenza si e' vista: 481 test verdi e 6 rossi, da settimane,
+      # senza che nessuno lo sapesse. Fra quei sei c'era il passo del lento
+      # sbagliato di dodici secondi al chilometro e un indice di forma che
+      # crollava di otto punti per una corsa di scarico.
+      #
+      # Un test che non blocca non e' una rete di sicurezza, e' un promemoria
+      # che nessuno legge. Da qui in avanti: se un test e' rosso, non esce
+      # nessun APK.
       - name: flutter test
-        continue-on-error: true
         run: flutter test
 
       # 7) APK release (firmata con la chiave di debug: nessun secret richiesto)

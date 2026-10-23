@@ -30,10 +30,12 @@ chiave privata**.
 9. [Funzioni implementate](#funzioni-implementate)
 10. [La cadenza](#la-cadenza)
 11. [I giri: due righe cadute](#i-giri-due-righe-cadute-dieci-giri-uguali)
-12. [La voce](#la-voce)
-13. [Funzioni predisposte per il futuro](#funzioni-predisposte-per-il-futuro)
-14. [Note tecniche](#note-tecniche)
-15. [Risoluzione problemi](#risoluzione-problemi)
+12. [La cadenza spezzettata (2.8.5)](#la-cadenza-spezzettata-285)
+13. [I sei test rossi (2.8.4)](#i-sei-test-rossi-284)
+14. [La voce](#la-voce)
+15. [Funzioni predisposte per il futuro](#funzioni-predisposte-per-il-futuro)
+16. [Note tecniche](#note-tecniche)
+17. [Risoluzione problemi](#risoluzione-problemi)
 
 ---
 
@@ -2110,6 +2112,215 @@ Solo i parziali. **La distanza e il tempo totali sono giusti**: i giri non
 entrano nel conto dei metri, che viene dalla velocita' del chip. Una corsa
 registrata con la 2.6 o la 2.7 ha quindi il totale buono e la tabella dei giri
 da buttare.
+
+---
+
+## La cadenza spezzettata (2.8.5)
+
+### Il grafico
+
+Una 16 km a 164 passi al minuto. Media giusta, 14.789 passi totali giusti, e
+il grafico della cadenza disegnato in cinque frammenti con il vuoto in mezzo.
+
+Il sensore non c'entrava.
+
+### Il contapassi consegna a lotti
+
+Il chip dei sensori accumula gli eventi in una coda e li consegna in blocco:
+consuma meno che svegliare la CPU a ogni passo. Quindi il numero **resta
+fermo** per dieci, trenta, anche sessanta secondi, e poi salta in avanti di
+tutti i passi di quel tratto. Ogni punto del tracciato porta l'ultimo valore
+consegnato, quindi i punti un numero ce l'hanno quasi sempre - solo che fra
+due punti vicini spesso e' lo stesso.
+
+Il grafico calcolava la cadenza di ogni tratto come *i passi comparsi in
+questa finestra, diviso la durata della finestra*. Con un contatore cosi'
+quel conto non misura la cadenza: misura **quanti lotti sono capitati li'
+dentro**, che e' un numero intero piccolo.
+
+Rifatto al calcolatore su una corsa a 164 fissi:
+
+| consegne ogni | punti buttati | valori mostrati |
+|---|---|---|
+| 15 s | nessuno | 123 - 185 |
+| 25 s | nessuno | 153 - 206 |
+| 45 s | **23%** | 184 - 185 |
+| 60 s | **33%** | 122 - 123 |
+| 45 s irregolari | **10%** | 100 - 233 |
+
+I buchi sono i punti finiti fuori dalla fascia del verosimile (sotto 100,
+sopra 240) e quindi scartati. Ma la riga peggiore non e' quella dei buchi: e'
+che **anche senza buchi** il grafico mostrava una cadenza che ballava fra 123
+e 206 su una corsa tenuta a 164 fissi. Chi lo guardava non leggeva "il
+sensore consegna a lotti", leggeva "la mia cadenza va a strappi".
+
+### Si misura fra due letture vere
+
+I passi sono cumulativi, e questo cambia tutto: non serve sapere quando sono
+stati fatti, basta sapere quanti ne erano stati contati a due momenti
+diversi. Se a una lettura il contatore diceva 3.000 e a quella 50 secondi
+dopo diceva 3.137, in quei 50 secondi si sono fatti 137 passi. Esatto, non
+stimato.
+
+Quindi adesso si tengono solo i momenti in cui il numero e' **cambiato
+davvero**, e la cadenza di un punto si misura fra le due letture che lo
+racchiudono, su una base di almeno 45 secondi. Stessi tracciati simulati di
+sopra: **nessun buco**, e valori fra 163 e 165 in tutti i casi.
+
+Da 30 a 90 secondi di base il risultato non cambia - provato su un calo vero
+da 174 a 154 negli ultimi dieci minuti, tutte le basi lo mostrano identico.
+Quarantacinque sta in mezzo.
+
+### Dove il vuoto resta, perche' li' e' la risposta giusta
+
+- **Durante una sosta**: il contatore non cresce, di cadenza non ce n'e'.
+- **Dopo che il sensore si e' fermato**: se le letture finiscono a meta'
+  corsa, i punti successivi restano vuoti. Senza questo controllo si
+  appoggerebbero alle ultime due letture disponibili e uscirebbe una linea
+  piatta e credibile su mezz'ora in cui non si e' contato niente - lo stesso
+  errore della coda congelata, un passo piu' in la'.
+
+### Perche' nessun test l'aveva preso
+
+Perche' i test simulavano il guasto sbagliato. Modellavano *il sensore non
+risponde*, cioe' un punto senza passi; e in quel caso pretendevano - giusto
+allora, sbagliato in generale - che il grafico lasciasse il vuoto.
+
+Nella realta' quel caso non succede quasi mai: l'app tiene l'ultimo valore
+letto, quindi un numero c'e' sempre. Il guasto vero e' **il numero che resta
+fermo**, e di quello non c'era una riga. Adesso c'e', con dentro la corsa da
+16 km che l'ha fatto vedere.
+
+E il vecchio test che pretendeva il buco e' stato corretto: i passi sono
+cumulativi, una lettura mancante non e' un passo mancante. Lasciare il vuoto
+li' non era prudenza, era buttare via una misura che c'era.
+
+### Sul telefono
+
+Si chiede anche al chip di consegnare piu' spesso - al massimo un secondo di
+attesa invece di quanto decide lui. Non costa batteria, perche' la CPU si
+sveglia gia' ogni secondo per il GPS. Se il telefono non accetta, il grafico
+resta giusto lo stesso: la correzione vera e' nel conto, non nella richiesta.
+
+---
+
+## I sei test rossi (2.8.4)
+
+### Come si nasconde un difetto per settimane
+
+I test di Falcata sono 487. Fino alla 2.8.3 il passo che li esegue, su GitHub
+Actions, aveva `continue-on-error: true`: **un test rosso non fermava niente**.
+Risultato: 481 verdi e 6 rossi, da settimane, con l'APK che usciva regolarmente
+e nessuno che se ne accorgeva.
+
+Dalla 2.8.4 il passo e' bloccante. Se un test e' rosso, non esce nessun APK.
+Un test che non blocca non e' una rete di sicurezza, e' un promemoria che
+nessuno legge.
+
+Dei sei, **due erano difetti veri dell'applicazione**, e nessuno dei due si
+vedeva correndo.
+
+### 1. Il passo del lento era sbagliato, e sbagliava di piu' ai livelli alti
+
+La fascia del lento nasce da una frazione del consumo massimo di ossigeno. Il
+codice la calcolava con due rette che la facevano **scendere** man mano che il
+livello sale, sul presupposto fisiologico che un atleta evoluto corra il lento
+a una percentuale piu' bassa del suo massimo.
+
+Il presupposto non si legge nella tabella di riferimento. Preso ogni passo
+lento stampato e riportato indietro alla frazione che lo produce, viene sempre
+lo stesso numero:
+
+| indice | lento (tabella) | frazione veloce | frazione lenta |
+|---|---|---|---|
+| 30 | 7:39 - 8:23 | 0,7001 | 0,6207 |
+| 40 | 6:07 - 6:44 | 0,6994 | 0,6191 |
+| 50 | 5:07 - 5:38 | 0,6999 | 0,6206 |
+| 65 | 4:08 - 4:34 | 0,7013 | 0,6200 |
+
+Da indice 30 a 65 la fascia e' **il 70% e il 62%, piatti**, con uno
+scostamento di un millesimo. Con questi due numeri fissi i passi calcolati
+coincidono con quelli stampati al secondo esatto su tutte e otto le righe:
+scarto massimo mezzo secondo al chilometro.
+
+Quanto costava la versione sbagliata:
+
+| indice | errore sul lento |
+|---|---|
+| 30 | 12 secondi al km **piu' veloce** del dovuto |
+| 40 | praticamente giusto |
+| 50 | 12 - 16 secondi **piu' lento** |
+| 65 | 25 - 29 secondi **piu' lento** |
+
+Cioe': piu' uno migliorava, piu' veniva mandato a correre piano. A indice 50 —
+un 10 km in 44 minuti — il lento usciva mezzo minuto al chilometro troppo
+lento sull'estremo basso della fascia.
+
+### 2. L'indice di forma crollava per una corsa di scarico
+
+Questo era peggio. Numeri veri:
+
+```
+un 10 km in gara in 44:00, cioe' indice 46,5, corso ieri
++ un'uscita tranquilla di 5 km in 32:00 due giorni prima
+= indice 38,5
+```
+
+Otto punti. Tradotti in passo sono quasi cinquanta secondi al chilometro di
+lento in meno del dovuto, su tutto il piano di allenamento. In forma piu'
+estrema: una corsa tranquilla di quaranta giorni prima teneva un 5 km tirato
+di ieri a indice 29,7 invece di 49,7. **Venti punti.**
+
+Il motivo era il punto di partenza del filtro. Il motore scorre le prestazioni
+dalla piu' vecchia alla piu' recente e ogni prova sposta la stima di poco,
+pesata per quanto dice. Ma la **prima** non veniva pesata: era la stima. Una
+corsa di scarico pesa 0,04 su 1 — cioe' non dice niente — e decideva da dove
+si parte. Da li' il tetto di una gara, dieci punti, non bastava a tornare su.
+
+La correzione: il filtro parte dalla prestazione piu' vecchia che sia una
+**misura** — una gara, o un tratto corso a fatica 7 o piu', o uno senza fatica
+dichiarata. Le corse lente restano nel conto e spostano la stima col loro
+peso, che e' piccolo di proposito. Ma non la definiscono. Adesso quel caso da
+46,5 fa 46,3.
+
+Stessa regola per la fiducia nella stima, dove c'erano due cose sbagliate:
+entrava nel conto del disaccordo chi era "piu' veloce della stima" (quindi una
+prova **tirata** andata male veniva buttata, mentre e' un disaccordo vero), e
+lo scarto si misurava attorno alla stima prudente invece che attorno al centro
+delle prove — cioe' la prudenza del motore veniva contata come disaccordo fra
+prestazioni. La fiducia scendeva da 0,57 a 0,14 per una corsa qualunque in
+archivio.
+
+### 3. Il polo nord, per sei millesimi di miliardesimo
+
+`worldY` promette un numero fra 0 e 1. All'estremo esatto della proiezione di
+Mercatore il conto in virgola mobile usciva di 0,0000000000062 fuori scala.
+Non si vede in nessun disegno, ma e' una promessa rotta e chi legge quel
+numero si fida del contratto. Adesso il risultato e' tagliato.
+
+### 4, 5, 6. Tre test che sbagliavano loro
+
+- **La copia di sicurezza.** Il test scriveva i file di prova nella cartella
+  esterna, mentre `StorageService` lavora nella sottocartella `run_coach`.
+  Quindi la copia non trovava niente da copiare. Le copie di sicurezza
+  funzionano: era il test a guardare nel posto sbagliato.
+- **Le fasi del piano.** Il test chiedeva "Costruzione" nella prima settimana
+  di un piano senza gara. Il motore, di proposito, senza una data non finge
+  nessuna periodizzazione: tutte le settimane sono Sviluppo.
+- **La tabella del lento.** Qui la cosa interessante: il test aveva **la sua**
+  tabella di valori attesi, e quella tabella era stata ricavata a rovescio
+  dalla formula sbagliata. Si vede dal profilo dell'errore, identico a quello
+  del codice. Un test scritto cosi' resta verde per sempre e non prova niente —
+  e' la fotocopia del difetto che dovrebbe trovare. Adesso ci sono i valori
+  veri e la tolleranza e' di un secondo al chilometro invece di otto.
+
+### Cosa cambia per chi usa l'app
+
+Le corse registrate non si toccano: distanza, tempi, parziali, tracciato,
+cadenza sono quello che sono sempre stati. Quello che cambia sono **i passi
+consigliati** e **l'indice di forma**, che d'ora in avanti sono quelli giusti.
+Chi aveva un indice tenuto giu' da una corsa lenta in archivio lo vedra'
+salire, e il lento consigliato diventera' piu' veloce di quello che era.
 
 ---
 

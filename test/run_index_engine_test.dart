@@ -483,6 +483,81 @@ void main() {
               '${conLenta.index!.confidence} per una corsa lenta');
     });
 
+    test('nemmeno l\'indice crolla per una corsa lenta', () {
+      // L'ALTRA META' DELLO STESSO GUASTO, E LA PEGGIORE.
+      //
+      // Non era solo la fiducia: era l'indice. Una gara di 10 km in 44:00
+      // corsa ieri (indice 46,5) con una corsa di scarico due giorni prima
+      // dava 38,5. Otto punti: tradotti in passo, sono quasi cinquanta
+      // secondi al chilometro di lento in meno del dovuto, su tutto il
+      // piano di allenamento.
+      //
+      // Il motivo era il punto di partenza del filtro: prendeva la
+      // prestazione piu' vecchia e la usava come stima iniziale senza
+      // guardarne il peso. Quella corsa di scarico pesa 0,04 su 1 - cioe'
+      // non dice niente - e decideva da dove si parte.
+      final RunIndexResult solaGara = engine.estimate(
+        <PerformanceSample>[gara(seconds: mmss(44, 0), daysAgo: 0)],
+        now: now,
+      );
+      final RunIndexResult conLenta = engine.estimate(
+        <PerformanceSample>[
+          gara(seconds: mmss(44, 0), daysAgo: 0),
+          sample(seconds: mmss(32, 0), daysAgo: 2, rpe: 3),
+        ],
+        now: now,
+      );
+
+      final double calo = solaGara.index!.value - conLenta.index!.value;
+      expect(calo < 1.0, isTrue,
+          reason: 'indice scivolato da ${solaGara.index!.value} a '
+              '${conLenta.index!.value} per una corsa di scarico');
+    });
+
+    test('una lenta vecchia non tiene in ostaggio una prova tirata', () {
+      // La stessa cosa in forma piu' estrema: una corsa tranquilla di
+      // quaranta giorni prima teneva un 5 km tirato di ieri a indice 29,7
+      // invece di 49,7. Venti punti.
+      final RunIndexResult result = engine.estimate(
+        <PerformanceSample>[
+          sample(seconds: mmss(32, 0), daysAgo: 40, rpe: 3),
+          sample(seconds: mmss(20, 0), daysAgo: 1, rpe: 9),
+        ],
+        now: now,
+      );
+      final RunIndexResult solaTirata = engine.estimate(
+        <PerformanceSample>[sample(seconds: mmss(20, 0), daysAgo: 1, rpe: 9)],
+        now: now,
+      );
+
+      expect(result.index!.value > solaTirata.index!.value - 1.0, isTrue,
+          reason: 'la prova tirata vale ${solaTirata.index!.value} ma con '
+              'una lenta vecchia in archivio l\'indice e\' '
+              '${result.index!.value}');
+    });
+
+    test('la corsa lenta resta nel conto, non viene cancellata', () {
+      // La correzione non e' "ignorare le corse lente": e' "non lasciare che
+      // decidano il punto di partenza". Continuano a pesare, poco, e a
+      // contare come evidenza del fatto che si sta correndo.
+      final RunIndexResult solaGara = engine.estimate(
+        <PerformanceSample>[gara(seconds: mmss(44, 0), daysAgo: 0)],
+        now: now,
+      );
+      final RunIndexResult conLenta = engine.estimate(
+        <PerformanceSample>[
+          gara(seconds: mmss(44, 0), daysAgo: 0),
+          sample(seconds: mmss(32, 0), daysAgo: 2, rpe: 3),
+        ],
+        now: now,
+      );
+
+      expect(conLenta.samples.length, 2);
+      // Un filo sotto la gara pura: la lenta tira in giu' di poco, com'e'
+      // giusto, invece di decidere tutto.
+      expect(conLenta.index!.value < solaGara.index!.value, isTrue);
+    });
+
     test('una gara andata male viene ascoltata, ma con calma', () {
       final RunIndexResult buona = engine.estimate(
         <PerformanceSample>[gara(seconds: mmss(44, 0), daysAgo: 30)],

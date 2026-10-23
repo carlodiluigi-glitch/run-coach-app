@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import '../models/running_activity.dart';
+import 'cadence.dart';
 import 'elevation_service.dart';
 import 'route_windows.dart';
 
@@ -60,16 +61,32 @@ class RunProfile {
 
     final List<double?> quote = const ElevationService().smoothedAltitudes(route);
 
+    // LA CADENZA NON SI CHIEDE ALLA FINESTRA.
+    //
+    // Il passo e la quota sono roba della finestra: tanti metri in tanti
+    // secondi, la quota del punto in cui si chiude. La cadenza no, e averla
+    // trattata come le altre due e' costato un grafico spezzettato su una
+    // corsa perfettamente regolare.
+    //
+    // Il motivo e' che il contapassi consegna a lotti: "i passi comparsi in
+    // questa finestra" non e' una misura, e' quanti lotti ci sono capitati
+    // dentro. Si misura invece fra due letture vere del contatore, con i
+    // loro tempi veri - vedi Cadence.at, dove c'e' il conto per esteso.
+    final List<StepReading> letture = Cadence.readings(route);
+
     final List<ProfileSample> out = <ProfileSample>[];
     double percorsi = 0;
     for (final RouteWindow f in finestre) {
       percorsi += f.meters;
+      final int? secondo =
+          f.endIndex < route.length ? route[f.endIndex].elapsedSeconds : null;
       out.add(ProfileSample(
         meters: percorsi,
         paceSecondsPerKm: f.paceSecondsPerKm,
         altitude: f.endIndex < quote.length ? quote[f.endIndex] : null,
         fromSpeed: f.fromSpeed,
-        cadenceStepsPerMinute: f.cadenceStepsPerMinute,
+        cadenceStepsPerMinute:
+            secondo == null ? null : Cadence.at(letture, secondo),
       ));
     }
     return out;

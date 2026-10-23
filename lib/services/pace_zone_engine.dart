@@ -211,8 +211,8 @@ class PaceZoneEngine {
 
     // Il lento nasce dal costo di ossigeno: e' l'unica zona definita da una
     // fascia fisiologica invece che da una gara equivalente, perche' "il
-    // passo che terresti per sempre" non e' una gara. La frazione non e'
-    // fissa, cambia con il livello: vedi FitnessService.easyOxygenFraction.
+    // passo che terresti per sempre" non e' una gara. La fascia e' il 70% -
+    // 62% del consumo massimo: vedi FitnessService.easyOxygenFraction.
     final double easySlow = fitness.easyPaceSlowest(vdot);
     final double easyFast = fitness.easyPaceFastest(vdot);
     if (easySlow <= 0 || easyFast <= 0) return null;

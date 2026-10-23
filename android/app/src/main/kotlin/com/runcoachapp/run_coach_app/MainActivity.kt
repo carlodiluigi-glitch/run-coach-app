@@ -360,7 +360,34 @@ class MainActivity : FlutterActivity() {
         val sensore = contatore ?: rilevatore ?: return false
 
         passiDaContatore = contatore != null
+
+        // QUANTO PUO' ASPETTARE IL CHIP PRIMA DI CONSEGNARE.
+        //
+        // Il chip dei sensori accumula gli eventi in una coda e li consegna a
+        // lotti: consuma meno che svegliare la CPU a ogni passo. Quanto
+        // aspetta lo decide lui, se non glielo si dice - e su una corsa vera
+        // si sono visti lotti da 45 secondi e oltre.
+        //
+        // Per i passi TOTALI non cambia niente: il valore e' cumulativo,
+        // quando arriva e' giusto. Ma il grafico della cadenza chiede "quanti
+        // passi in questo tratto", e con lotti piu' lunghi del tratto la
+        // domanda non ha risposta. Il lato Dart adesso misura fra due letture
+        // vere e regge comunque (vedi Cadence.at); qui si chiede solo di
+        // consegnare piu' spesso, cosi' il grafico ha piu' dettaglio.
+        //
+        // Un secondo, non zero: la CPU si sveglia gia' ogni secondo per il
+        // GPS, quindi consegnare in quella finestra non costa batteria in
+        // piu'. Zero vorrebbe dire una sveglia a ogni passo, ed e' lo spreco
+        // che questa app passa il tempo a evitare.
+        val attesaMassimaMicros = 1_000_000
         val ok = manager.registerListener(
+            ascoltatorePassi,
+            sensore,
+            SensorManager.SENSOR_DELAY_NORMAL,
+            attesaMassimaMicros
+        ) || manager.registerListener(
+            // Se il telefono non accetta di farsi dire l'attesa, si torna
+            // alla richiesta semplice: meglio consegne lente che nessuna.
             ascoltatorePassi,
             sensore,
             SensorManager.SENSOR_DELAY_NORMAL

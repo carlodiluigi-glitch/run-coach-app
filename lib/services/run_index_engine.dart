@@ -263,6 +263,17 @@ class RunIndexEngine {
     }
   }
 
+  /// Sotto questa fatica una prestazione non e' una misura della forma.
+  ///
+  /// Sopra c'e' una gara (1,0), un tratto a fatica 7 o piu' (0,7 e oltre) e
+  /// una corsa senza fatica dichiarata (0,6: ne' premio ne' castigo). Sotto
+  /// c'e' il lento e lo scarico, che di quanto vai forte non dicono niente -
+  /// per costruzione, perche' chi li corre non sta provando a andare forte.
+  ///
+  /// Serve in due punti: da dove parte il filtro e cosa conta come
+  /// disaccordo. Vedi [estimate] e [_confidence].
+  static const double measurementEffort = 0.6;
+
   /// Quanto aumenta il passo quando piu' prestazioni di fila confermano il
   /// miglioramento. Una domenica buona puo' essere fortuna; quattro di fila
   /// no, e a quel punto tenere l'indice basso vuol dire far allenare l'atleta
@@ -604,9 +615,40 @@ class RunIndexEngine {
       ..sort((WeightedSample a, WeightedSample b) =>
           a.sample.date.compareTo(b.sample.date));
 
-    double current = byDate.first.rawIndex;
+    // DA QUALE PRESTAZIONE PARTE IL FILTRO.
+    //
+    // Dalla piu' vecchia che sia una MISURA, non dalla piu' vecchia e basta.
+    // Il punto di partenza non viene pesato - e' la stima, non una spinta
+    // sulla stima - e lasciarlo decidere a una corsa di scarico produceva
+    // questo, su numeri veri:
+    //
+    //   un 10 km in gara in 44:00, cioe' indice 46,5, corso ieri
+    //   + un'uscita tranquilla di 5 km in 32:00 due giorni prima
+    //   = indice 38,5
+    //
+    // Il meccanismo: il filtro partiva da quell'uscita (indice 28,5, peso
+    // 0,04 su 1, cioe' quasi niente) e da li' il tetto di una gara - dieci
+    // punti - non bastava a tornare su. Peggio ancora con una prova vecchia:
+    // una lenta di quaranta giorni prima teneva un 5 km tirato di ieri a
+    // 29,7 invece di 49,7.
+    //
+    // Le corse lente restano nel conto e spostano la stima col loro peso,
+    // che e' piccolo di proposito. Ma non la DEFINISCONO: non si dimostra di
+    // essere lenti correndo piano, ed e' la stessa regola che vale piu'
+    // sotto per il disaccordo.
+    int seed = 0;
+    for (int i = 0; i < byDate.length; i++) {
+      final WeightedSample s = byDate[i];
+      if (effortWeightFor(s.sample.source, s.sample.rpe) >= measurementEffort) {
+        seed = i;
+        break;
+      }
+    }
+
+    double current = byDate[seed].rawIndex;
     int streak = 0;
-    for (int i = 1; i < byDate.length; i++) {
+    for (int i = 0; i < byDate.length; i++) {
+      if (i == seed) continue;
       final WeightedSample s = byDate[i];
       final EstimateSource source = s.sample.source;
       final bool improving = s.rawIndex > current;
@@ -642,7 +684,7 @@ class RunIndexEngine {
 
     // 4. Confidenza.
     final double confidence =
-        _confidence(byDate, current, idleDays: idleDays);
+        _confidence(byDate, idleDays: idleDays);
 
     // 5. Spettro velocista - fondista.
     final double? speed = _weightedMean(byDate
@@ -736,8 +778,7 @@ class RunIndexEngine {
   /// La confidenza nasce da tre cose: quanta evidenza c'e', quanto e'
   /// recente, e quanto le prestazioni sono d'accordo fra loro.
   double _confidence(
-    List<WeightedSample> samples,
-    double current, {
+    List<WeightedSample> samples, {
     required int idleDays,
   }) {
     double mass = 0;
@@ -754,24 +795,46 @@ class RunIndexEngine {
 
     // Quanto sono d'accordo fra loro.
     //
-    // ATTENZIONE A COSA CONTA COME DISACCORDO. Una corsa lenta non contraddice
-    // una gara: era lenta di proposito. Il motore lo dice gia' altrove ("non
-    // si scende perche' hai corso piano"), ma qui lo contraddiceva: bastava
-    // un'uscita tranquilla in archivio per far crollare la fiducia in un 10 km
-    // corso in gara. Quindi entrano nel conto solo le prestazioni che dicono
-    // qualcosa, cioe' quelle piu' veloci della stima, piu' quelle affidabili
-    // in entrambe le direzioni - una gara andata male e' un disaccordo vero.
-    double variance = 0;
+    // DUE COSE CHE QUI ERANO SBAGLIATE.
+    //
+    // 1. CHI ENTRA NEL CONTO. Il criterio era "piu' veloce della stima". Il
+    //    senso era giusto - una corsa lenta non contraddice una gara, era
+    //    lenta di proposito - ma il modo no. Una prova TIRATA andata male e'
+    //    un disaccordo vero e veniva buttata via; e nei casi con una sola
+    //    prova sopra la stima lo scarto usciva zero per costruzione, cioe'
+    //    accordo perfetto senza che nessuno fosse d'accordo con nessuno.
+    //    Il criterio giusto e' la fatica: conta chi stava provando a andare
+    //    forte. Vedi [measurementEffort].
+    //
+    // 2. ATTORNO A COSA SI MISURA LO SCARTO. Attorno a `current`, che e' la
+    //    stima prudente, cioe' di proposito piu' bassa della prova migliore.
+    //    Quella distanza e' la prudenza del motore, non un disaccordo fra
+    //    prestazioni, e veniva contata come se lo fosse: una gara di ieri
+    //    piu' una corsa qualunque in archivio facevano scendere la fiducia
+    //    da 0,57 a 0,14. Lo scarto va misurato attorno al centro delle
+    //    prove, che e' l'unico modo di rispondere alla domanda "queste
+    //    misure dicono la stessa cosa?".
+    final List<WeightedSample> measures = samples
+        .where((WeightedSample s) =>
+            effortWeightFor(s.sample.source, s.sample.rpe) >= measurementEffort)
+        .toList();
+
     double weightSum = 0;
-    for (final WeightedSample s in samples) {
-      final bool counts = s.rawIndex > current ||
-          s.sample.source.reliability >= 0.8;
-      if (!counts) continue;
-      variance += s.weight * math.pow(s.rawIndex - current, 2).toDouble();
+    double centreSum = 0;
+    for (final WeightedSample s in measures) {
+      centreSum += s.rawIndex * s.weight;
       weightSum += s.weight;
     }
-    final double stdev =
-        weightSum <= 0 ? 0 : math.sqrt(variance / weightSum);
+
+    double stdev = 0;
+    if (weightSum > 0) {
+      final double centre = centreSum / weightSum;
+      double variance = 0;
+      for (final WeightedSample s in measures) {
+        variance += s.weight * math.pow(s.rawIndex - centre, 2).toDouble();
+      }
+      stdev = math.sqrt(variance / weightSum);
+    }
     final double agreement = 1 / (1 + stdev / 2.5);
 
     final double value =

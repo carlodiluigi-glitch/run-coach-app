@@ -176,10 +176,20 @@ class RouteWindow {
 
   /// La cadenza della finestra, in passi al minuto. `null` se non si sa.
   ///
-  /// Niente tetto di durata qui: una finestra da venti secondi e' corta per
-  /// definizione, ed e' quello che serve per vedere la cadenza cedere dentro
-  /// un chilometro. I limiti del verosimile - sotto i 100 e sopra i 240 - li
-  /// mette [Cadence], in un posto solo.
+  /// NON USARE QUESTO PER IL GRAFICO.
+  /// --------------------------------
+  /// Sembra la cosa giusta e non lo e'. Il contapassi del telefono consegna
+  /// a lotti: fra l'inizio e la fine di una finestra da venti secondi il
+  /// numero puo' essere cambiato due volte, una, o nessuna. Dividere quei
+  /// passi per la durata nominale della finestra non misura la cadenza,
+  /// misura quanti lotti sono capitati li' dentro - e il risultato, su una
+  /// corsa tenuta a 164 fissi, va da 122 a 206 con un terzo dei punti fuori
+  /// scala.
+  ///
+  /// E' il difetto che ha prodotto il grafico spezzettato di una 16 km.
+  /// Resta qui perche' sui tratti lunghi (un giro, una seduta) il conto
+  /// regge, ma lungo la corsa si usa [Cadence.at], che misura fra due
+  /// letture vere del contatore.
   double? get cadenceStepsPerMinute {
     final int? p = steps;
     if (p == null) return null;

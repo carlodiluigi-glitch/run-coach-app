@@ -199,10 +199,21 @@ void main() {
 
   group('andata e ritorno, su disco vero', () {
     late Directory tempDir;
+
+    /// La cartella dove l'archivio finisce DAVVERO.
+    ///
+    /// StorageService non scrive nella cartella che gli si passa: ci crea
+    /// dentro una sottocartella `run_coach` e lavora li'. Questo gruppo
+    /// scriveva i file di prova nella cartella esterna, quindi la copia non
+    /// trovava niente da copiare e usciva nulla. Il test era rosso per un
+    /// errore suo, non dell'applicazione: le copie di sicurezza funzionano.
+    late Directory dataDir;
     late StorageService storage;
 
     setUp(() async {
       tempDir = await Directory.systemTemp.createTemp('falcata_backup_test');
+      dataDir = Directory('${tempDir.path}/run_coach');
+      await dataDir.create(recursive: true);
       storage = StorageService(overrideDirectory: tempDir);
     });
 
@@ -213,10 +224,11 @@ void main() {
     test('quello che salvi e\' quello che ritrovi', () async {
       // Il giro completo: si scrive un archivio, se ne fa la copia, si
       // cancella tutto, si rimette. Deve tornare identico.
-      final File corse = File('${tempDir.path}/${StorageService.activitiesFileName}');
+      final File corse =
+          File('${dataDir.path}/${StorageService.activitiesFileName}');
       await corse.writeAsString('[{"id":"a1","name":"Corsa di prova"}]');
       final File impostazioni =
-          File('${tempDir.path}/${StorageService.settingsFileName}');
+          File('${dataDir.path}/${StorageService.settingsFileName}');
       await impostazioni.writeAsString('{"userName":"Carlo","units":"metric"}');
 
       final String? copia = await storage.exportBackup(appVersion: '2.1.0');
@@ -247,7 +259,7 @@ void main() {
     test('un file rotto non tocca quello che c\'e\' gia\'', () async {
       // La garanzia piu' importante di tutte, provata sul disco vero.
       final File corse =
-          File('${tempDir.path}/${StorageService.activitiesFileName}');
+          File('${dataDir.path}/${StorageService.activitiesFileName}');
       await corse.writeAsString('[{"id":"vero"}]');
 
       final BackupReport r = await storage.importBackup(jsonEncode(

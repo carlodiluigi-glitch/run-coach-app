@@ -58,8 +58,12 @@ void main() {
       final List<PlanPhase> phases = service.phasesFor(12, RaceGoal.fitness);
       expect(phases.contains(PlanPhase.taper), isFalse);
       expect(phases.contains(PlanPhase.peak), isFalse);
-      expect(phases.first, PlanPhase.base);
-      expect(phases.last, PlanPhase.build);
+      // Senza una data di gara le fasi non esistono: tutte le settimane sono
+      // uguali, ed e' Sviluppo per tutte. Questa riga chiedeva Costruzione
+      // nella prima settimana, cioe' una periodizzazione che il motore si
+      // rifiuta di fingere - vedi PlanService.phasesFor.
+      expect(phases.every((PlanPhase p) => p == PlanPhase.build), isTrue,
+          reason: 'fasi: $phases');
     });
   });
 

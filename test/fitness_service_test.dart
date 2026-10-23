@@ -92,8 +92,14 @@ void main() {
       expect(p.threshold.secondsPerKm, closeTo(mmss(4, 13), 8));
       expect(p.interval.secondsPerKm, closeTo(mmss(3, 51), 8));
       expect(p.repetition.secondsPerKm, closeTo(mmss(3, 36), 8));
-      expect(p.easy.fastestSecPerKm, closeTo(mmss(5, 38), 10));
-      expect(p.easy.slowestSecPerKm, closeTo(mmss(6, 12), 10));
+      // La tabella stampa, per indice 50, un lento da 5:07 a 5:38. Questa
+      // riga chiedeva 5:38 - 6:12: aveva preso l'estremo LENTO della fascia
+      // e lo aveva messo come estremo veloce, scalando tutto di una fascia.
+      // Il test era verde perche' il codice sbagliava nella stessa
+      // direzione. La tolleranza adesso e' di due secondi, non dieci: con la
+      // frazione giusta il conto torna al secondo.
+      expect(p.easy.fastestSecPerKm, closeTo(mmss(5, 7), 2));
+      expect(p.easy.slowestSecPerKm, closeTo(mmss(5, 38), 2));
     });
 
     test('i passi restano in ordine a qualunque livello', () {
@@ -234,26 +240,39 @@ void main() {
   // la fascia del lento con la tabella di riferimento su tutto l'arco dei
   // livelli, non solo su quello comodo.
   group('fascia del lento', () {
-    // indice: (estremo veloce, estremo lento) in secondi al km
+    // LA TABELLA VERA, COPIATA DAL LIBRO.
+    //
+    // Quella che c'era qui prima non era questa: era stata ricavata a
+    // rovescio dalla formula del codice, che sbagliava. Si vede dal profilo
+    // dell'errore - giusta a indice 35, dodici secondi fuori a indice 30 e
+    // venticinque a indice 65 - ed e' il modo tipico in cui un test diventa
+    // la fotocopia del difetto che dovrebbe trovare. Un test scritto cosi'
+    // resta verde per sempre e non prova niente.
+    //
+    // Indice: (estremo veloce, estremo lento) in secondi al chilometro.
     const Map<int, List<int>> tabella = <int, List<int>>{
-      30: <int>[447, 494],
-      35: <int>[406, 449],
-      40: <int>[372, 413],
-      45: <int>[346, 383],
-      50: <int>[323, 358],
-      55: <int>[304, 337],
-      60: <int>[288, 319],
-      65: <int>[273, 303],
+      30: <int>[459, 503], // 7:39 - 8:23
+      35: <int>[407, 448], // 6:47 - 7:28
+      40: <int>[367, 404], // 6:07 - 6:44
+      45: <int>[334, 368], // 5:34 - 6:08
+      50: <int>[307, 338], // 5:07 - 5:38
+      55: <int>[284, 313], // 4:44 - 5:13
+      60: <int>[265, 292], // 4:25 - 4:52
+      65: <int>[248, 274], // 4:08 - 4:34
     };
 
     test('combacia con la tabella a ogni livello', () {
       tabella.forEach((int vdot, List<int> attesi) {
         final double veloce = service.easyPaceFastest(vdot.toDouble());
         final double lento = service.easyPaceSlowest(vdot.toDouble());
-        // Otto secondi al km: la tabella stessa e' arrotondata.
-        expect(veloce, closeTo(attesi[0], 8),
+        // Un secondo al chilometro. Non e' pignoleria: con il 70% e il 62%
+        // del consumo massimo il conto riproduce tutte e otto le righe della
+        // tabella al secondo esatto, e una tolleranza larga qui servirebbe
+        // solo a nascondere un modello sbagliato - che e' esattamente
+        // quello che e' successo.
+        expect(veloce, closeTo(attesi[0], 1),
             reason: 'indice $vdot, estremo veloce');
-        expect(lento, closeTo(attesi[1], 8),
+        expect(lento, closeTo(attesi[1], 1),
             reason: 'indice $vdot, estremo lento');
       });
     });
@@ -271,19 +290,35 @@ void main() {
       }
     });
 
-    test('la frazione cala man mano che il livello sale', () {
-      // E' il cuore della correzione: la percentuale del massimo a cui si
-      // corre il lento NON e' la stessa per tutti.
-      final double basso = service.easyOxygenFraction(32, fast: true);
-      final double alto = service.easyOxygenFraction(62, fast: true);
-      expect(basso > alto, isTrue, reason: 'basso $basso, alto $alto');
+    test('la frazione e\' la stessa a ogni livello', () {
+      // QUESTO TEST DICEVA IL CONTRARIO, E SBAGLIAVA.
+      //
+      // Chiedeva che la percentuale del massimo a cui si corre il lento
+      // scendesse col crescere del livello. Suona fisiologico, ma la
+      // tabella dice un'altra cosa: riportando ogni passo lento stampato
+      // alla frazione che lo produce viene sempre 0,700 e 0,620, da indice
+      // 30 a 65, con uno scostamento di un millesimo. La fascia e' piatta.
+      //
+      // Chi migliora corre il lento piu' forte perche' il suo massimo e'
+      // piu' alto, non perche' usi una fetta piu' piccola di quel massimo.
+      for (final double vdot in <double>[30, 38, 45, 52, 60, 65]) {
+        expect(service.easyOxygenFraction(vdot, fast: true),
+            FitnessService.easyFractionFast,
+            reason: 'indice $vdot');
+        expect(service.easyOxygenFraction(vdot, fast: false),
+            FitnessService.easyFractionSlow,
+            reason: 'indice $vdot');
+      }
     });
 
-    test('fuori scala non si estrapola all\'infinito', () {
-      expect(service.easyOxygenFraction(5, fast: true), 0.78);
-      expect(service.easyOxygenFraction(200, fast: true), 0.50);
-      expect(service.easyOxygenFraction(5, fast: false), 0.70);
-      expect(service.easyOxygenFraction(200, fast: false), 0.45);
+    test('non c\'e\' niente da estrapolare', () {
+      // Prima c'erano due rette con dei tagli agli estremi, e i tagli erano
+      // la parte piu' fragile: un confronto sul valore grezzo faceva uscire
+      // 0,6992999999999999 invece di 0,70. Una costante non ha estremi.
+      expect(service.easyOxygenFraction(5, fast: true), 0.700);
+      expect(service.easyOxygenFraction(200, fast: true), 0.700);
+      expect(service.easyOxygenFraction(5, fast: false), 0.620);
+      expect(service.easyOxygenFraction(200, fast: false), 0.620);
     });
   });
 }

@@ -99,11 +99,19 @@ class MapTileService {
   /// i meridiani restano verticali e paralleli, e il prezzo e' che le zone
   /// vicine ai poli vengono ingrandite. Su un percorso di dieci chilometri la
   /// deformazione non si vede.
+  /// Il risultato sta sempre fra 0 e 1 compresi.
+  ///
+  /// Il taglio della latitudine da solo non basta: all'estremo esatto il
+  /// conto in virgola mobile esce di 6 millesimi di miliardesimo fuori
+  /// scala (-0,0000000000062 al polo nord, 1,0000000000062 al sud). Non si
+  /// vede in nessun disegno, ma e' una promessa rotta, e chi legge questo
+  /// numero per calcolare l'origine dei riquadri si fida di quel contratto.
   static double worldY(double latitude) {
     final double lat = latitude.clamp(-85.05112878, 85.05112878);
     final double rad = lat * math.pi / 180.0;
     final double sin = math.sin(rad);
-    return 0.5 - math.log((1 + sin) / (1 - sin)) / (4 * math.pi);
+    final double y = 0.5 - math.log((1 + sin) / (1 - sin)) / (4 * math.pi);
+    return y.clamp(0.0, 1.0);
   }
 
   /// La vista giusta per un percorso dentro un riquadro di date dimensioni.
