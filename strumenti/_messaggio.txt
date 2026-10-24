@@ -1,0 +1,95 @@
+FALCATA 2.8.6 - IL TEST CHE E' CADUTO
+====================================
+
+La 2.8.5 ha fermato la build: 492 test passati, 1 rosso. Ed era colpa mia,
+in un posto che non avevo guardato.
+
+Il test caduto:
+
+  test/athlete_profile_test.dart:135
+  "una gara dichiarata di recente alza la stima"
+  -> la riga che diceva "una gara deve anche alzare la fiducia"
+
+
+COSA AVEVO SBAGLIATO
+--------------------
+
+Nella 2.8.4 ho cambiato come il motore decide se due prestazioni si
+contraddicono. Prima il criterio era "piu' veloce della stima, oppure
+affidabile". L'ho sostituito con "fatica almeno 0,6".
+
+La seconda meta' del criterio vecchio era davvero troppo stretta: teneva
+dentro solo le gare, quindi una prova TIRATA andata male - che e' un
+disaccordo vero - veniva buttata via. Quello andava corretto.
+
+Ma la PRIMA meta' era giusta, e toglierla e' stato l'errore. Una prestazione
+piu' veloce della stima e' sempre informazione: piu' forte di cosi' non ci si
+va per sbaglio. Una piu' LENTA della stima dice qualcosa solo se uno ci stava
+provando.
+
+Il caso che l'ha fatto vedere: un tratto da 5 km in 28:00 dentro un'uscita
+tranquilla, piu' una 10 km in gara in 45:00 dichiarata nel profilo. Col mio
+criterio quel tratto diventava un disaccordo con la gara - e invece non lo e'
+per niente: non e' che non poteva andare piu' forte, e' che non ci stava
+provando. Risultato assurdo: DICHIARARE una gara faceva scendere la fiducia
+invece di alzarla. Da 0,193 a 0,179.
+
+
+LA CORREZIONE
+-------------
+
+Due soglie invece di una, perche' le domande sono due:
+
+  "Questa prestazione misura la forma?"   -> 0,6
+     (serve a decidere da dove parte il motore: esclude il lento)
+
+  "Se e' lenta, e' un brutto segno?"      -> 0,7
+     (serve a decidere cosa contraddice cosa: esclude anche le corse
+      senza fatica dichiarata, perche' li' non si sa se ci provava)
+
+Adesso conta come disaccordo chi e' piu' veloce della stima, OPPURE chi ci
+stava provando davvero: una gara, un test, o una corsa a fatica 7 o piu'.
+
+Lo stesso caso del test adesso fa 0,193 -> 0,551. La gara alza la fiducia,
+come deve.
+
+
+COSA HO VERIFICATO STAVOLTA
+---------------------------
+
+L'errore vero non e' stato il criterio: e' stato che avevo controllato le
+mie modifiche contro UN file di test solo, quello del motore di forma. Quella
+riga stava in un altro file.
+
+Stavolta ho rifatto i conti su tutte le 26 affermazioni che i test fanno su
+questo motore, prese da tutti i file che lo toccano (run_index_engine_test,
+athlete_profile_test, ripetute_test). Tutte e 26 tornano.
+
+E ho aggiunto un test che fissa proprio la distinzione:
+
+  5 km in 32:00 due giorni prima di una 10 km in 44:00
+    a fatica 3 -> non contraddice niente, fiducia 0,581
+    a fatica 9 -> contraddice la gara,   fiducia 0,162
+
+
+UN LIMITE CHE RESTA, E TE LO DICO
+---------------------------------
+
+In quel secondo caso (la 5 km TIRATA e lenta) l'indice scende a 38,5 invece
+di restare piu' vicino alla gara, che pesa piu' del doppio. E' il vecchio
+difetto del punto di partenza, in un angolo dove non l'ho chiuso: succede
+solo se fai una prova massimale molto piu' lenta del tuo passo di gara pochi
+giorni prima. Non l'ho toccato adesso perche' sistemarlo tocca i freni del
+motore e volevo una build verde, non un'altra rossa. Se ti capita, si fa.
+
+
+FILE NEL PACCHETTO (4)
+----------------------
+
+  pubspec.yaml                          2.8.5+36 -> 2.8.6+37
+  lib/app/app.dart                      versione mostrata
+  lib/services/run_index_engine.dart    le due soglie
+  test/run_index_engine_test.dart       + 1 test sulla distinzione
+
+Tutto il resto della 2.8.5 - la cadenza, il passo del lento, la mappa - e'
+gia' sul tuo repository: quel commit e' passato. Qui c'e' solo la correzione.
