@@ -270,9 +270,28 @@ class RunIndexEngine {
   /// c'e' il lento e lo scarico, che di quanto vai forte non dicono niente -
   /// per costruzione, perche' chi li corre non sta provando a andare forte.
   ///
-  /// Serve in due punti: da dove parte il filtro e cosa conta come
-  /// disaccordo. Vedi [estimate] e [_confidence].
+  /// Serve per decidere da dove parte il filtro, in [estimate].
   static const double measurementEffort = 0.6;
+
+  /// Sopra questa fatica, una prestazione LENTA vuol dire qualcosa.
+  ///
+  /// E' una soglia piu' alta di [measurementEffort], e la differenza e' il
+  /// punto: le due rispondono a due domande diverse.
+  ///
+  ///   "Questa prestazione misura la forma?"  -> measurementEffort (0,6)
+  ///   "Se e' lenta, e' un brutto segno?"     -> maximalEffort (0,7)
+  ///
+  /// Una corsa senza fatica dichiarata (0,6) e' una misura - il tempo che
+  /// segna l'ha fatto davvero - ma non e' un tentativo massimale: se esce
+  /// lenta non si puo' concludere niente, perche' non si sa se ci stava
+  /// provando. Una gara, un test o una corsa a fatica 7 o piu' si': li' uno
+  /// ci stava provando, e un tempo scarso e' un dato scarso.
+  ///
+  /// Mettere una soglia sola per tutte e due le domande e' costato un test:
+  /// con 0,6 anche per la seconda, un tratto tranquillo da 5 km in 28:00
+  /// contraddiceva una 10 km in 45:00, e dichiarare la gara faceva SCENDERE
+  /// la fiducia. Vedi [_confidence].
+  static const double maximalEffort = 0.7;
 
   /// Quanto aumenta il passo quando piu' prestazioni di fila confermano il
   /// miglioramento. Una domenica buona puo' essere fortuna; quattro di fila
@@ -684,7 +703,7 @@ class RunIndexEngine {
 
     // 4. Confidenza.
     final double confidence =
-        _confidence(byDate, idleDays: idleDays);
+        _confidence(byDate, current, idleDays: idleDays);
 
     // 5. Spettro velocista - fondista.
     final double? speed = _weightedMean(byDate
@@ -778,7 +797,8 @@ class RunIndexEngine {
   /// La confidenza nasce da tre cose: quanta evidenza c'e', quanto e'
   /// recente, e quanto le prestazioni sono d'accordo fra loro.
   double _confidence(
-    List<WeightedSample> samples, {
+    List<WeightedSample> samples,
+    double current, {
     required int idleDays,
   }) {
     double mass = 0;
@@ -797,14 +817,23 @@ class RunIndexEngine {
     //
     // DUE COSE CHE QUI ERANO SBAGLIATE.
     //
-    // 1. CHI ENTRA NEL CONTO. Il criterio era "piu' veloce della stima". Il
-    //    senso era giusto - una corsa lenta non contraddice una gara, era
-    //    lenta di proposito - ma il modo no. Una prova TIRATA andata male e'
-    //    un disaccordo vero e veniva buttata via; e nei casi con una sola
-    //    prova sopra la stima lo scarto usciva zero per costruzione, cioe'
-    //    accordo perfetto senza che nessuno fosse d'accordo con nessuno.
-    //    Il criterio giusto e' la fatica: conta chi stava provando a andare
-    //    forte. Vedi [measurementEffort].
+    // 1. CHI ENTRA NEL CONTO. Il criterio era "piu' veloce della stima,
+    //    oppure affidabile" - e la seconda meta' era troppo stretta: teneva
+    //    dentro solo gare e personali dichiarati, quindi una prova TIRATA
+    //    andata male, che e' un disaccordo vero, veniva buttata via.
+    //
+    //    La prima meta' invece era giusta, ed e' stato un errore toglierla.
+    //    Una prestazione dice sempre "almeno tanto vali": piu' veloce della
+    //    stima e' informazione in ogni caso, perche' piu' forte di cosi' non
+    //    ci si va per sbaglio. Piu' LENTA della stima, invece, dice qualcosa
+    //    solo se uno ci stava provando. Un tratto da 5 km in 28:00 dentro
+    //    un'uscita tranquilla non contraddice una 10 km in 45:00: non e' che
+    //    non poteva andare piu' forte, e' che non ci stava provando.
+    //
+    //    Sostituendo tutto con "fatica >= 0,6" quel tratto diventava un
+    //    disaccordo, e dichiarare una gara ABBASSAVA la fiducia invece di
+    //    alzarla. Adesso: piu' veloce della stima, oppure uno sforzo vero -
+    //    vedi [maximalEffort].
     //
     // 2. ATTORNO A COSA SI MISURA LO SCARTO. Attorno a `current`, che e' la
     //    stima prudente, cioe' di proposito piu' bassa della prova migliore.
@@ -816,7 +845,8 @@ class RunIndexEngine {
     //    misure dicono la stessa cosa?".
     final List<WeightedSample> measures = samples
         .where((WeightedSample s) =>
-            effortWeightFor(s.sample.source, s.sample.rpe) >= measurementEffort)
+            s.rawIndex > current ||
+            effortWeightFor(s.sample.source, s.sample.rpe) >= maximalEffort)
         .toList();
 
     double weightSum = 0;

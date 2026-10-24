@@ -514,6 +514,53 @@ void main() {
               '${conLenta.index!.value} per una corsa di scarico');
     });
 
+    test('una brutta prova TIRATA abbassa la fiducia, una lenta no', () {
+      // LA DISTINZIONE CHE IL MOTORE DEVE SAPER FARE.
+      //
+      // Due prestazioni identiche - 5 km in 32:00 due giorni prima di una
+      // 10 km in 44:00 - valgono una il contrario dell'altra a seconda di
+      // quanto sono costate:
+      //
+      //   a fatica 3  ->  stava corricchiando. Non contraddice niente.
+      //   a fatica 9  ->  ci stava provando, e tanto e' venuto fuori.
+      //                   Quello contraddice la gara, e la fiducia deve
+      //                   scendere.
+      //
+      // Serve perche' il motore ha sbagliato in tutte e due le direzioni:
+      // prima scartava le prove tirate andate male (contavano solo le gare),
+      // poi, correggendo, ha iniziato a contare anche le lente - e allora
+      // dichiarare una gara ABBASSAVA la fiducia.
+      final RunIndexResult solaGara = engine.estimate(
+        <PerformanceSample>[gara(seconds: mmss(44, 0), daysAgo: 0)],
+        now: now,
+      );
+      final RunIndexResult conLenta = engine.estimate(
+        <PerformanceSample>[
+          gara(seconds: mmss(44, 0), daysAgo: 0),
+          sample(seconds: mmss(32, 0), daysAgo: 2, rpe: 3),
+        ],
+        now: now,
+      );
+      final RunIndexResult conTirata = engine.estimate(
+        <PerformanceSample>[
+          gara(seconds: mmss(44, 0), daysAgo: 0),
+          sample(seconds: mmss(32, 0), daysAgo: 2, rpe: 9),
+        ],
+        now: now,
+      );
+
+      expect(conTirata.index!.confidence < solaGara.index!.confidence, isTrue,
+          reason: 'una 5 km tirata in 32:00 contraddice una 10 km in 44:00: '
+              'fiducia ${solaGara.index!.confidence} -> '
+              '${conTirata.index!.confidence}');
+      expect(
+          conLenta.index!.confidence >= solaGara.index!.confidence - 0.02,
+          isTrue,
+          reason: 'la stessa corsa a fatica 3 non contraddice niente');
+      expect(conTirata.index!.confidence < conLenta.index!.confidence, isTrue,
+          reason: 'la fatica dichiarata deve fare la differenza');
+    });
+
     test('una lenta vecchia non tiene in ostaggio una prova tirata', () {
       // La stessa cosa in forma piu' estrema: una corsa tranquilla di
       // quaranta giorni prima teneva un 5 km tirato di ieri a indice 29,7
