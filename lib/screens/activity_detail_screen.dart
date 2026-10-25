@@ -394,11 +394,27 @@ class ActivityDetailScreen extends StatelessWidget {
                     value: carico.round().toString(),
                     showChevron: false,
                   ),
-                AppListRow(
-                  title: 'Punti GPS registrati',
-                  value: '${activity.route.length}',
-                  showChevron: false,
-                ),
+                // "Punti GPS: 0" su una corsa inserita a mano sembra un
+                // guasto, non una scelta. Su quelle la riga sparisce e al suo
+                // posto c'e' la spiegazione, piu' sotto.
+                if (!activity.type.isManual)
+                  AppListRow(
+                    title: 'Punti GPS registrati',
+                    value: '${activity.route.length}',
+                    showChevron: false,
+                  ),
+                if (activity.type.isManual)
+                  const AppListRow(
+                    title: 'Inserita a mano',
+                    subtitle: 'Durata e distanza le hai scritte tu, leggendole '
+                        'dal display. Questi chilometri contano nel volume '
+                        'della settimana, nel carico e sul consumo delle '
+                        'scarpe. Non contano per l\'indice di forma, per i '
+                        'passi del piano e per i record sulle distanze: la '
+                        'distanza la dichiara il nastro, e un nastro tarato '
+                        'male non si puo\' smascherare da qui.',
+                    showChevron: false,
+                  ),
                 if (activity.heartRateAverage != null)
                   AppListRow(
                     title: 'FC media',

@@ -57,3 +57,7 @@ app.*.map.json
 # Segreti
 *.env
 secrets/
+
+# I pacchetti per Play Console: li costruisce il workflow a ogni build,
+# non vanno nella storia del progetto (pesano decine di megabyte).
+/pacchetti/

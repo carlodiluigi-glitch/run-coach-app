@@ -24,6 +24,18 @@ class ActivityHistoryScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Storico'),
         actions: <Widget>[
+          // AGGIUNGERE UNA CORSA A MANO.
+          //
+          // Sta qui, nello storico, e non nella schermata della corsa: non e'
+          // un modo di correre, e' un modo di RACCONTARE una corsa gia' fatta.
+          // Metterlo accanto al pulsante di avvio avrebbe invitato a sbagliare
+          // proprio chi ha fretta.
+          IconButton(
+            tooltip: 'Aggiungi una corsa a mano',
+            icon: const Icon(Icons.add),
+            onPressed: () =>
+                Navigator.of(context).pushNamed(AppRoutes.manualRun),
+          ),
           IconButton(
             tooltip: 'Statistiche',
             icon: const Icon(Icons.insights),
@@ -36,7 +48,9 @@ class ActivityHistoryScreen extends StatelessWidget {
               icon: Icons.history,
               title: 'Nessuna attivita salvata',
               message:
-                  'Le corse registrate compariranno qui, con lap, passo e scarpa utilizzata.',
+                  'Le corse registrate compariranno qui, con lap, passo e '
+                  'scarpa utilizzata. Con il + in alto puoi aggiungerne una a '
+                  'mano: il tapis roulant, o un\'uscita fatta senza telefono.',
             )
           : ListView.separated(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
@@ -71,9 +85,7 @@ class _ActivityTile extends StatelessWidget {
           Row(
             children: <Widget>[
               Icon(
-                activity.type == ActivityType.workout
-                    ? Icons.list_alt
-                    : Icons.directions_run,
+                _icona(activity.type),
                 color: scheme.primary,
               ),
               const SizedBox(width: 10),
@@ -154,5 +166,22 @@ class _Cell extends StatelessWidget {
             style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
       ],
     );
+  }
+}
+
+/// L'icona che distingue i tre tipi a colpo d'occhio.
+///
+/// Il tapis roulant deve avere la sua, e non per estetica: i suoi chilometri
+/// contano nel volume ma non nell'indice di forma, e chi guarda lo storico fra
+/// sei mesi deve poter capire subito perche' una certa settimana pesa nei
+/// chilometri e non si vede nella stima. Vedi ActivityTypeLabel.isManual.
+IconData _icona(ActivityType tipo) {
+  switch (tipo) {
+    case ActivityType.workout:
+      return Icons.list_alt;
+    case ActivityType.treadmill:
+      return Icons.fitness_center;
+    case ActivityType.free:
+      return Icons.directions_run;
   }
 }

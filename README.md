@@ -30,12 +30,13 @@ chiave privata**.
 9. [Funzioni implementate](#funzioni-implementate)
 10. [La cadenza](#la-cadenza)
 11. [I giri: due righe cadute](#i-giri-due-righe-cadute-dieci-giri-uguali)
-12. [La cadenza spezzettata (2.8.5)](#la-cadenza-spezzettata-285)
-13. [I sei test rossi (2.8.4)](#i-sei-test-rossi-284)
-14. [La voce](#la-voce)
-15. [Funzioni predisposte per il futuro](#funzioni-predisposte-per-il-futuro)
-16. [Note tecniche](#note-tecniche)
-17. [Risoluzione problemi](#risoluzione-problemi)
+12. [La corsa sul tapis roulant (2.9.0)](#la-corsa-sul-tapis-roulant-290)
+13. [La cadenza spezzettata (2.8.5)](#la-cadenza-spezzettata-285)
+14. [I sei test rossi (2.8.4)](#i-sei-test-rossi-284)
+15. [La voce](#la-voce)
+16. [Funzioni predisposte per il futuro](#funzioni-predisposte-per-il-futuro)
+17. [Note tecniche](#note-tecniche)
+18. [Risoluzione problemi](#risoluzione-problemi)
 
 ---
 
@@ -2112,6 +2113,76 @@ Solo i parziali. **La distanza e il tempo totali sono giusti**: i giri non
 entrano nel conto dei metri, che viene dalla velocita' del chip. Una corsa
 registrata con la 2.6 o la 2.7 ha quindi il totale buono e la tabella dei giri
 da buttare.
+
+---
+
+## La corsa sul tapis roulant (2.9.0)
+
+### Il pulsante +
+
+Nello storico, in alto, c'e' un **+**: apre una schermata dove si scrive una
+corsa a mano. Data e ora, durata, distanza, e basta - il passo non si chiede,
+si calcola e si mostra mentre scrivi, cosi' se hai sbagliato a digitare lo
+vedi prima di salvare.
+
+Nasce per il nastro in palestra, ma il nastro e' solo il caso piu' frequente.
+Lo stesso pulsante copre **tutte le corse che l'applicazione non ha visto**:
+una gara corsa senza telefono, l'uscita in cui il GPS e' morto, la corsa con
+un amico col telefono in macchina. Senza, quei chilometri sparivano - e
+sparivano nel posto peggiore, cioe' il volume settimanale. Un piano che crede
+che tu abbia corso trenta chilometri quando ne hai corsi cinquanta ti fa
+progredire troppo in fretta, perche' calcola l'aumento su una base falsa.
+
+### La riga di confine
+
+Su un nastro la distanza non la misura l'applicazione: **la dichiara la
+macchina**. E i nastri sbagliano di routine del cinque o dieci per cento,
+senza che da qui ci sia modo di accorgersene - non c'e' un satellite, un
+sensore o un confronto che possa smentirli. In piu' a pendenza zero manca la
+resistenza dell'aria, e la regola classica e' che l'1% di pendenza equivale
+alla strada piana: lo stesso passo, sul nastro, costa meno.
+
+Quindi:
+
+| | tapis roulant |
+|---|---|
+| volume settimanale | **conta** |
+| carico di allenamento | **conta** |
+| consumo delle scarpe | **conta** |
+| corsa piu' lunga | **conta** |
+| indice di forma | no |
+| passi del piano | no |
+| record sulle distanze | no |
+
+Il criterio e' uno solo: **i chilometri contano, la velocita' no.** Un'ora di
+corsa e' un'ora di corsa - le gambe non sanno che il pavimento scorreva. Ma
+tutto quello che dice "vai a questo ritmo" nasce dall'indice, e costruirlo su
+un numero non verificabile vorrebbe dire far decidere i ritmi
+dell'allenamento alla taratura di un nastro.
+
+La corsa piu' lunga sta dalla parte dei chilometri, e non e' una svista:
+misura quanto hai corso, non quanto vai forte. I record sulle distanze stanno
+dall'altra, per la stessa ragione - un primato sui 10 km fatto su un nastro
+tarato male sarebbe un primato del nastro.
+
+### Cosa non si puo' scrivere
+
+Parziali, cadenza, dislivello, tracciato. Non ci sono. Una casella vuota da
+riempire a mano produrrebbe un dato inventato con l'aspetto di un dato
+misurato, ed e' precisamente il difetto che il resto di questo progetto passa
+il tempo a evitare.
+
+Nel dettaglio della corsa, al posto di "Punti GPS: 0" - che sembrerebbe un
+guasto - c'e' una riga che spiega cos'e' questa corsa e cosa non conta.
+
+### Dove la riga si puo' rompere
+
+Facilmente: basta che qualcuno aggiunga una fonte, cambi un filtro o tolga un
+controllo. Per questo in `test/tapis_roulant_test.dart` c'e' un test per ogni
+casella della tabella qui sopra, in tutte e due le direzioni - compreso il
+controllo che la stessa identica corsa, ma col GPS, l'indice lo muova davvero.
+Senza quello, un "nessuna prestazione" potrebbe voler dire che il test e'
+scritto male invece che "il tapis roulant resta fuori".
 
 ---
 

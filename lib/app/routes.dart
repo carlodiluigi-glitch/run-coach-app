@@ -7,6 +7,7 @@ import '../screens/voice_screen.dart';
 import '../screens/checkin_screen.dart';
 import '../screens/activity_detail_screen.dart';
 import '../screens/activity_history_screen.dart';
+import '../screens/manual_run_screen.dart';
 import '../screens/fitness_screen.dart';
 import '../screens/home_screen.dart';
 import '../screens/import_screen.dart';
@@ -41,6 +42,10 @@ class AppRoutes {
   static const String workoutLibrary = '/workouts';
   static const String workoutBuilder = '/workout-builder';
   static const String history = '/history';
+
+  /// Aggiungere a mano una corsa che il GPS non ha visto: il tapis roulant,
+  /// una gara corsa senza telefono, l'uscita in cui il segnale e' morto.
+  static const String manualRun = '/corsa-a-mano';
   static const String activityDetail = '/activity';
   static const String shoes = '/shoes';
   static const String stats = '/stats';
@@ -128,6 +133,12 @@ class AppRoutes {
       case history:
         return MaterialPageRoute<void>(
           builder: (_) => const ActivityHistoryScreen(),
+          settings: routeSettings,
+        );
+
+      case manualRun:
+        return MaterialPageRoute<void>(
+          builder: (_) => const ManualRunScreen(),
           settings: routeSettings,
         );
 

@@ -143,6 +143,11 @@ class RunningProvider extends ChangeNotifier {
   PaceStatus _paceStatus = PaceStatus.unknown;
   DateTime? _lastPaceCheck;
 
+  /// `true` quando il richiamo a non partire forte e' gia' stato detto.
+  ///
+  /// Una volta sola per corsa: ripeterlo sarebbe peggio che non dirlo.
+  bool _richiamoPartenzaDetto = false;
+
   // --------------------------------------------------------------- getters
   RunState get state => _state;
   bool get isIdle => _state == RunState.idle || _state == RunState.ready;
@@ -509,6 +514,7 @@ class RunningProvider extends ChangeNotifier {
     _paceWindow.clear();
     _paceStatus = PaceStatus.unknown;
     _lastPaceCheck = null;
+    _richiamoPartenzaDetto = false;
     _startTime = null;
     _gpsError = null;
     _rawGpsSpeed = null;
@@ -655,6 +661,7 @@ class RunningProvider extends ChangeNotifier {
     _readSteps();
     _checkAutoLap();
     _updateWorkout();
+    _checkStartReminder();
     _checkPaceAlerts();
     _checkGpsStall();
     _maybeSaveSnapshot();
@@ -1033,6 +1040,33 @@ class RunningProvider extends ChangeNotifier {
           break;
       }
     }
+  }
+
+  /// Il richiamo a non partire forte, una volta sola nei primi metri.
+  ///
+  /// QUANDO ESCE, E PERCHE' PROPRIO LI'
+  /// ----------------------------------
+  /// Dopo 250 metri e almeno 45 secondi. Le due condizioni servono tutte e
+  /// due:
+  ///
+  ///   - i metri, perche' il senso e' arrivare quando si sta ancora
+  ///     decidendo il ritmo. A un chilometro e' tardi: la partenza sbagliata
+  ///     e' gia' stata fatta, e dirlo allora e' solo una critica.
+  ///
+  ///   - i secondi, perche' il GPS nei primissimi istanti puo' regalare
+  ///     duecento metri in un colpo mentre si cerca il segnale. Senza questa
+  ///     condizione il richiamo poteva uscire da fermi, prima di muovere un
+  ///     piede.
+  ///
+  /// Vale anche per la corsa libera: non partire forte non dipende dall'avere
+  /// un programma, dipende dall'avere le gambe fresche.
+  void _checkStartReminder() {
+    if (_richiamoPartenzaDetto) return;
+    if (_state != RunState.running) return;
+    if (_distanceMeters < 250 || elapsedSeconds < 45) return;
+
+    _richiamoPartenzaDetto = true;
+    unawaited(_coach.speak(_coach.phrases.doNotStartTooFast()));
   }
 
   void _checkPaceAlerts() {

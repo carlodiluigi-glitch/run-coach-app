@@ -181,10 +181,21 @@ class RecordsService {
     int withGps = 0;
 
     for (final RunningActivity activity in activities) {
+      // LA CORSA PIU' LUNGA CONTA ANCHE SE E' SUL NASTRO.
+      //
+      // Qui passa la riga di confine di tutta questa faccenda: la corsa piu'
+      // lunga e' una misura di quanto hai corso, e un'ora e mezza sul tapis
+      // roulant e' un'ora e mezza corsa davvero - le gambe non sanno che il
+      // pavimento scorreva. I record sulle distanze invece misurano quanto
+      // vai FORTE, e quelli restano fuori: un primato sui 10 km fatto su un
+      // nastro tarato male sarebbe un primato del nastro.
+      //
+      // Vedi [ActivityTypeLabel.isManual] per il ragionamento completo.
       if (longest == null || activity.distanceMeters > longest.distanceMeters) {
         longest = activity;
       }
 
+      if (activity.type.isManual) continue;
       if (activity.route.length < 2) continue;
       withGps++;
 

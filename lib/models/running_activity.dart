@@ -5,7 +5,11 @@ import '../utils/formatters.dart';
 import '../utils/id_generator.dart';
 
 /// Tipo di attivita' registrata.
-enum ActivityType { free, workout }
+///
+/// [treadmill] e' l'unico che non nasce dal GPS: lo scrive l'atleta a mano,
+/// leggendo durata e distanza dal display del nastro. Vedi [ActivityTypeLabel]
+/// per cosa questo comporta, che non e' poco.
+enum ActivityType { free, workout, treadmill }
 
 /// Cosa era davvero questa uscita, secondo chi l'ha corsa.
 ///
@@ -39,10 +43,57 @@ extension EffortKindInfo on EffortKind {
 }
 
 extension ActivityTypeLabel on ActivityType {
-  String get label => this == ActivityType.free ? 'Corsa libera' : 'Allenamento';
+  String get label {
+    switch (this) {
+      case ActivityType.free:
+        return 'Corsa libera';
+      case ActivityType.workout:
+        return 'Allenamento';
+      case ActivityType.treadmill:
+        return 'Tapis roulant';
+    }
+  }
 
-  static ActivityType fromStorage(String? value) =>
-      value == 'workout' ? ActivityType.workout : ActivityType.free;
+  /// `true` se i numeri di questa attivita' li ha scritti l'atleta, non misurati
+  /// l'applicazione.
+  ///
+  /// COSA CAMBIA, E PERCHE' NON E' UN DETTAGLIO
+  /// ------------------------------------------
+  /// Su un tapis roulant la distanza la dichiara il nastro. E i nastri sbagliano
+  /// di routine del cinque o dieci per cento, senza che ci sia modo di
+  /// accorgersene da qui: non c'e' un satellite, un sensore o un confronto che
+  /// possa smentirli. In piu' a pendenza zero manca la resistenza dell'aria,
+  /// e la regola classica e' che l'uno per cento di pendenza equivale alla
+  /// strada piana - cioe' lo stesso passo, sul nastro, costa meno.
+  ///
+  /// Da qui la riga che questa applicazione traccia:
+  ///
+  ///   I CHILOMETRI CONTANO. Volume settimanale, carico, storico, scarpe
+  ///   consumate, corsa piu' lunga: un'ora di corsa e' un'ora di corsa, le
+  ///   gambe non sanno che il pavimento scorreva. Senza questi chilometri il
+  ///   piano non saprebbe piu' quanto corri davvero.
+  ///
+  ///   LA VELOCITA' NO. Indice di forma, passi di allenamento, record sulle
+  ///   distanze: tutto quello che dice "vai a questo ritmo" resta fuori.
+  ///   Costruire i passi di allenamento su un numero che non si puo'
+  ///   verificare vorrebbe dire mandarti a correre a un ritmo deciso dalla
+  ///   taratura di un nastro.
+  ///
+  /// Non e' prudenza esagerata: e' la stessa regola per cui un tratto GPS vale
+  /// 0,45 e una gara 1,00. Qui il dato non e' debole, e' invece non
+  /// verificabile, che e' un'altra cosa ancora.
+  bool get isManual => this == ActivityType.treadmill;
+
+  static ActivityType fromStorage(String? value) {
+    switch (value) {
+      case 'workout':
+        return ActivityType.workout;
+      case 'treadmill':
+        return ActivityType.treadmill;
+      default:
+        return ActivityType.free;
+    }
+  }
 }
 
 /// Punto del tracciato GPS accettato dal filtro.

@@ -56,23 +56,72 @@ class CoachPhrases {
 
   // ------------------------------------------------------------------ avvio
   String start() => _pick(_byPersonality(
-        normal: <String>['Partenza$_vocativo.'],
+        normal: <String>[
+          'Partenza$_vocativo.',
+          'Si comincia$_vocativo.',
+          'Via$_vocativo. Buon allenamento.',
+        ],
         motivational: <String>[
           'Partenza$_vocativo! Buon allenamento.',
           'Si parte$_vocativo. Goditela.',
+          'Eccoci$_vocativo. Questa e\' la parte facile: sei gia\' uscito.',
+          'Via$_vocativo! Un passo alla volta.',
         ],
         sergeant: <String>[
           'Si parte$_vocativo. Niente scuse.',
           'Partenza$_vocativo. Voglio vedere impegno.',
+          'In piedi e via$_vocativo. Il piano non si corre da solo.',
+          'Si comincia$_vocativo. Vediamo se oggi fai sul serio.',
         ],
       ));
 
   String freeRunStart() => _pick(_byPersonality(
-        normal: <String>['Corsa libera avviata$_vocativo.'],
-        motivational: <String>[
-          'Corsa libera$_vocativo. Divertiti e resta sciolto.'
+        normal: <String>[
+          'Corsa libera avviata$_vocativo.',
+          'Corsa libera$_vocativo. Registro tutto.',
+          'Si parte$_vocativo. Nessun programma, solo chilometri.',
         ],
-        sergeant: <String>['Corsa libera$_vocativo. Vediamo cosa sai fare.'],
+        motivational: <String>[
+          'Corsa libera$_vocativo. Divertiti e resta sciolto.',
+          'Corsa libera$_vocativo. Oggi decidi tu.',
+          'Via$_vocativo. Ascolta le gambe e lascia andare la testa.',
+        ],
+        sergeant: <String>[
+          'Corsa libera$_vocativo. Vediamo cosa sai fare.',
+          'Nessun programma$_vocativo. Non e\' una scusa per passeggiare.',
+          'Corsa libera$_vocativo. Decidi tu, ma decidi qualcosa.',
+        ],
+      ));
+
+  // ------------------------------------------------ i primi metri
+  /// Il richiamo a non partire forte, qualche centinaio di metri dopo il via.
+  ///
+  /// PERCHE' ESISTE
+  /// --------------
+  /// Perche' e' l'errore piu' comune di chi corre da solo, ed e' anche quello
+  /// che nessuno gli fa notare. In gruppo qualcuno te lo dice; da soli i primi
+  /// cinquecento metri si corrono sempre troppo forte, perche' le gambe sono
+  /// fresche e il fiato non si e' ancora fatto sentire. Il conto arriva al
+  /// settimo chilometro, quando sembra una giornata storta e invece era solo
+  /// una partenza sbagliata.
+  ///
+  /// Arriva una volta sola, e presto: dopo e' tardi, il danno e' fatto.
+  String doNotStartTooFast() => _pick(_byPersonality(
+        normal: <String>[
+          'Primi metri. Non partire forte: il tempo si guadagna alla fine.',
+          'Tieni il freno adesso. Le gambe fresche ingannano.',
+          'Parti piano. Oggi i conti si fanno all\'ultimo chilometro.',
+        ],
+        motivational: <String>[
+          'Piano all\'inizio: cosi\' alla fine ne hai ancora.',
+          'Non farti ingannare dalle gambe fresche. Il bello viene dopo.',
+          'Tranquillo nei primi metri. Chi parte piano arriva forte.',
+        ],
+        sergeant: <String>[
+          'Rallenta. Partire forte non e\' coraggio, e\' inesperienza.',
+          'Freno. Tutti partono forte, quasi nessuno finisce bene.',
+          'Piano adesso. Il conto lo paghi dopo, e lo paghi caro.',
+        ],
       ));
 
   String paused() => 'Allenamento in pausa.';
@@ -140,17 +189,65 @@ class CoachPhrases {
         ],
       ));
 
-  String workoutCompleted() => _pick(_byPersonality(
-        normal: <String>['Allenamento completato.'],
-        motivational: <String>[
-          'Allenamento completato. Ottimo lavoro!',
-          'Fatto! Grande allenamento.',
-        ],
-        sergeant: <String>[
-          'Allenamento completato. Per oggi puo\' bastare.',
-          'Finito. Non era male.',
-        ],
-      ));
+  /// La frase di fine allenamento: un complimento e una coda che cambia.
+  ///
+  /// PERCHE' DUE PEZZI INVECE DI UNO
+  /// -------------------------------
+  /// Perche' il complimento e' questione di carattere - il sergente non dice
+  /// "bravo" come il motivatore - mentre la coda e' questione di fatti, e i
+  /// fatti sono gli stessi per tutti e tre. Tenendoli separati si ottengono
+  /// decine di frasi diverse da due elenchi corti, invece di dover scrivere
+  /// tre volte le stesse cose.
+  ///
+  /// E' il momento in cui l'atleta ascolta davvero: ha finito, e' contento, e
+  /// sta ancora camminando. Sprecarlo con "allenamento completato" e basta
+  /// era un peccato.
+  String workoutCompleted() {
+    final String complimento = _pick(_byPersonality(
+      normal: <String>[
+        'Allenamento completato.',
+        'Seduta finita.',
+        'Fatto.',
+      ],
+      motivational: <String>[
+        'Allenamento completato. Ottimo lavoro!',
+        'Fatto! Grande allenamento.',
+        'Finito, e bene. Bravo.',
+        'Chiuso. Questa te la sei guadagnata.',
+      ],
+      sergeant: <String>[
+        'Allenamento completato. Per oggi puo\' bastare.',
+        'Finito. Non era male.',
+        'Fatto. Domani se ne riparla.',
+        'Chiuso. Hai fatto il tuo.',
+      ],
+    ));
+    return '$complimento ${_pick(_codeDiChiusura)}';
+  }
+
+  /// Le code della frase finale: meta' promemoria pratici, meta' mestiere.
+  ///
+  /// Niente qui dentro e' inventato per fare scena: il lento piano, il
+  /// recupero che vale quanto il carico, la distribuzione ottanta-venti e la
+  /// cadenza che cede prima del passo sono le stesse quattro cose su cui e'
+  /// costruito il motore di allenamento di questa applicazione. Il coach dice
+  /// a voce quello che il piano fa in silenzio.
+  static const List<String> _codeDiChiusura = <String>[
+    // -- promemoria pratici
+    'Ricorda di bere: la sete arriva dopo, la disidratazione prima.',
+    'Due minuti di allungamento adesso valgono piu\' di dieci domani.',
+    'Segna come e\' andata: la fatica di oggi spiega la corsa di giovedi\'.',
+    'Controlla i chilometri delle scarpe, ogni tanto.',
+    'Mangia qualcosa nella prossima mezz\'ora, se puoi.',
+    // -- il mestiere
+    'Il lento serve a costruire il motore, non a stancarti: quando e\' lento, corrilo piano davvero.',
+    'Il recupero non e\' tempo perso: l\'adattamento avviene adesso, non durante.',
+    'Quello che conta non e\' la singola seduta, e\' la somma di tre settimane.',
+    'Piano quasi sempre e forte ogni tanto: il medio tutti i giorni e\' l\'errore piu\' comune.',
+    'Quando sei stanco la cadenza cede prima del passo: e\' il segnale piu\' onesto che hai.',
+    'Un giorno storto non cancella un mese buono.',
+    'Dormire e\' la parte dell\'allenamento che nessuno si ricorda di fare.',
+  ];
 
   // ------------------------------------------------------------------- lap
   /// Annuncio di fine giro.

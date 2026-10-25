@@ -404,6 +404,21 @@ class RunIndexEngine {
       if (reference.difference(activity.startTime).inDays > maxAgeDays) {
         continue;
       }
+
+      // IL TAPIS ROULANT NON ENTRA QUI DENTRO, E NON PER CASO.
+      //
+      // Senza tracciato verrebbe gia' scartato dalla riga sotto, ma lasciarlo
+      // all'effetto collaterale sarebbe fragile: basterebbe che un domani una
+      // corsa a mano portasse con se' due punti qualsiasi - un'importazione,
+      // una prova - e la distanza dichiarata dal nastro finirebbe a decidere i
+      // passi di allenamento.
+      //
+      // La ragione per cui resta fuori e' scritta per esteso in
+      // [ActivityTypeLabel.isManual]: in breve, i nastri sbagliano del cinque
+      // o dieci per cento e da qui non c'e' modo di accorgersene. I chilometri
+      // contano lo stesso - volume, carico, scarpe - ma la velocita' no.
+      if (activity.type.isManual) continue;
+
       if (activity.route.length < 2) continue;
 
       // Se l'atleta ha dichiarato che era una gara o un test, quella parola

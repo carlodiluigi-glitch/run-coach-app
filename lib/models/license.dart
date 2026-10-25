@@ -134,11 +134,42 @@ class LicenseState {
   /// Lo stato di chi non ha (ancora) comprato.
   static const LicenseState locked = LicenseState(isUnlocked: false);
 
+  /// `true` quando questa copia e' destinata al Play Store.
+  ///
+  /// Non e' una riga che si cambia a mano: arriva da fuori, al momento della
+  /// compilazione, e la mette **il workflow** nel passo che costruisce il
+  /// pacchetto per il negozio:
+  ///
+  ///   flutter build appbundle --release --dart-define=FALCATA_NEGOZIO=true
+  ///
+  /// L'APK che ci si installa da soli quel passaggio non lo fa, quindi resta
+  /// aperto.
+  static const bool forTheStore =
+      bool.fromEnvironment('FALCATA_NEGOZIO');
+
   /// Finche' Falcata non e' sul Play Store, tutto e' aperto.
   ///
-  /// Si spegne nello stesso momento in cui si accende l'acquisto vero, e
-  /// nessun'altra riga dell'app deve cambiare.
-  static const bool developerUnlocked = true;
+  /// PERCHE' NON E' PIU' UN `true` SCRITTO A MANO
+  /// --------------------------------------------
+  /// Perche' era l'errore piu' costoso che questo progetto potesse fare, e
+  /// dipendeva solo dal ricordarsene.
+  ///
+  /// Il conto, per esteso: si paga l'account sviluppatore, si aspettano i
+  /// quattordici giorni dei dodici tester, si pubblica - e con questa riga
+  /// accesa l'app esce **con tutto sbloccato per chiunque**. Piano, forma,
+  /// carico, regalati. Nessun avviso, nessun errore, nessun test rosso: dal
+  /// di fuori sembra tutto a posto, e ci si accorge dell'errore dagli incassi
+  /// a zero.
+  ///
+  /// Adesso dipende da [forTheStore], che non sta nel codice ma nel workflow:
+  /// il pacchetto per il negozio e quello che ti installi tu li costruiscono
+  /// due passi diversi, quindi non c'e' niente da ricordarsi. Sbagliare
+  /// richiederebbe di togliere di proposito la riga dal workflow, che e' una
+  /// cosa che non si fa per distrazione.
+  ///
+  /// Resta vero per l'APK che ci si installa da soli, ed e' giusto: sarebbe
+  /// assurdo che l'autore non potesse usare la propria app.
+  static const bool developerUnlocked = !forTheStore;
 
   final bool isUnlocked;
   final DateTime? purchasedAt;

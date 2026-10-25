@@ -125,16 +125,72 @@ jobs:
           FALCATA_UPLOAD_KEYSTORE: ${{ runner.temp }}/falcata-upload.jks
           FALCATA_UPLOAD_PASSWORD: ${{ secrets.FALCATA_UPLOAD_PASSWORD }}
           FALCATA_UPLOAD_ALIAS: falcata-upload
-        run: flutter build appbundle --release
+        # --dart-define=FALCATA_NEGOZIO=true NON SI TOGLIE.
+        #
+        # E' quello che spegne LicenseState.developerUnlocked. Senza, il
+        # pacchetto caricato su Play esce con piano, forma e carico sbloccati
+        # per chiunque: si pagano i 25 dollari, si aspettano i quattordici
+        # giorni dei dodici tester, si pubblica, e si regala l'app. Nessun
+        # errore, nessun test rosso: te ne accorgi dagli incassi a zero.
+        #
+        # Sta qui e non nel codice apposta: l'APK che ci si installa da soli
+        # lo costruisce un altro passo, che questa riga non ce l'ha, e resta
+        # aperto. Cosi' non c'e' niente da ricordarsi al momento giusto.
+        #
+        # I DUE PACCHETTI ESCONO CON DUE NOMI DIVERSI, APPOSTA.
+        #
+        # flutter scrive sempre nello stesso posto - app-release.aab - quindi
+        # il secondo pacchetto sovrascriverebbe il primo. Ognuno viene
+        # rinominato appena fatto, con dentro al nome cosa e': BLOCCATA o
+        # APERTA. Caricare quello sbagliato e' l'unico errore che questa
+        # protezione non puo' impedire, e un nome chiaro e' l'unica difesa che
+        # resta.
+        run: |
+          set -e
+          VERSIONE=$(grep '^version:' pubspec.yaml | sed 's/version: *//' | cut -d'+' -f1)
+          flutter build appbundle --release --dart-define=FALCATA_NEGOZIO=true
+          mkdir -p pacchetti
+          cp build/app/outputs/bundle/release/app-release.aab \
+             "pacchetti/Falcata-$VERSIONE-PRODUZIONE-bloccata.aab"
 
-      # L'aab NON va nella Release pubblica: serve solo a essere caricato in
-      # Play Console, e si scarica da qui.
-      - name: Upload del pacchetto Play Store
+      # 8b) Il pacchetto per il TEST CHIUSO: aperto.
+      #
+      # PERCHE' SERVE UN SECONDO PACCHETTO
+      # ----------------------------------
+      # Perche' l'acquisto non esiste ancora. Dando ai dodici tester il
+      # pacchetto bloccato si troverebbero piano, forma e carico chiusi e
+      # nessun modo di aprirli: un'app monca, proprio mentre Google guarda
+      # quanto viene usata davvero per decidere se dare la produzione.
+      #
+      # Quindi per le due settimane di test gira la versione aperta, e in
+      # produzione ci va quella bloccata - che a quel punto avra' anche
+      # l'acquisto. Google non pretende che l'app pubblicata sia lo stesso
+      # file provato dai tester: il requisito riguarda l'attivita' di test.
+      #
+      # QUESTO FILE NON VA MAI IN PRODUZIONE. Se ci finisse, l'app sarebbe
+      # regalata a chiunque.
+      - name: Pacchetto per il test chiuso (aperto)
+        if: env.CHIAVE_PRONTA == '1'
+        env:
+          FALCATA_UPLOAD_KEYSTORE: ${{ runner.temp }}/falcata-upload.jks
+          FALCATA_UPLOAD_PASSWORD: ${{ secrets.FALCATA_UPLOAD_PASSWORD }}
+          FALCATA_UPLOAD_ALIAS: falcata-upload
+        run: |
+          set -e
+          VERSIONE=$(grep '^version:' pubspec.yaml | sed 's/version: *//' | cut -d'+' -f1)
+          flutter build appbundle --release
+          mkdir -p pacchetti
+          cp build/app/outputs/bundle/release/app-release.aab \
+             "pacchetti/Falcata-$VERSIONE-TESTCHIUSO-aperta.aab"
+
+      # Gli aab NON vanno nella Release pubblica: servono solo a essere
+      # caricati in Play Console, e si scaricano da qui.
+      - name: Upload dei pacchetti per Play Console
         if: env.CHIAVE_PRONTA == '1'
         uses: actions/upload-artifact@v4
         with:
           name: Falcata-PlayStore-aab
-          path: build/app/outputs/bundle/release/app-release.aab
+          path: pacchetti/*.aab
           if-no-files-found: error
           retention-days: 30
 

@@ -179,4 +179,66 @@ void main() {
       expect(vecchie.spokenDetail, SpokenDetail.completo);
     });
   });
+
+  // ----------------------------------------------- il repertorio del coach
+  //
+  // DA DOVE NASCE QUESTO GRUPPO
+  // ---------------------------
+  // Da una frase sola. All'avvio, con il carattere "normale", il coach diceva
+  // "Partenza." e basta: un elenco di una riga, quindi la stessa identica
+  // frase a ogni corsa, per sempre. Lo stesso a fine allenamento.
+  //
+  // Un coach che ripete sempre la stessa cosa smette di essere ascoltato dopo
+  // una settimana, ed e' un difetto che nessun controllo automatico vede:
+  // quella frase e' corretta, pronunciabile e sensata. E' solo sempre quella.
+  group('il coach non si ripete', () {
+    for (final CoachPersonality carattere in CoachPersonality.values) {
+      test('${carattere.name}: ogni momento ha piu\' di una frase', () {
+        final CoachPhrases f = CoachPhrases(carattere, athleteName: 'Carlo');
+
+        // Trenta estrazioni: se l'elenco avesse una riga sola uscirebbe
+        // sempre la stessa, e l'insieme avrebbe un elemento solo.
+        Set<String> estrai(String Function() frase) =>
+            <String>{for (int i = 0; i < 30; i++) frase()};
+
+        expect(estrai(f.start).length, greaterThan(1), reason: 'partenza');
+        expect(estrai(f.freeRunStart).length, greaterThan(1),
+            reason: 'corsa libera');
+        expect(estrai(f.doNotStartTooFast).length, greaterThan(1),
+            reason: 'non partire forte');
+        expect(estrai(f.workoutCompleted).length, greaterThan(1),
+            reason: 'fine allenamento');
+      });
+    }
+
+    test('la frase finale e\' complimento piu\' coda', () {
+      // Due pezzi da due elenchi: il complimento dipende dal carattere, la
+      // coda no. Il senso e' avere decine di frasi diverse senza scrivere tre
+      // volte le stesse cose.
+      final CoachPhrases f = CoachPhrases(CoachPersonality.normal);
+      final Set<String> viste = <String>{for (int i = 0; i < 60; i++) f.workoutCompleted()};
+      expect(viste.length, greaterThan(5),
+          reason: 'combinando due elenchi devono uscire molte frasi: $viste');
+      for (final String frase in viste) {
+        expect(frase.trim(), isNotEmpty);
+        expect(frase.contains('  '), isFalse, reason: 'doppio spazio in "$frase"');
+        expect(frase.endsWith('.') || frase.endsWith('!'), isTrue,
+            reason: 'frase senza punto finale: "$frase"');
+      }
+    });
+
+    test('il nome si usa alla partenza, non alla fine', () {
+      // Un coach che ti chiama per nome a ogni annuncio diventa
+      // insopportabile: il nome serve a far capire che parla a te, e per
+      // quello basta la partenza.
+      final CoachPhrases f =
+          CoachPhrases(CoachPersonality.motivational, athleteName: 'Carlo');
+      final Set<String> partenze = <String>{for (int i = 0; i < 30; i++) f.start()};
+      expect(partenze.any((String x) => x.contains('Carlo')), isTrue);
+
+      for (int i = 0; i < 30; i++) {
+        expect(f.workoutCompleted().contains('Carlo'), isFalse);
+      }
+    });
+  });
 }
