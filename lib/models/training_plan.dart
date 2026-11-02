@@ -1,6 +1,7 @@
 import 'weekly_availability.dart';
 import 'workout.dart';
 import '../utils/id_generator.dart';
+import '../utils/giorni.dart';
 
 /// Obiettivo del piano.
 enum RaceGoal { fitness, fiveK, tenK, half, marathon }
@@ -406,7 +407,7 @@ class PlanWeek {
   /// Nota della settimana ("scarico", "gara sabato").
   final String? note;
 
-  DateTime get endDate => startDate.add(const Duration(days: 6));
+  DateTime get endDate => piuGiorni(startDate, 6);
 
   /// Somma effettiva delle distanze delle sedute.
   double get plannedKm {
@@ -576,7 +577,7 @@ class PlanConfig {
   final List<RaceEvent> races;
   final DateTime createdAt;
 
-  DateTime get endDate => startDate.add(Duration(days: weeks * 7 - 1));
+  DateTime get endDate => piuGiorni(startDate, weeks * 7 - 1);
 
   /// La gara obiettivo, se e' stata messa in calendario.
   RaceEvent? get goalRace {

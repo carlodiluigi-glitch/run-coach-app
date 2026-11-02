@@ -29,7 +29,8 @@ class StatsScreen extends StatelessWidget {
       );
     }
 
-    final ImprovementResult pace = provider.paceImprovement;
+    // La forma, non il passo medio: vedi StatsService.indexTrend.
+    final ImprovementResult pace = provider.indexTrend;
     final ImprovementResult volume = provider.volumeTrend;
 
     return Scaffold(

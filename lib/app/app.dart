@@ -16,7 +16,7 @@ class RunCoachApp extends StatelessWidget {
   /// Riga di paternita', mostrata all'avvio e nelle impostazioni.
   static const String credit = 'Sviluppato da Carlo Di Luigi';
 
-  static const String version = '2.9.3';
+  static const String version = '2.10.0';
 
   /// Da quale scelta dell'utente dipende il tema.
   ///

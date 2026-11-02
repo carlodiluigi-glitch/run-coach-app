@@ -1,5 +1,6 @@
 import '../models/running_activity.dart';
 import '../utils/formatters.dart';
+import '../utils/giorni.dart';
 
 /// Riepilogo statistico calcolato dallo storico attivita'.
 class RunningStats {
@@ -101,15 +102,13 @@ class StatsService {
 
   /// Lunedi' della settimana della data indicata, a mezzanotte.
   static DateTime startOfWeek(DateTime date) {
-    final DateTime day = DateTime(date.year, date.month, date.day);
-    return day.subtract(Duration(days: day.weekday - 1));
+    return piuGiorni(date, -(date.weekday - 1));
   }
 
   RunningStats compute(List<RunningActivity> activities, {DateTime? now}) {
     final DateTime reference = now ?? DateTime.now();
     final DateTime weekStart = startOfWeek(reference);
-    final DateTime fourWeeksStart =
-        weekStart.subtract(const Duration(days: 21));
+    final DateTime fourWeeksStart = piuGiorni(weekStart, -21);
 
     double weekMeters = 0;
     int weekCount = 0;
@@ -120,8 +119,7 @@ class StatsService {
     double longest = 0;
 
     final List<double> weekly = List<double>.filled(8, 0.0);
-    final DateTime eightWeeksStart =
-        weekStart.subtract(const Duration(days: 49));
+    final DateTime eightWeeksStart = piuGiorni(weekStart, -49);
 
     for (final RunningActivity activity in activities) {
       totalMeters += activity.distanceMeters;
@@ -139,9 +137,10 @@ class StatsService {
         fourWeeksSeconds += activity.durationSeconds;
       }
       if (!activity.startTime.isBefore(eightWeeksStart)) {
+        // In giorni di calendario: con le ore, le settimane prima del cambio
+        // dell'ora finivano tutte nella casella accanto (vedi utils/giorni).
         final int weeksAgo =
-            startOfWeek(activity.startTime).difference(eightWeeksStart).inDays ~/
-                7;
+            giorniFra(eightWeeksStart, startOfWeek(activity.startTime)) ~/ 7;
         if (weeksAgo >= 0 && weeksAgo < weekly.length) {
           weekly[weeksAgo] += activity.distanceMeters / 1000.0;
         }
@@ -167,7 +166,58 @@ class StatsService {
     );
   }
 
+  /// Come e' cambiata la FORMA nelle ultime quattro settimane: l'indice di
+  /// oggi contro quello che l'app avrebbe calcolato quattro settimane fa.
+  ///
+  /// PERCHE' NON IL PASSO MEDIO
+  /// --------------------------
+  /// La schermata diceva "il tuo ritmo medio sui 5-10 km e' peggiorato del
+  /// 7%" due giorni dopo che l'indice era salito e i ritmi del piano si erano
+  /// alzati. Avevano ragione tutti e due, e il primo non serviva a niente: il
+  /// passo medio di tutte le corse, lenti compresi, dice quanti lenti hai
+  /// fatto, non quanto vai forte. Chi segue il piano - molto piano e poco
+  /// forte - lo vede "peggiorare" proprio mentre migliora.
+  ///
+  /// L'indice invece e' costruito per questo: gare, test, ripetute e tratti
+  /// tirati, pesati per quanto dicono.
+  static ImprovementResult indexTrend({
+    required double? prima,
+    required double? adesso,
+  }) {
+    if (prima == null || adesso == null || prima <= 0) {
+      return const ImprovementResult(
+        hasEnoughData: false,
+        message: 'L\'andamento della forma compare quando ci sono prove di '
+            'almeno quattro settimane fa.',
+      );
+    }
+    final double punti = adesso - prima;
+    final String da = prima.toStringAsFixed(1);
+    final String a = adesso.toStringAsFixed(1);
+    if (punti.abs() < 0.3) {
+      return ImprovementResult(
+        hasEnoughData: true,
+        percentChange: 0,
+        message: 'La tua forma e\' stabile: indice $a, come quattro '
+            'settimane fa.',
+      );
+    }
+    return ImprovementResult(
+      hasEnoughData: true,
+      percentChange: punti / prima * 100.0,
+      message: punti > 0
+          ? 'La tua forma e\' salita: indice da $da a $a nelle ultime '
+              'quattro settimane.'
+          : 'La tua forma e\' scesa: indice da $da a $a nelle ultime '
+              'quattro settimane. Succede dopo un periodo con poche prove '
+              'tirate.',
+    );
+  }
+
   /// Analisi semplice del miglioramento del passo.
+  ///
+  /// NON PIU' MOSTRATA: vedi [indexTrend]. Resta per i test e per chi volesse
+  /// rimetterla, con il suo limite scritto qui.
   ///
   /// METODO (volutamente prudente e non medico)
   /// ------------------------------------------
@@ -260,7 +310,7 @@ class StatsService {
   }) {
     final DateTime reference = now ?? DateTime.now();
     final DateTime weekStart = startOfWeek(reference);
-    final DateTime previousStart = weekStart.subtract(const Duration(days: 28));
+    final DateTime previousStart = piuGiorni(weekStart, -28);
 
     double currentKm = 0;
     double previousKm = 0;
@@ -273,7 +323,7 @@ class StatsService {
       } else if (!activity.startTime.isBefore(previousStart)) {
         previousKm += activity.distanceMeters / 1000.0;
         final int weekIndex =
-            startOfWeek(activity.startTime).difference(previousStart).inDays ~/ 7;
+            giorniFra(previousStart, startOfWeek(activity.startTime)) ~/ 7;
         weeksSeen.add(weekIndex);
       }
     }

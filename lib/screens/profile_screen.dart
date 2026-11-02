@@ -151,6 +151,29 @@ class ProfileScreen extends StatelessWidget {
                   ),
                 ),
                 AppListRow(
+                  title: 'Peso',
+                  subtitle: 'Serve solo a stimare le calorie',
+                  value: profile.weightKg == null
+                      ? 'Non detto'
+                      : '${profile.weightKg!.round()} kg',
+                  onTap: () => _pickNumber(
+                    context,
+                    title: 'Peso',
+                    from: 35,
+                    to: 150,
+                    current: profile.weightKg?.round(),
+                    label: (int v) => '$v kg',
+                    // Dal basso verso l'alto: da 35 a 70 si scorre la meta'
+                    // che da 150 a 70.
+                    fromTop: false,
+                    onPicked: (int? v) => activities.updateAthleteProfile(
+                      v == null
+                          ? profile.copyWith(clearWeight: true)
+                          : profile.copyWith(weightKg: v.toDouble()),
+                    ),
+                  ),
+                ),
+                AppListRow(
                   title: 'Giorni a settimana',
                   subtitle: 'Quanti ne hai davvero, non quanti vorresti',
                   value: '${profile.availableDays}',
@@ -306,6 +329,7 @@ class ProfileScreen extends StatelessWidget {
     required void Function(int?) onPicked,
     bool allowNone = true,
     String noneLabel = 'Non lo dico',
+    bool fromTop = true,
   }) async {
     final List<int> values = <int>[for (int v = from; v <= to; v++) v];
     final AppPalette p = AppPalette.of(context);
@@ -337,7 +361,7 @@ class ProfileScreen extends StatelessWidget {
                           : null,
                       onTap: () => Navigator.of(ctx).pop(_noneSentinel),
                     ),
-                  for (final int value in values.reversed)
+                  for (final int value in fromTop ? values.reversed : values)
                     ListTile(
                       title: Text(label(value),
                           style: AppText.row.copyWith(color: p.ink)),

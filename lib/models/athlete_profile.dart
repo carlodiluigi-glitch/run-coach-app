@@ -244,13 +244,14 @@ class AthleteProfile {
     bool clearInactive = false,
     bool clearBirthYear = false,
     bool clearRunningYears = false,
+    bool clearWeight = false,
     List<PersonalBest>? personalBests,
   }) =>
       AthleteProfile(
         birthYear: clearBirthYear ? null : (birthYear ?? this.birthYear),
         sex: sex ?? this.sex,
         heightCm: heightCm ?? this.heightCm,
-        weightKg: weightKg ?? this.weightKg,
+        weightKg: clearWeight ? null : (weightKg ?? this.weightKg),
         runningYears:
             clearRunningYears ? null : (runningYears ?? this.runningYears),
         availableDays: availableDays ?? this.availableDays,

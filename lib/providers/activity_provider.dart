@@ -12,6 +12,7 @@ import '../services/records_service.dart';
 import '../services/run_index_engine.dart';
 import '../services/stats_service.dart';
 import '../services/storage_service.dart';
+import '../utils/giorni.dart';
 import 'shoe_provider.dart';
 
 /// Storico delle attivita' salvate.
@@ -398,6 +399,33 @@ class ActivityProvider extends ChangeNotifier {
       if (migliore == null || pb.seconds < migliore) migliore = pb.seconds;
     }
     return migliore;
+  }
+
+  /// La forma di oggi contro quella di quattro settimane fa.
+  ///
+  /// Quella di allora si ricalcola con le sole prove che c'erano allora:
+  /// stesso motore, stesso storico, fermato a quella data.
+  ImprovementResult get indexTrend {
+    final DateTime adesso = DateTime.now();
+    final DateTime allora = piuGiorni(adesso, -28);
+    final List<PerformanceSample> vecchie = <PerformanceSample>[
+      ..._runIndexEngine.samplesFromActivities(
+        _activities
+            .where((RunningActivity a) => a.startTime.isBefore(allora))
+            .toList(),
+        now: allora,
+      ),
+      ..._runIndexEngine
+          .samplesFromProfile(_athleteProfile)
+          .where((PerformanceSample s) => s.date.isBefore(allora)),
+    ];
+    final double? prima = vecchie.isEmpty
+        ? null
+        : _runIndexEngine.estimate(vecchie, now: allora).index?.value;
+    return StatsService.indexTrend(
+      prima: prima,
+      adesso: runIndex.index?.value,
+    );
   }
 
   ImprovementResult get paceImprovement =>

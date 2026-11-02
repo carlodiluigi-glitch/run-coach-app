@@ -99,9 +99,6 @@ class RunningProvider extends ChangeNotifier {
   bool _stepsOn = false;
   int? _stepsNow;
 
-  /// I passi contati quando e' cominciato il giro in corso: la cadenza del
-  /// giro e' la differenza con quelli di adesso.
-  int? _lapStartSteps;
   int _lastStepsReadSecond = -10;
   bool _readingSteps = false;
 
@@ -348,7 +345,6 @@ class RunningProvider extends ChangeNotifier {
     // identica, solo senza cadenza.
     _stepsOn = await _native.startStepCounter();
     _stepsNow = _stepsOn ? 0 : null;
-    _lapStartSteps = _stepsNow;
 
     _startTime = DateTime.now();
     _state = RunState.running;
@@ -523,7 +519,6 @@ class RunningProvider extends ChangeNotifier {
     _lostSeconds = 0;
     _warnedAboutStall = false;
     _stepsNow = null;
-    _lapStartSteps = null;
     _lastStepsReadSecond = -10;
   }
 
@@ -888,18 +883,25 @@ class RunningProvider extends ChangeNotifier {
     // stesso tempo. E' successo davvero: vedi [ContoGiri].
     _giri.chiudi(metri: lapDistance, secondiTotali: totalSeconds);
 
-    // La cadenza del giro: i passi di adesso meno quelli di quando il giro e'
-    // cominciato. Si aggiorna il riferimento comunque, anche quando la cadenza
-    // non si puo' dire, se no il giro dopo userebbe un riferimento vecchio e
-    // la cadenza uscirebbe gonfiata.
-    final int? passiGiro =
-        (_stepsNow != null && _lapStartSteps != null && _stepsNow! >= _lapStartSteps!)
-            ? _stepsNow! - _lapStartSteps!
+    // La cadenza del giro, misurata fra le letture vere del contapassi e non
+    // come "passi di adesso meno passi di inizio giro". Quel conto dava 140 a
+    // un chilometro e 190 al successivo su una corsa tenuta a 165: il
+    // contatore consegna a lotti, e un lotto arrivato a cavallo della
+    // chiusura finiva nel giro sbagliato. Vedi [Cadence.overLap].
+    //
+    // Si legge solo se la voce la dira': rileggere il tracciato a ogni giro
+    // costa poco, ma non costa niente non farlo quando non serve.
+    final double? cadenzaGiro =
+        (announce && _coach.detail == SpokenDetail.tutto)
+            ? Cadence.overLap(
+                Cadence.readings(_route),
+                fromSeconds: totalSeconds - lapSeconds,
+                toSeconds: totalSeconds,
+              )
             : null;
-    _lapStartSteps = _stepsNow;
 
     if (announce) {
-      unawaited(_coach.speak(_annuncioGiro(lap, precedente, passiGiro)));
+      unawaited(_coach.speak(_annuncioGiro(lap, precedente, cadenzaGiro)));
     }
 
     return lap;
@@ -910,7 +912,7 @@ class RunningProvider extends ChangeNotifier {
   ///
   /// I numeri vanno passati in forma pronunciabile: "cinque e ventitre" si
   /// capisce correndo, "5:23" viene letto male dalla sintesi vocale.
-  String _annuncioGiro(Lap lap, Lap? precedente, int? passiGiro) {
+  String _annuncioGiro(Lap lap, Lap? precedente, double? cadenzaGiro) {
     final SpokenDetail quanto = _coach.detail;
     final bool essenziale = quanto == SpokenDetail.essenziale;
     final bool tutto = quanto == SpokenDetail.tutto;
@@ -947,12 +949,7 @@ class RunningProvider extends ChangeNotifier {
       totalDistanceLabel:
           essenziale ? null : spokenDistance(_distanceMeters),
       totalTimeLabel: essenziale ? null : spokenDuration(lap.totalTimeSeconds),
-      cadence: tutto && passiGiro != null
-          ? Cadence.spm(
-              steps: passiGiro,
-              seconds: lap.durationSeconds.toDouble(),
-            )?.round()
-          : null,
+      cadence: tutto ? cadenzaGiro?.round() : null,
       remainingLabel: tutto ? _quantoManca() : null,
     );
   }

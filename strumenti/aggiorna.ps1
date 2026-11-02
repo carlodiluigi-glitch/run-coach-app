@@ -270,8 +270,21 @@ try {
     exit 0
   }
 
-  & $git commit -m $messaggio
-  if ($LASTEXITCODE -ne 0) { throw 'git commit non e andato a buon fine.' }
+  # IL MESSAGGIO VA PASSATO IN UN FILE, NON SULLA RIGA DI COMANDO.
+  #
+  # Con "-m $messaggio" PowerShell 5 consegna il testo a git cosi' com'e', e
+  # se dentro ci sono delle virgolette le prende per la fine dell'argomento:
+  # il messaggio arriva a pezzi, e git legge i pezzi come nomi di file. La
+  # 2.10.0 si e' fermata cosi', su un "ieri / 3 giorni fa" fra virgolette:
+  # "fatal: '/' is outside repository". Da un file, git legge il testo
+  # intero, virgolette e a capo compresi.
+  $fileCommit = Join-Path $env:TEMP 'falcata_commit.txt'
+  [System.IO.File]::WriteAllText(
+    $fileCommit, $messaggio, (New-Object System.Text.UTF8Encoding $false))
+  & $git commit -F $fileCommit
+  $esito = $LASTEXITCODE
+  Remove-Item $fileCommit -Force -ErrorAction SilentlyContinue
+  if ($esito -ne 0) { throw 'git commit non e andato a buon fine.' }
 
   & $git push
   if ($LASTEXITCODE -ne 0) {

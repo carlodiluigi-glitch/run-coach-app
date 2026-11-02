@@ -77,6 +77,18 @@ jobs:
       - name: flutter test
         run: flutter test
 
+      # 6b) Gli stessi conti con l'ora italiana.
+      #
+      # Il server di GitHub usa l'ora di Greenwich, che non ha l'ora legale:
+      # qualunque conto dei giorni fatto a blocchi di 24 ore li' passa. Sul
+      # telefono no - il 25 ottobre 2026 e' durato 25 ore, e da quel giorno il
+      # grafico della fatica non vedeva piu' le corse. Questi file si fanno
+      # girare una seconda volta con l'ora di Roma, dove il cambio c'e'.
+      - name: flutter test (ora italiana)
+        env:
+          TZ: Europe/Rome
+        run: flutter test test/ora_legale_test.dart test/calorie_cadenza_soglia_test.dart test/stats_service_test.dart
+
       # 7) APK release (firmata con la chiave di debug: nessun secret richiesto)
       - name: Build APK release
         run: flutter build apk --release

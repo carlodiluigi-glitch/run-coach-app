@@ -6,6 +6,7 @@ import '../models/workout.dart';
 import '../models/workout_step.dart';
 import '../utils/formatters.dart';
 import 'fitness_service.dart';
+import '../utils/giorni.dart';
 
 /// Il calendario di una settimana: dove va il lungo, dove va la qualita'.
 class WeekSchedule {
@@ -426,9 +427,7 @@ class PlanService {
     required TrainingPaces paces,
     required bool isDownWeek,
   }) {
-    final DateTime weekStart = _dayOnly(
-      config.startDate.add(Duration(days: index * 7)),
-    );
+    final DateTime weekStart = piuGiorni(config.startDate, index * 7);
     // I giorni di QUESTA settimana: di norma quelli dichiarati una volta per
     // tutte, ma una singola settimana puo' averne di suoi (turni cambiati).
     // Il resto del calcolo non sa la differenza - ed e' il punto: una sola
@@ -1190,10 +1189,8 @@ class PlanService {
 
     for (final RaceEvent race in races) {
       final DateTime raceDay = _dayOnly(race.date);
-      final DateTime taperFrom =
-          raceDay.subtract(Duration(days: race.taperDays));
-      final DateTime recoveryTo =
-          raceDay.add(Duration(days: race.recoveryDays));
+      final DateTime taperFrom = piuGiorni(raceDay, -race.taperDays);
+      final DateTime recoveryTo = piuGiorni(raceDay, race.recoveryDays);
 
       weeks = weeks.map((PlanWeek week) {
         bool touched = false;
@@ -1316,7 +1313,7 @@ class PlanService {
   /// Data del giorno [weekday] (1 = lunedi') dentro la settimana che inizia a
   /// [weekStart].
   DateTime _dateOf(DateTime weekStart, int weekday) =>
-      weekStart.add(Duration(days: weekday - 1));
+      piuGiorni(weekStart, weekday - 1);
 }
 
 /// Risultato interno: una seduta di qualita' pronta.

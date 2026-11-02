@@ -437,7 +437,26 @@ class RunIndexEngine {
         source = EstimateSource.runSegment;
       }
 
+      // NIENTE TRATTI MIGLIORI DENTRO UN ALLENAMENTO STRUTTURATO.
+      //
+      // Il tratto piu' veloce su una distanza ha senso in una corsa continua:
+      // li' tre chilometri di fila sono tre chilometri corsi davvero. In una
+      // seduta a fasi no. Il caso vero: una soglia 2 x 2 km, e l'app ne ha
+      // ricavato "3 km in 14:05" - una ripetuta da due chilometri piu' un
+      // chilometro di recupero, letti come se fossero stati corsi tutti a
+      // tutta. Indice 39,8 contro un 46,5 vero, con peso 45%.
+      //
+      // Le fasi di lavoro di una seduta hanno gia' la loro strada, che sa
+      // cosa sono: [_sampleFromReps] le converte per quello che erano
+      // (ripetute -> ritmo 3000, frazioni lunghe -> soglia). Il tratto
+      // migliore resta solo se l'atleta ha dichiarato gara o test: allora
+      // si stava spremendo, e un test dei 3000 costruito come seduta
+      // (riscaldamento, 3 km, defaticamento) deve contare.
+      final bool sedutaAFasi =
+          activity.type == ActivityType.workout && declared == null;
+
       for (final double meters in segmentDistances) {
+        if (sedutaAFasi) break;
         if (activity.distanceMeters < meters) continue;
         final int? seconds =
             records.fastestTimeForDistance(activity.route, meters);

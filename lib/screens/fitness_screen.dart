@@ -440,14 +440,6 @@ class _EvidenceList extends StatelessWidget {
   /// solo scorrere.
   static const int maxRighe = 10;
 
-  String _quando(int ageDays) {
-    if (ageDays <= 0) return 'oggi';
-    if (ageDays == 1) return 'ieri';
-    if (ageDays < 14) return '$ageDays giorni fa';
-    if (ageDays < 60) return '${(ageDays / 7).round()} settimane fa';
-    return '${(ageDays / 30).round()} mesi fa';
-  }
-
   @override
   Widget build(BuildContext context) {
     final AppPalette p = AppPalette.of(context);
@@ -470,7 +462,7 @@ class _EvidenceList extends StatelessWidget {
                     formatDistanceWithUnit(s.sample.meters),
                 subtitle: '${formatDuration(Duration(seconds: s.sample.seconds))}'
                     '  ·  ${s.sample.source.label}  ·  '
-                    '${_quando(s.ageDays)}',
+                    '${quandoACalendario(s.sample.date)}',
                 onTap: s.sample.activityId == null
                     ? null
                     : () => Navigator.of(context).pushNamed(

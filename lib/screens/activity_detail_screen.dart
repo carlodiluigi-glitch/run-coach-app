@@ -9,6 +9,7 @@ import '../models/running_shoe.dart';
 import '../providers/activity_provider.dart';
 import '../providers/shoe_provider.dart';
 import '../services/cadence.dart';
+import '../services/calorie_estimate.dart';
 import '../services/elevation_service.dart';
 import '../services/pace_zone_engine.dart';
 import '../services/run_profile.dart';
@@ -60,6 +61,16 @@ class ActivityDetailScreen extends StatelessWidget {
     final List<ProfileSample> profilo = RunProfile.of(activity.route);
     final double? cadenza = Cadence.average(activity.route);
     final int? passiTotali = Cadence.totalSteps(activity.route);
+
+    // Le calorie: servono il peso e la salita. Sul tapis roulant la salita
+    // non c'e' (non c'e' tracciato), e va bene cosi'.
+    final double? peso = provider.athleteProfile.weightKg;
+    final int? calorie = CalorieEstimate.kcal(
+      weightKg: peso,
+      meters: activity.distanceMeters,
+      seconds: activity.durationSeconds,
+      climbMeters: dislivello.isKnown ? dislivello.gainMeters : 0,
+    );
 
     final TrainingZones? zones = provider.trainingZones;
     final SessionAnalysis? analysis = zones == null
@@ -153,6 +164,25 @@ class ActivityDetailScreen extends StatelessWidget {
                   ),
                 ),
               ],
+            ),
+
+            // ------------------------------------------------- le calorie
+            //
+            // Senza peso non c'e' un numero da dare: il riquadro c'e' lo
+            // stesso e porta al profilo, cosi' si capisce cosa manca invece
+            // di non vedere niente.
+            const SizedBox(height: 12),
+            MetricCard(
+              label: 'Calorie',
+              value: calorie == null ? '--' : formatThousands(calorie),
+              unit: calorie == null ? null : 'kcal',
+              secondary: calorie == null
+                  ? 'Inserisci il tuo peso nel profilo'
+                  : 'Stima dal peso e dalla salita',
+              valueFontSize: 28,
+              onTap: calorie == null
+                  ? () => Navigator.of(context).pushNamed(AppRoutes.profile)
+                  : null,
             ),
 
             // ------------------------------------------------- la cadenza

@@ -255,6 +255,41 @@ class Cadence {
     );
   }
 
+  /// La cadenza di un giro (un chilometro, una ripetuta), in passi al minuto.
+  ///
+  /// PERCHE' NON "PASSI DI FINE GIRO MENO PASSI DI INIZIO GIRO"
+  /// -------------------------------------------------------
+  /// Era il conto di prima, e dava 140 a un chilometro e 190 a quello dopo
+  /// su una corsa tenuta a 165 - con la media della corsa giusta, confrontata
+  /// con un orologio. E' lo stesso difetto gia' corretto sul grafico (vedi
+  /// [at]): il contapassi consegna a lotti, ogni dieci, trenta, sessanta
+  /// secondi. Se un lotto arriva un attimo dopo la chiusura del giro, i suoi
+  /// passi finiscono nel giro dopo: uno esce con passi in meno nello stesso
+  /// tempo, l'altro con passi in piu'. Sommati tornano, quindi la media resta
+  /// giusta e i giri singoli no.
+  ///
+  /// Qui si misura fra due LETTURE VERE, con i loro tempi: la base copre
+  /// il giro, spostata quanto serve per appoggiarsi a dove il contatore ha
+  /// davvero risposto. I passi e i secondi sono entrambi misurati, quindi il
+  /// rapporto e' la cadenza di quel tratto, senza i lotti a cavallo.
+  ///
+  /// `null` se il giro dura meno di [localBaselineSeconds] (un giro di venti
+  /// secondi non ha una cadenza misurabile con un contatore a lotti) o se il
+  /// sensore non stava contando.
+  static double? overLap(
+    List<StepReading> readings, {
+    required int fromSeconds,
+    required int toSeconds,
+  }) {
+    final int durata = toSeconds - fromSeconds;
+    if (durata < localBaselineSeconds) return null;
+    return at(
+      readings,
+      fromSeconds + durata ~/ 2,
+      baseline: durata,
+    );
+  }
+
   /// Ultima lettura che non va oltre [seconds]. La prima, se non ce n'e'.
   static int _lastNotAfter(List<StepReading> readings, int seconds) {
     int low = 0;

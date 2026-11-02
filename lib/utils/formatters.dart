@@ -11,6 +11,7 @@ library;
 
 import '../models/user_settings.dart';
 import 'units.dart';
+import 'giorni.dart';
 
 /// Placeholder mostrato quando il dato non e' ancora disponibile.
 const String kEmptyPace = '--:--';
@@ -215,11 +216,25 @@ String formatTimeShort(DateTime date) => '${_two(date.hour)}:${_two(date.minute)
 /// Descrizione relativa semplice: `oggi`, `ieri`, `3 giorni fa`, oppure la data.
 String formatRelativeDay(DateTime date, {DateTime? now}) {
   final DateTime reference = now ?? DateTime.now();
-  final DateTime a = DateTime(date.year, date.month, date.day);
-  final DateTime b = DateTime(reference.year, reference.month, reference.day);
-  final int days = b.difference(a).inDays;
+  final int days = giorniFra(date, reference);
   if (days == 0) return 'oggi';
   if (days == 1) return 'ieri';
   if (days > 1 && days < 7) return '$days giorni fa';
   return formatDateShort(date);
+}
+
+/// Quanto tempo fa, detto come lo direbbe una persona: "ieri", "3 giorni fa".
+///
+/// Si contano i giorni di CALENDARIO, non i blocchi da ventiquattro ore.
+/// Prima la seduta di giovedi' sera, guardata sabato a mezzogiorno, risultava
+/// "ieri": fra le due c'erano un giorno e diciotto ore, cioe' "un giorno" per
+/// il conto delle ore. Sembra un dettaglio, e ha fatto cercare il problema
+/// nella corsa sbagliata.
+String quandoACalendario(DateTime data, {DateTime? adesso}) {
+  final int giorni = giorniFra(data, adesso ?? DateTime.now());
+  if (giorni <= 0) return 'oggi';
+  if (giorni == 1) return 'ieri';
+  if (giorni < 14) return '$giorni giorni fa';
+  if (giorni < 60) return '${(giorni / 7).round()} settimane fa';
+  return '${(giorni / 30).round()} mesi fa';
 }

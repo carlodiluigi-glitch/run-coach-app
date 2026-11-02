@@ -4,6 +4,7 @@ import '../models/training_plan.dart';
 import '../models/weekly_availability.dart';
 import '../services/plan_service.dart';
 import '../services/storage_service.dart';
+import '../utils/giorni.dart';
 
 /// Stato del piano di allenamento attivo.
 ///
@@ -179,6 +180,6 @@ class PlanProvider extends ChangeNotifier {
     final PlanConfig? current = _config;
     if (current == null) return false;
     final DateTime reference = now ?? DateTime.now();
-    return reference.isAfter(current.endDate.add(const Duration(days: 1)));
+    return reference.isAfter(piuGiorni(current.endDate, 1));
   }
 }

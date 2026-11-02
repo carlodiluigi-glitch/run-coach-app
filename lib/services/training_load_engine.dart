@@ -4,6 +4,7 @@ import '../models/estimate.dart';
 import '../models/running_activity.dart';
 import 'pace_zone_engine.dart';
 import 'route_windows.dart';
+import '../utils/giorni.dart';
 
 /// Il carico di una seduta, e quanto ne resta nelle gambe.
 ///
@@ -218,7 +219,7 @@ class TrainingLoadEngine {
 
     final DateTime? daMostrare = days <= 0
         ? null
-        : reference.subtract(Duration(days: days - 1));
+        : piuGiorni(reference, -(days - 1));
 
     double fatica = 0;
     double condizione = 0;
@@ -237,7 +238,11 @@ class TrainingLoadEngine {
           fitness: condizione,
         ));
       }
-      giorno = giorno.add(const Duration(days: 1));
+      // Il giorno dopo si chiede al calendario, non si somma in ore: il 25
+      // ottobre dura 25 ore, e "mezzanotte + 24 ore" da li' in poi cadeva
+      // alle 23 del giorno prima - dove il carico non c'era mai. Vedi
+      // utils/giorni.dart.
+      giorno = piuGiorni(giorno, 1);
     }
     return out;
   }
