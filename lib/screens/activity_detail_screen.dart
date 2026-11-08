@@ -4,8 +4,10 @@ import 'package:provider/provider.dart';
 import '../app/routes.dart';
 import '../app/tokens.dart';
 import '../models/effort.dart';
+import '../models/lap.dart';
 import '../models/running_activity.dart';
 import '../models/running_shoe.dart';
+import '../models/workout_step.dart';
 import '../providers/activity_provider.dart';
 import '../providers/shoe_provider.dart';
 import '../services/cadence.dart';
@@ -53,6 +55,21 @@ class ActivityDetailScreen extends StatelessWidget {
     final List<DistanceRecord> held = provider.recordsHeldBy(activity.id);
     final double? carico = provider.loadOf(activity);
     final bool isWorkout = activity.type == ActivityType.workout;
+
+    // Il passo dei soli tratti di lavoro. In una seduta a fasi e' il numero
+    // che conta: il passo medio mescola ripetute e recuperi e non dice ne'
+    // l'uno ne' l'altro. Nella soglia 2 x 1,6 km di prova: 6:05 di media,
+    // 4:32 sul lavoro.
+    double metriLavoro = 0;
+    int secondiLavoro = 0;
+    for (final Lap l in activity.laps) {
+      if (l.stepKind != StepType.interval.storageKey) continue;
+      metriLavoro += l.distanceMeters;
+      secondiLavoro += l.durationSeconds;
+    }
+    final double? passoLavoro = (metriLavoro >= 200 && secondiLavoro > 0)
+        ? secondiLavoro / (metriLavoro / 1000.0)
+        : null;
 
     // Cosa e' stata davvero questa seduta, guardando i passi corsi e non il
     // nome che aveva sul programma.
@@ -157,11 +174,19 @@ class ActivityDetailScreen extends StatelessWidget {
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: MetricCard(
-                    label: isWorkout ? 'Parziali' : 'Giri',
-                    value: '${activity.laps.length}',
-                    valueFontSize: 28,
-                  ),
+                  child: passoLavoro != null
+                      ? MetricCard(
+                          label: 'Solo lavoro',
+                          value: formatPace(passoLavoro),
+                          unit: '/km',
+                          valueFontSize: 28,
+                          valueColor: p.accent,
+                        )
+                      : MetricCard(
+                          label: isWorkout ? 'Parziali' : 'Giri',
+                          value: '${activity.laps.length}',
+                          valueFontSize: 28,
+                        ),
                 ),
               ],
             ),
@@ -351,6 +376,58 @@ class ActivityDetailScreen extends StatelessWidget {
             // ---------------------------------------------------- parziali
             SectionTitle(isWorkout ? 'Parziali' : 'Giri'),
             LapTable(laps: activity.laps, showStepColumn: isWorkout),
+
+            // ------------------------------------------------------- note
+            //
+            // Quello che i numeri non dicono: perche' e' andata cosi'. Si
+            // scrive a fine corsa, ma si puo' aggiungere o correggere qui in
+            // qualunque momento. Arriva intero nel testo per il coach.
+            const SectionTitle('Note'),
+            AppCard(
+              onTap: () => _editNote(context, provider, activity),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        if (activity.temperature != null) ...<Widget>[
+                          Text(
+                            'Tempo: ${activity.temperature!.label.toLowerCase()}',
+                            style: AppText.caption.copyWith(color: p.inkFaint),
+                          ),
+                          const SizedBox(height: 4),
+                        ],
+                        if (activity.coachSummary != null) ...<Widget>[
+                          Text(
+                            'Riepilogo del coach (AI)',
+                            style: AppText.caption.copyWith(color: p.inkFaint),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            activity.coachSummary!,
+                            style: AppText.body.copyWith(color: p.inkSoft),
+                          ),
+                          const SizedBox(height: 10),
+                        ],
+                        Text(
+                          _haNote(activity)
+                              ? _testoNote(activity)
+                              : 'Tocca per scrivere com\'e\' andata e che '
+                                  'tempo faceva.',
+                          style: AppText.body.copyWith(
+                            color: _haNote(activity) ? p.ink : p.inkFaint,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Icon(Icons.edit_outlined, size: 18, color: p.inkFaint),
+                ],
+              ),
+            ),
 
             // ------------------------------------------------ informazioni
             const SectionTitle('Informazioni'),
@@ -625,6 +702,113 @@ class ActivityDetailScreen extends StatelessWidget {
 ///
 /// Non compare nulla se la corsa non detiene nessun primato: e' un premio,
 /// non una sezione fissa.
+bool _haNote(RunningActivity a) =>
+    (a.note?.trim().isNotEmpty ?? false) ||
+    (a.feedback?.note?.trim().isNotEmpty ?? false);
+
+/// Le note della corsa. Quelle scritte a fine corsa stanno nell'attivita';
+/// quelle delle corse inserite a mano, nella fatica dichiarata: si mostrano
+/// tutte e due, senza perderne nessuna.
+String _testoNote(RunningActivity a) => <String>[
+      if (a.feedback?.note?.trim().isNotEmpty ?? false) a.feedback!.note!.trim(),
+      if (a.note?.trim().isNotEmpty ?? false) a.note!.trim(),
+    ].join('\n\n');
+
+Future<void> _editNote(
+  BuildContext context,
+  ActivityProvider provider,
+  RunningActivity activity,
+) async {
+  final TextEditingController testo =
+      TextEditingController(text: activity.note ?? '');
+  FeltTemperature? tempo = activity.temperature;
+  final AppPalette p = AppPalette.of(context);
+
+  final bool? salva = await showModalBottomSheet<bool>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: p.background,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+    ),
+    builder: (BuildContext ctx) => StatefulBuilder(
+      builder: (BuildContext ctx, StateSetter setSheet) => Padding(
+        padding: EdgeInsets.fromLTRB(
+          AppSpacing.screenSide,
+          20,
+          AppSpacing.screenSide,
+          MediaQuery.of(ctx).viewInsets.bottom + 20,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text('Note', style: AppText.title.copyWith(color: p.ink)),
+            const SizedBox(height: 14),
+            Text('IL TEMPO', style: AppText.label.copyWith(color: p.inkFaint)),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: <Widget>[
+                for (final FeltTemperature t in FeltTemperature.values)
+                  ChoiceChip(
+                    label: Text(t.label),
+                    selected: tempo == t,
+                    onSelected: (bool on) =>
+                        setSheet(() => tempo = on ? t : null),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: testo,
+              autofocus: true,
+              minLines: 3,
+              maxLines: 8,
+              maxLength: 600,
+              textCapitalization: TextCapitalization.sentences,
+              decoration: InputDecoration(
+                hintText: 'Com\'e\' andata, cosa ti ha limitato...',
+                filled: true,
+                fillColor: p.surface,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppRadius.small),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+              style: AppText.body.copyWith(color: p.ink),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 50,
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                style: FilledButton.styleFrom(
+                  backgroundColor: p.accent,
+                  foregroundColor: p.onAccent,
+                ),
+                child: const Text('Salva'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+
+  final String pulito = testo.text.trim();
+  testo.dispose();
+  if (salva != true) return;
+  await provider.update(activity.copyWith(
+    note: pulito.isEmpty ? null : pulito,
+    clearNote: pulito.isEmpty,
+    temperature: tempo,
+    clearTemperature: tempo == null,
+  ));
+}
+
 class _RecordsHeld extends StatelessWidget {
   const _RecordsHeld({required this.records});
 
@@ -635,13 +819,10 @@ class _RecordsHeld extends StatelessWidget {
     final AppPalette p = AppPalette.of(context);
 
     return Container(
+      // Tinta unita: la sfumatura rosso-arancio era del tema di prima.
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(AppRadius.card),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: <Color>[p.accent, const Color(0xFFFF6B4A)],
-        ),
+        color: p.accent,
       ),
       padding: const EdgeInsets.fromLTRB(15, 14, 15, 15),
       child: Column(
@@ -649,15 +830,15 @@ class _RecordsHeld extends StatelessWidget {
         children: <Widget>[
           Row(
             children: <Widget>[
-              const Icon(Icons.emoji_events_rounded,
-                  size: 22, color: Colors.white),
+              Icon(Icons.emoji_events_rounded,
+                  size: 22, color: p.onAccent),
               const SizedBox(width: 10),
               Text(
                 records.length == 1
                     ? 'Record personale'
                     : 'Record personali',
                 style: AppText.title.copyWith(
-                  color: Colors.white,
+                  color: p.onAccent,
                   fontSize: 17,
                 ),
               ),
@@ -672,12 +853,12 @@ class _RecordsHeld extends StatelessWidget {
                   Expanded(
                     child: Text(
                       record.distance.label,
-                      style: AppText.row.copyWith(color: Colors.white),
+                      style: AppText.row.copyWith(color: p.onAccent),
                     ),
                   ),
                   Text(
                     formatDuration(Duration(seconds: record.seconds)),
-                    style: AppText.number(19, color: Colors.white),
+                    style: AppText.number(19, color: p.onAccent),
                   ),
                 ],
               ),

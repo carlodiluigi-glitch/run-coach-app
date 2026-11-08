@@ -36,6 +36,8 @@ class StorageService {
   static const String profileFileName = 'profile.json';
   static const String checkInsFileName = 'checkins.json';
   static const String runInProgressFileName = 'corsa_in_corso.json';
+  static const String stepsFileName = 'passi_giornata.json';
+  static const String coachWeeksFileName = 'settimane_coach.json';
 
   final Directory? _overrideDirectory;
   Directory? _directory;
@@ -90,6 +92,14 @@ class StorageService {
       return false;
     }
   }
+
+  // ------------------------------------------------------- file semplici
+  /// Lettura e scrittura di un file del quale chi lo usa conosce il formato
+  /// (i passi della giornata). Stessa scrittura sicura degli altri.
+  Future<String?> readExtra(String name) => _readRaw(name);
+
+  Future<bool> writeExtra(String name, String content) =>
+      _writeRaw(name, content);
 
   // ---------------------------------------------------------------- settings
   Future<UserSettings> loadSettings() async {

@@ -11,8 +11,11 @@ import android.hardware.SensorManager
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
+import android.os.Handler
+import android.os.Looper
 import android.os.PowerManager
 import android.provider.MediaStore
+import android.os.SystemClock
 import android.provider.Settings
 import android.view.WindowManager
 import io.flutter.embedding.android.FlutterActivity
@@ -310,6 +313,13 @@ class MainActivity : FlutterActivity() {
                     // cosa diversa dal non saperlo.
                     "stepCount" -> result.success(passiAdesso())
 
+                    // Il contatore di sistema cosi' com'e', per i passi della
+                    // giornata. Mappa con "steps" e "bootAt" (quando si e'
+                    // acceso il telefono, in millisecondi), o null.
+                    "systemSteps" -> leggiContatoreSistema { valore ->
+                        result.success(valore)
+                    }
+
                     "stopStepCounter" -> {
                         fermaPassi()
                         result.success(null)
@@ -394,6 +404,70 @@ class MainActivity : FlutterActivity() {
         )
         passiAscolto = ok
         return ok
+    }
+
+    // ====================== I PASSI DELLA GIORNATA ======================
+    //
+    // Il contatore di sistema conta dall'accensione del telefono, sempre,
+    // anche ad app chiusa: lo tiene il chip dei sensori. Basta leggerlo ogni
+    // tanto - ogni volta che si apre l'app - e la differenza fra due letture
+    // sono i passi fatti in mezzo, anche se l'app e' rimasta chiusa per ore.
+    // Niente servizio sempre acceso, niente batteria.
+    //
+    // La lettura e' una sola: ci si mette in ascolto, il sensore consegna
+    // subito il valore attuale, e si smette. Se in tre secondi non arriva
+    // niente si risponde null: meglio nessun dato che uno inventato.
+    //
+    // Insieme ai passi si manda l'ora di accensione del telefono: e' cosi'
+    // che il lato Dart capisce se in mezzo c'e' stato un riavvio, che
+    // azzera il contatore.
+    private fun leggiContatoreSistema(fine: (Map<String, Any>?) -> Unit) {
+        if (!permessoPassi()) {
+            fine(null)
+            return
+        }
+        val manager = sensori
+            ?: (getSystemService(SENSOR_SERVICE) as? SensorManager)
+                ?.also { sensori = it }
+        if (manager == null) {
+            fine(null)
+            return
+        }
+        val contatore = manager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
+        if (contatore == null) {
+            fine(null)
+            return
+        }
+
+        var finito = false
+        lateinit var ascolto: SensorEventListener
+        val chiudi: (Map<String, Any>?) -> Unit = { valore ->
+            if (!finito) {
+                finito = true
+                try {
+                    manager.unregisterListener(ascolto)
+                } catch (error: Exception) {
+                    // Niente: smettere di ascoltare non puo' fallire in modo utile.
+                }
+                fine(valore)
+            }
+        }
+        ascolto = object : SensorEventListener {
+            override fun onSensorChanged(event: SensorEvent) {
+                if (event.values.isEmpty()) return
+                val accensione = System.currentTimeMillis() - SystemClock.elapsedRealtime()
+                chiudi(mapOf("steps" to event.values[0].toLong(), "bootAt" to accensione))
+            }
+
+            override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
+        }
+
+        val ok = manager.registerListener(ascolto, contatore, SensorManager.SENSOR_DELAY_NORMAL)
+        if (!ok) {
+            chiudi(null)
+            return
+        }
+        Handler(Looper.getMainLooper()).postDelayed({ chiudi(null) }, 3000)
     }
 
     /** Quanti passi dall'avvio. -1 se non si sta contando. */

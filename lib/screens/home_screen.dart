@@ -9,8 +9,10 @@ import '../models/run_snapshot.dart';
 import '../models/running_activity.dart';
 import '../models/training_plan.dart';
 import '../providers/activity_provider.dart';
+import '../providers/daily_steps_provider.dart';
 import '../providers/plan_provider.dart';
 import '../providers/settings_provider.dart';
+import '../services/daily_steps.dart';
 import '../services/readiness_engine.dart';
 import '../services/stats_service.dart';
 import '../utils/formatters.dart';
@@ -144,6 +146,10 @@ class HomeScreen extends StatelessWidget {
             // ------------------------------------------------- prontezza
             const SizedBox(height: 14),
             const _ReadinessCard(),
+
+            // ---------------------------------------- passi della giornata
+            const SizedBox(height: 14),
+            const _StepsCard(),
 
             // ------------------------------------------------ ultima uscita
             const SectionTitle('Ultima uscita'),
@@ -1040,4 +1046,94 @@ class _MiniMetric extends StatelessWidget {
       ),
     );
   }
+}
+
+
+/// I passi di oggi, fuori dalla corsa: quanto si e' stati in piedi.
+///
+/// Un turno di lavoro in piedi e' un carico che la corsa non vede. Qui si
+/// mostra; il testo per il coach lo riceve giorno per giorno.
+class _StepsCard extends StatelessWidget {
+  const _StepsCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final AppPalette p = AppPalette.of(context);
+    final DailyStepsProvider steps = context.watch<DailyStepsProvider>();
+
+    if (!steps.available) {
+      return AppCard(
+        onTap: () => steps.askPermission(),
+        child: Row(
+          children: <Widget>[
+            IconSquare(icon: Icons.directions_walk_rounded, color: p.inkFaint),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Passi della giornata: tocca per dare il permesso al '
+                'contapassi.',
+                style: AppText.body.copyWith(color: p.inkSoft),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final DateTime oggi = DateTime.now();
+    final DaySteps? diOggi = steps.stepsOn(oggi);
+    final DaySteps? diIeri =
+        steps.stepsOn(DateTime(oggi.year, oggi.month, oggi.day - 1));
+    final DateTime? ultima = steps.lastReadingAt;
+
+    final List<String> righe = <String>[
+      if (diIeri != null) 'ieri ${formatThousands(diIeri.steps)}',
+      if (diOggi != null && !diOggi.fromMidnight && diOggi.coveredFrom != null)
+        'contati dalle ${_ora(diOggi.coveredFrom!)}',
+      if (ultima != null) 'aggiornato alle ${_ora(ultima)}',
+    ];
+
+    return AppCard(
+      onTap: () => steps.refresh(),
+      child: Row(
+        children: <Widget>[
+          IconSquare(icon: Icons.directions_walk_rounded, color: p.accent),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  'Passi oggi',
+                  style: AppText.caption.copyWith(color: p.inkFaint),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  diOggi == null ? '--' : formatThousands(diOggi.steps),
+                  style: AppText.number(26, color: p.ink),
+                ),
+                if (righe.isNotEmpty) ...<Widget>[
+                  const SizedBox(height: 4),
+                  Text(
+                    righe.join(' · '),
+                    style: AppText.caption.copyWith(color: p.inkFaint),
+                  ),
+                ],
+                if (diOggi == null) ...<Widget>[
+                  const SizedBox(height: 4),
+                  Text(
+                    'Il conto parte da adesso: riapri l\'app piu\' tardi.',
+                    style: AppText.caption.copyWith(color: p.inkFaint),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _ora(DateTime d) =>
+      '${d.hour}:${d.minute.toString().padLeft(2, '0')}';
 }

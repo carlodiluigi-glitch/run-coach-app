@@ -225,11 +225,11 @@ class _RecordRow extends StatelessWidget {
         alignment: Alignment.center,
         child: Text(
           RecordsScreen._shortKey(record.distance.key),
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 10,
             fontWeight: FontWeight.w800,
             letterSpacing: -0.2,
-            color: Colors.white,
+            color: p.on(badgeColor),
           ),
         ),
       ),

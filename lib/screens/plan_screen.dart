@@ -59,6 +59,11 @@ class _PlanScreenState extends State<PlanScreen> {
         elevation: 0,
         actions: <Widget>[
           IconButton(
+            tooltip: 'Parla col coach',
+            icon: Icon(Icons.forum_outlined, color: p.blue),
+            onPressed: () => Navigator.of(context).pushNamed(AppRoutes.coach),
+          ),
+          IconButton(
             tooltip: 'Aggiungi una gara',
             icon: Icon(Icons.flag_outlined, color: p.blue),
             onPressed: () => _addRace(context, plans),
@@ -559,11 +564,11 @@ class _SessionCard extends StatelessWidget {
                 alignment: Alignment.center,
                 child: Text(
                   _weekdays[(session.date.weekday - 1).clamp(0, 6)],
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0.6,
-                    color: Colors.white,
+                    color: p.on(tone),
                   ),
                 ),
               ),

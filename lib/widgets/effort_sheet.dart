@@ -13,13 +13,30 @@ import '../models/effort.dart';
 ///
 /// Quindi: un tocco basta (il numero), tutto il resto e' facoltativo, e si
 /// puo' saltare senza sensi di colpa. Meglio nessun dato che un dato finto.
-Future<SessionFeedback?> askSessionFeedback(BuildContext context) {
-  return showModalBottomSheet<SessionFeedback>(
+///
+/// Dalla 2.11 si possono lasciare anche due righe di note e il tempo che
+/// faceva. Anche da sole, senza il numero: "gambe a posto, mi ha fermato
+/// il caldo" e' gia' un'informazione, e il coach la riceve intera.
+Future<EndOfRunAnswers?> askSessionFeedback(BuildContext context) {
+  return showModalBottomSheet<EndOfRunAnswers>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
     builder: (BuildContext ctx) => const _EffortSheet(),
   );
+}
+
+/// Le risposte a fine corsa. Ogni parte puo' mancare.
+class EndOfRunAnswers {
+  const EndOfRunAnswers({this.feedback, this.note, this.temperature});
+
+  /// Fatica, gambe, dolore: c'e' solo se e' stato scelto il numero.
+  final SessionFeedback? feedback;
+
+  /// Le note libere, gia' ripulite. `null` se vuote.
+  final String? note;
+
+  final FeltTemperature? temperature;
 }
 
 class _EffortSheet extends StatefulWidget {
@@ -33,6 +50,29 @@ class _EffortSheetState extends State<_EffortSheet> {
   int? _rpe;
   LegsFeel? _legs;
   bool _pain = false;
+  FeltTemperature? _temp;
+  final TextEditingController _note = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    // Il pulsante Salva si accende anche scrivendo solo una nota.
+    _note.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _note.dispose();
+    super.dispose();
+  }
+
+  String? get _notaPulita {
+    final String t = _note.text.trim();
+    return t.isEmpty ? null : t;
+  }
+
+  bool get _qualcosaDaSalvare =>
+      _rpe != null || _notaPulita != null || _temp != null;
 
   @override
   Widget build(BuildContext context) {
@@ -156,17 +196,63 @@ class _EffortSheetState extends State<_EffortSheet> {
               ),
             ),
 
+            const SizedBox(height: 14),
+            Text('IL TEMPO', style: AppText.label.copyWith(color: p.inkFaint)),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: <Widget>[
+                for (final FeltTemperature t in FeltTemperature.values)
+                  ChoiceChip(
+                    label: Text(t.label),
+                    selected: _temp == t,
+                    onSelected: (bool on) =>
+                        setState(() => _temp = on ? t : null),
+                  ),
+              ],
+            ),
+
             const SizedBox(height: 18),
+            Text('NOTE', style: AppText.label.copyWith(color: p.inkFaint)),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _note,
+              minLines: 2,
+              maxLines: 5,
+              maxLength: 600,
+              textCapitalization: TextCapitalization.sentences,
+              decoration: InputDecoration(
+                hintText: 'Facoltative. Com\'e\' andata, cosa ti ha '
+                    'limitato, cosa avresti potuto fare in piu\'...',
+                hintStyle: AppText.body.copyWith(color: p.inkFaint),
+                filled: true,
+                fillColor: p.surface,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppRadius.small),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+              style: AppText.body.copyWith(color: p.ink),
+            ),
+
+            const SizedBox(height: 10),
             SizedBox(
               height: 54,
               child: FilledButton(
-                onPressed: rpe == null
+                onPressed: !_qualcosaDaSalvare
                     ? null
                     : () => Navigator.of(context).pop(
-                          SessionFeedback(
-                            rpe: rpe,
-                            legs: _legs,
-                            hasPain: _pain,
+                          EndOfRunAnswers(
+                            feedback: rpe == null
+                                ? null
+                                : SessionFeedback(
+                                    rpe: rpe,
+                                    legs: _legs,
+                                    hasPain: _pain,
+                                  ),
+                            note: _notaPulita,
+                            temperature: _temp,
                           ),
                         ),
                 style: FilledButton.styleFrom(
@@ -231,7 +317,7 @@ class _EffortButton extends StatelessWidget {
               '$value',
               style: AppText.number(
                 17,
-                color: selected ? Colors.white : p.inkSoft,
+                color: selected ? p.on(tone()) : p.inkSoft,
               ),
             ),
           ),

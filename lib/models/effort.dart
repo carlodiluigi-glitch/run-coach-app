@@ -132,6 +132,42 @@ extension LegsFeelInfo on LegsFeel {
 ///
 /// Tutti i campi tranne [rpe] sono facoltativi: la domanda a fine corsa deve
 /// poter essere chiusa in due secondi.
+/// Il tempo che faceva, come l'ha sentito chi correva.
+///
+/// PERCHE' A PAROLE E NON IN GRADI
+/// -------------------------------
+/// Perche' quello che conta per l'allenamento e' come pesava: lo stesso
+/// "molto caldo" puo' essere 30 gradi per uno e 35 per un altro, e spiega da
+/// solo un passo piu' lento o una fatica piu' alta. E non serve internet:
+/// prenderla dal meteo vorrebbe dire rinunciare al "nessun dato raccolto".
+enum FeltTemperature { freddo, fresco, mite, caldo, moltoCaldo }
+
+extension FeltTemperatureInfo on FeltTemperature {
+  String get label {
+    switch (this) {
+      case FeltTemperature.freddo:
+        return 'Freddo';
+      case FeltTemperature.fresco:
+        return 'Fresco';
+      case FeltTemperature.mite:
+        return 'Mite';
+      case FeltTemperature.caldo:
+        return 'Caldo';
+      case FeltTemperature.moltoCaldo:
+        return 'Molto caldo';
+    }
+  }
+
+  String get storageKey => name;
+
+  static FeltTemperature? fromStorage(String? value) {
+    for (final FeltTemperature t in FeltTemperature.values) {
+      if (t.name == value) return t;
+    }
+    return null;
+  }
+}
+
 class SessionFeedback {
   const SessionFeedback({
     required this.rpe,

@@ -1,5 +1,8 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 
+import '../models/coach_week.dart';
 import '../models/training_plan.dart';
 import '../models/weekly_availability.dart';
 import '../services/plan_service.dart';
@@ -24,6 +27,15 @@ class PlanProvider extends ChangeNotifier {
 
   PlanConfig? _config;
   TrainingPlan? _plan;
+
+  /// Le settimane concordate col coach, appoggiate sopra il piano.
+  List<CoachWeek> _coachWeeks = <CoachWeek>[];
+  List<CoachWeek> get coachWeeks => List<CoachWeek>.unmodifiable(_coachWeeks);
+
+  /// Il piano com'e' senza le settimane del coach: per mostrare il "prima".
+  TrainingPlan? _basePlan;
+  List<PlannedSession> baseSessionsOn(DateTime day) =>
+      _basePlan?.sessionsOn(day) ?? <PlannedSession>[];
   bool _loaded = false;
   String? _errorMessage;
 
@@ -35,6 +47,7 @@ class PlanProvider extends ChangeNotifier {
 
   Future<void> load() async {
     _config = await _storage.loadPlanConfig();
+    await _loadCoachWeeks();
     _recompute();
     _loaded = true;
     notifyListeners();
@@ -52,7 +65,8 @@ class PlanProvider extends ChangeNotifier {
     }
 
     _config = config;
-    _plan = generated;
+    _basePlan = generated;
+    _plan = _conCoach(generated);
     _errorMessage = null;
     notifyListeners();
 
@@ -153,6 +167,7 @@ class PlanProvider extends ChangeNotifier {
   Future<void> clear() async {
     _config = null;
     _plan = null;
+    _basePlan = null;
     _errorMessage = null;
     notifyListeners();
     await _storage.deletePlanConfig();
@@ -160,8 +175,108 @@ class PlanProvider extends ChangeNotifier {
 
   void _recompute() {
     final PlanConfig? current = _config;
-    _plan = current == null ? null : _service.generate(current);
+    _basePlan = current == null ? null : _service.generate(current);
+    _plan = _conCoach(_basePlan);
   }
+
+  // ------------------------------------------------- settimane del coach
+  //
+  // Il piano si ricalcola a ogni avvio dalle sue regole: una settimana
+  // importata non lo modifica, gli si appoggia sopra. Per i sette giorni
+  // della settimana del coach valgono le sue sedute; fuori, quelle del
+  // piano. Togliere la settimana del coach riporta il piano com'era.
+
+  /// La settimana del coach che copre [day], se c'e'.
+  CoachWeek? coachWeekCovering(DateTime day) {
+    for (final CoachWeek w in _coachWeeks) {
+      if (w.covers(day)) return w;
+    }
+    return null;
+  }
+
+  /// Applica una settimana del coach. Ne sostituisce un'altra che copra
+  /// gli stessi giorni.
+  Future<bool> applyCoachWeek(CoachWeek week) async {
+    _coachWeeks = <CoachWeek>[
+      for (final CoachWeek w in _coachWeeks)
+        if (giorniFra(w.from, week.from).abs() > 6) w,
+      week,
+    ]..sort((CoachWeek a, CoachWeek b) => a.from.compareTo(b.from));
+    _recompute();
+    notifyListeners();
+    return _saveCoachWeeks();
+  }
+
+  /// Toglie la settimana del coach che copre [day]: tornano le sedute del
+  /// piano.
+  Future<bool> removeCoachWeek(DateTime day) async {
+    _coachWeeks =
+        _coachWeeks.where((CoachWeek w) => !w.covers(day)).toList();
+    _recompute();
+    notifyListeners();
+    return _saveCoachWeeks();
+  }
+
+  TrainingPlan? _conCoach(TrainingPlan? piano) {
+    if (piano == null || _coachWeeks.isEmpty) return piano;
+    final List<PlanWeek> settimane = <PlanWeek>[];
+    for (final PlanWeek w in piano.weeks) {
+      CoachWeek? nota;
+      final List<PlannedSession> sedute = <PlannedSession>[];
+      for (final PlannedSession s in w.sessions) {
+        final CoachWeek? c = coachWeekCovering(s.date);
+        if (c == null) sedute.add(s);
+      }
+      for (final CoachWeek c in _coachWeeks) {
+        for (int g = 0; g < 7; g++) {
+          final DateTime giorno = piuGiorni(w.startDate, g);
+          if (c.covers(giorno)) nota = c;
+        }
+        for (final PlannedSession s in c.sessions) {
+          final int g = giorniFra(w.startDate, s.date);
+          if (g >= 0 && g <= 6) sedute.add(s);
+        }
+      }
+      if (nota == null) {
+        settimane.add(w);
+        continue;
+      }
+      sedute.sort((PlannedSession a, PlannedSession b) =>
+          a.date.compareTo(b.date));
+      settimane.add(w.copyWith(
+        sessions: sedute,
+        note: 'Concordata col coach (${nota.decisionLabel.toLowerCase()})'
+            '${nota.reason.isEmpty ? '' : ': ${nota.reason}'}',
+      ));
+    }
+    return TrainingPlan(config: piano.config, weeks: settimane);
+  }
+
+  Future<void> _loadCoachWeeks() async {
+    final String? raw =
+        await _storage.readExtra(StorageService.coachWeeksFileName);
+    if (raw == null) return;
+    try {
+      final Object? decoded = jsonDecode(raw);
+      if (decoded is! List) return;
+      // Le settimane passate da piu' di due mesi non servono piu'.
+      final DateTime limite = piuGiorni(DateTime.now(), -60);
+      _coachWeeks = decoded
+          .whereType<Map<dynamic, dynamic>>()
+          .map((Map<dynamic, dynamic> e) =>
+              CoachWeek.fromJson(e.cast<String, dynamic>()))
+          .whereType<CoachWeek>()
+          .where((CoachWeek w) => w.to.isAfter(limite))
+          .toList();
+    } catch (_) {
+      _coachWeeks = <CoachWeek>[];
+    }
+  }
+
+  Future<bool> _saveCoachWeeks() => _storage.writeExtra(
+        StorageService.coachWeeksFileName,
+        jsonEncode(_coachWeeks.map((CoachWeek w) => w.toJson()).toList()),
+      );
 
   // ---------------------------------------------------------------- comodita'
   /// Settimana in corso.

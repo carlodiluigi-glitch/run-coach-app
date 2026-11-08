@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import 'app/app.dart';
 import 'providers/activity_provider.dart';
+import 'providers/daily_steps_provider.dart';
 import 'providers/plan_provider.dart';
 import 'providers/running_provider.dart';
 import 'providers/settings_provider.dart';
@@ -40,6 +43,8 @@ Future<void> main() async {
   final ActivityProvider activityProvider =
       ActivityProvider(storage: storage, shoeProvider: shoeProvider);
   final PlanProvider planProvider = PlanProvider(storage: storage);
+  final DailyStepsProvider dailyStepsProvider =
+      DailyStepsProvider(storage: storage, nativeBridge: nativeBridge);
   final RunningProvider runningProvider = RunningProvider(
     gpsService: gps,
     permissionService: permissions,
@@ -54,6 +59,9 @@ Future<void> main() async {
   await workoutProvider.load();
   await activityProvider.load();
   await planProvider.load();
+  // Senza await: la prima lettura del contapassi puo' tardare qualche
+  // secondo, e la Home non deve aspettarla.
+  unawaited(dailyStepsProvider.load());
   runningProvider.applySettings(settingsProvider.settings);
 
   // Le impostazioni cambiate a runtime vengono propagate alla corsa.
@@ -69,6 +77,8 @@ Future<void> main() async {
         ChangeNotifierProvider<WorkoutProvider>.value(value: workoutProvider),
         ChangeNotifierProvider<ActivityProvider>.value(value: activityProvider),
         ChangeNotifierProvider<PlanProvider>.value(value: planProvider),
+        ChangeNotifierProvider<DailyStepsProvider>.value(
+            value: dailyStepsProvider),
         ChangeNotifierProvider<RunningProvider>.value(value: runningProvider),
       ],
       child: const RunCoachApp(),

@@ -327,6 +327,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       Navigator.of(context).pushNamed(AppRoutes.importa),
                 ),
                 AppListRow(
+                  title: 'Parla col coach',
+                  subtitle: 'Copia le ultime due settimane in un testo da '
+                      'incollare in una chat con un\'AI, per discutere la '
+                      'settimana dopo.',
+                  onTap: () =>
+                      Navigator.of(context).pushNamed(AppRoutes.coach),
+                ),
+                AppListRow(
                   title: 'Copia di sicurezza',
                   subtitle: 'Le corse stanno solo in questo telefono. Se lo '
                       'cambi o lo perdi, senza una copia spariscono.',

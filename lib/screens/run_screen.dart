@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 
 import '../app/routes.dart';
 import '../app/tokens.dart';
-import '../models/effort.dart';
 import '../models/running_activity.dart';
 import '../models/running_shoe.dart';
 import '../models/workout.dart';
@@ -237,7 +236,7 @@ class _RunScreenState extends State<RunScreen> {
               onPressed: ready ? () => _start(context, run) : null,
               style: FilledButton.styleFrom(
                 backgroundColor: p.green,
-                foregroundColor: Colors.white,
+                foregroundColor: p.on(p.green),
                 disabledBackgroundColor: p.separator,
                 disabledForegroundColor: p.inkFaint,
                 padding: EdgeInsets.zero,
@@ -617,12 +616,14 @@ class _RunScreenState extends State<RunScreen> {
     // La fatica percepita si chiede subito dopo, finche' la sensazione e'
     // fresca: chiederla il giorno dopo darebbe un numero inventato.
     if (!mounted) return;
-    final SessionFeedback? feedback = await askSessionFeedback(context);
+    final EndOfRunAnswers? risposte = await askSessionFeedback(context);
 
-    if (shoeId != null || feedback != null) {
+    if (shoeId != null || risposte != null) {
       await activities.update(appenaFinita.copyWith(
         shoeId: shoeId,
-        feedback: feedback,
+        feedback: risposte?.feedback,
+        note: risposte?.note,
+        temperature: risposte?.temperature,
       ));
     }
     if (!mounted) return;

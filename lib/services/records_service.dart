@@ -1,5 +1,6 @@
 import '../models/running_activity.dart';
 import 'gps_filter.dart';
+import 'route_gaps.dart';
 import 'stats_service.dart';
 
 /// Una distanza per cui l'app tiene il record personale.
@@ -130,7 +131,11 @@ class RecordsService {
         route[i].latitude,
         route[i].longitude,
       );
-      cumulative[i] = cumulative[i - 1] + (step.isFinite ? step : 0.0);
+      // I metri fatti a cronometro fermo (una pausa) o in un salto del GPS
+      // non sono corsa: contarli regalava record da campione del mondo.
+      // Vedi [RouteGaps].
+      final bool salta = RouteGaps.skip(route[i - 1], route[i], step);
+      cumulative[i] = cumulative[i - 1] + (salta ? 0.0 : step);
       final double t = route[i].elapsedSeconds.toDouble();
       // Il tempo deve essere monotono: se il tracciato e' corrotto si ignora
       // l'indietreggiamento invece di produrre record impossibili.

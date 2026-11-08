@@ -214,6 +214,27 @@ class NativeBridge {
     }
   }
 
+  /// Il contatore di passi del telefono, cosi' com'e': i passi dall'ultima
+  /// accensione, e quando e' avvenuta. Serve ai passi della giornata (vedi
+  /// [DailySteps]). `null` se il telefono non ha il contatore, se manca il
+  /// permesso o se il sensore non risponde.
+  Future<SystemStepReading?> systemSteps() async {
+    try {
+      final Map<Object?, Object?>? m =
+          await _channel.invokeMethod<Map<Object?, Object?>>('systemSteps');
+      if (m == null) return null;
+      final Object? passi = m['steps'];
+      final Object? accensione = m['bootAt'];
+      if (passi is! int || accensione is! int || passi < 0) return null;
+      return SystemStepReading(
+        steps: passi,
+        bootAt: DateTime.fromMillisecondsSinceEpoch(accensione),
+      );
+    } catch (error) {
+      return null;
+    }
+  }
+
   /// Smette di contare (e stacca l'ascoltatore del sensore: un ascoltatore
   /// lasciato aperto consuma batteria a corsa finita).
   Future<void> stopStepCounter() async {
@@ -239,4 +260,16 @@ class NativeBridge {
       return false;
     }
   }
+}
+
+
+/// Una lettura del contatore di passi del telefono.
+class SystemStepReading {
+  const SystemStepReading({required this.steps, required this.bootAt});
+
+  /// Passi dall'ultima accensione del telefono.
+  final int steps;
+
+  /// Quando si e' acceso il telefono.
+  final DateTime bootAt;
 }

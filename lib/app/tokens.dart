@@ -89,49 +89,62 @@ class AppPalette {
   /// schede smettono di essere bianco puro. Lo stacco fra scheda e sfondo
   /// **cresce** - adesso si vede che sono schede - ma la quantita' di bianco
   /// cala. Sono due cose diverse che prima andavano insieme per sbaglio.
+  // TEMA "NOTTE" (versione 2.11).
+  //
+  // Scelto fra tre proposte disegnate sulla stessa schermata vera (la soglia
+  // 2 x 1,6 km): fondo quasi nero, un solo colore acceso - giallo lime - per
+  // quello che conta (i tratti di lavoro, il pulsante principale), numeri
+  // grandi in un carattere stretto da tabellone sportivo. Il chiaro resta per
+  // chi lo sceglie, con lo stesso disegno: il lime su fondo bianco non si
+  // legge, li' l'accento diventa un verde oliva scuro della stessa famiglia.
   static const AppPalette light = AppPalette(
-    background: Color(0xFFE8E4E1),
-    surface: Color(0xFFFBFAF9),
-    surfaceElevated: Color(0xFFF1EEEC),
-    ink: Color(0xFF1A1718),
-    inkSoft: Color(0xFF5B5558),
-    inkFaint: Color(0xFF8A8286),
-    separator: Color(0xFFD6D0CD),
-    accent: Color(0xFFE02047),
+    background: Color(0xFFF4F4F1),
+    surface: Color(0xFFFFFFFF),
+    surfaceElevated: Color(0xFFECECE8),
+    ink: Color(0xFF0E0F11),
+    inkSoft: Color(0xFF4A4F55),
+    inkFaint: Color(0xFF6E7379),
+    separator: Color(0xFFE1E2DD),
+    accent: Color(0xFF557300),
     onAccent: Color(0xFFFFFFFF),
     green: Color(0xFF1F7A37),
     orange: Color(0xFFB04E00),
-    blue: Color(0xFF0066D6),
-    red: Color(0xFFD32F26),
+    blue: Color(0xFF1F4FD1),
+    red: Color(0xFFC62828),
     isDark: false,
   );
 
-  /// Palette per il tema scuro.
   static const AppPalette dark = AppPalette(
-    background: Color(0xFF000000),
-    surface: Color(0xFF1C1C1E),
-    surfaceElevated: Color(0xFF2C2C2E),
-    ink: Color(0xFFFFFFFF),
-    inkSoft: Color(0xFFAEAEB2),
-    inkFaint: Color(0xFF8E8E93),
-    separator: Color(0xFF38383A),
-    accent: Color(0xFFFF375F),
-    onAccent: Color(0xFFFFFFFF),
-    green: Color(0xFF30D158),
-    orange: Color(0xFFFF9F0A),
-    blue: Color(0xFF0A84FF),
-    red: Color(0xFFFF453A),
+    background: Color(0xFF0E0F11),
+    surface: Color(0xFF17191C),
+    surfaceElevated: Color(0xFF22252A),
+    ink: Color(0xFFF2F3F5),
+    inkSoft: Color(0xFFB9BEC4),
+    inkFaint: Color(0xFF8B9096),
+    separator: Color(0xFF26292E),
+    accent: Color(0xFFD4FF3A),
+    // Sul lime il bianco non si legge: il testo sopra l'accento e' scuro.
+    onAccent: Color(0xFF0E0F11),
+    green: Color(0xFF3DDC84),
+    orange: Color(0xFFFFB020),
+    blue: Color(0xFF8EA8FF),
+    red: Color(0xFFFF6B5E),
     isDark: true,
   );
 
-  /// Palette della schermata di corsa: sempre scura, in qualunque tema.
-  ///
-  /// Non e' una scelta estetica ma pratica: nero pieno sugli schermi OLED
-  /// consuma molto meno, e il bianco su nero si legge al sole meglio di
-  /// qualunque altra combinazione.
   static const AppPalette run = dark;
 
   /// La palette giusta per il tema attualmente in uso.
+  /// Il colore del testo o dell'icona da mettere SOPRA [sfondo].
+  ///
+  /// Prima era sempre bianco, e andava bene finche' i colori pieni erano
+  /// rossi e blu scuri. Con il lime e i verdi chiari del tema Notte il bianco
+  /// sparisce: qui si sceglie fra quasi-nero e bianco guardando quanto e'
+  /// chiaro lo sfondo.
+  Color on(Color sfondo) => sfondo.computeLuminance() > 0.4
+      ? const Color(0xFF0E0F11)
+      : const Color(0xFFFFFFFF);
+
   static AppPalette of(BuildContext context) =>
       Theme.of(context).brightness == Brightness.dark ? dark : light;
 }
@@ -144,6 +157,10 @@ class AppText {
   AppText._();
 
   static const String fontFamily = 'Inter';
+
+  /// Il carattere dei numeri grandi: stretto, da tabellone sportivo. Le
+  /// cifre stanno in meno spazio, quindi si possono fare piu' grandi.
+  static const String numberFamily = 'BarlowCondensed';
 
   /// Cifre a larghezza fissa: senza questo i numeri "ballano" mentre corri,
   /// perche' l'1 e' piu' stretto del 7.
@@ -207,10 +224,18 @@ class AppText {
   /// La spaziatura negativa cresce con la dimensione: e' quello che rende
   /// "compatti" i numeri grandi di iOS invece che sparpagliati.
   static TextStyle number(double size, {FontWeight? weight, Color? color}) {
+    // Barlow Condensed ha due pesi nel pacchetto, 500 e 600: chi chiede
+    // grassetto (700 e oltre) riceve il 600, chi chiede meno riceve il 500.
+    final FontWeight w = weight ?? FontWeight.w600;
     return TextStyle(
-      fontSize: size,
-      fontWeight: weight ?? FontWeight.w700,
-      letterSpacing: -size * 0.045,
+      fontFamily: numberFamily,
+      // Un carattere stretto a parita' di corpo sembra piu' piccolo: un
+      // po' piu' grande riporta i numeri alla presenza di prima.
+      fontSize: size * 1.08,
+      fontWeight: w.index >= FontWeight.w600.index
+          ? FontWeight.w600
+          : FontWeight.w500,
+      letterSpacing: -size * 0.01,
       height: 1.0,
       color: color,
       fontFeatures: tabular,

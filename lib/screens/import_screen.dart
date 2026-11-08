@@ -152,7 +152,7 @@ class _ImportScreenState extends State<ImportScreen> {
                           onPressed: _lavorando ? null : _conferma,
                           style: FilledButton.styleFrom(
                             backgroundColor: p.green,
-                            foregroundColor: Colors.white,
+                            foregroundColor: p.on(p.green),
                           ),
                           child: Text(
                             _nuove.length == 1

@@ -83,6 +83,10 @@ class RunningProvider extends ChangeNotifier {
   final List<RoutePoint> _route = <RoutePoint>[];
   int _lastRoutePointSecond = -10;
 
+  /// Il prossimo punto salvato sara' il primo dopo una pausa: va segnato,
+  /// perche' i metri fatti durante la pausa non entrino nei record.
+  bool _resumePending = false;
+
   // ------------------------------------------------------------- i passi
   //
   // La cadenza arriva dal sensore di passo del telefono, non dal GPS. Il
@@ -394,6 +398,7 @@ class RunningProvider extends ChangeNotifier {
     _state = RunState.running;
     _stopwatch.start();
     _filter.dropReference();
+    _resumePending = true;
     await _coach.speak(_coach.phrases.resumed(), priority: SpeechPriority.high);
     notifyListeners();
   }
@@ -507,6 +512,7 @@ class RunningProvider extends ChangeNotifier {
     _giri.azzera();
     _route.clear();
     _lastRoutePointSecond = -10;
+    _resumePending = false;
     _paceWindow.clear();
     _paceStatus = PaceStatus.unknown;
     _lastPaceCheck = null;
@@ -613,7 +619,9 @@ class RunningProvider extends ChangeNotifier {
         // I passi fatti fin qui. Cumulativi: la cadenza di un tratto e' la
         // differenza fra due punti, divisa per il tempo.
         steps: _stepsOn ? _stepsNow : null,
+        resumed: _resumePending,
       ));
+      _resumePending = false;
     }
 
     _pushPaceSample();

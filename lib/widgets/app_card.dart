@@ -96,7 +96,9 @@ class IconSquare extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppRadius.small),
       ),
       alignment: Alignment.center,
-      child: Icon(icon, size: size * 0.6, color: Colors.white),
+      // Sopra un colore chiaro (il lime del tema Notte) l'icona e' scura.
+      child: Icon(icon,
+          size: size * 0.6, color: AppPalette.of(context).on(color)),
     );
   }
 }

@@ -1,103 +1,94 @@
-2.9.3 - la voce dice di piu', e si ripete di meno
-================================================
+2.11.0 - Coach, contapassi, note e tempo, tema Notte, correzione della pausa
+==========================================================================
 
-CONTIENE ANCHE 2.9.0, 2.9.1 e 2.9.2. Applichi questo e sei a posto comunque.
+1) PARLA COL COACH: ANDATA E RITORNO
+------------------------------------
+Nel Piano (icona del fumetto) o in Impostazioni.
+  - "Copia per il coach": un testo con le ultime due settimane da incollare
+    in una chat con un'AI. Ogni dato dice se e' misurato, dichiarato o
+    calcolato; quello che manca e' "non noto".
+  - "Incolla la risposta del coach": l'AI chiude la conversazione con un
+    blocco ===FALCATA-SETTIMANA-1===. Falcata lo legge, lo controlla, mostra
+    la settimana nuova accanto a quella del piano e la applica solo se
+    confermi. Due sedute di qualita' attaccate o qualita' il giorno prima del
+    lungo vanno corrette prima; giorni non disponibili, sedute troppo lunghe,
+    carico che sale oltre il 30%, passi piu' veloci delle zone sono avvisi.
+  - La settimana del coach si appoggia sopra il piano senza cambiarlo:
+    "Torna alla settimana del piano" la toglie.
+  - I riepiloghi che l'AI scrive per ogni corsa finiscono nelle note della
+    corsa, marcati come scritti dal coach.
 
+2) NOTE E TEMPO A FINE CORSA
+----------------------------
+Dopo la fatica: il tempo percepito (freddo, fresco, mite, caldo, molto
+caldo) e una casella di note libere. Tutto facoltativo, anche senza il
+numero della fatica. Nella scheda della corsa c'e' la sezione Note, per
+aggiungerle o correggerle dopo. Arrivano intere al coach.
 
-1) IL RICHIAMO A NON PARTIRE FORTE
+3) CONTAPASSI DELLA GIORNATA
+----------------------------
+In Home, "Passi oggi". Il telefono conta i passi da solo anche ad app
+chiusa; Falcata legge il contatore quando la apri e fa la differenza. Se
+fra due aperture c'e' la mezzanotte, i passi si dividono in proporzione:
+aprirla al mattino (per il check-in) rende il conto quasi esatto. I passi
+di ogni giorno vanno anche nel testo per il coach.
+
+4) TEMA NOTTE
+-------------
+Fondo quasi nero, accento giallo lime, numeri grandi in Barlow Condensed
+(licenza OFL). Il tema chiaro resta, con un verde oliva al posto del lime.
+Chi non ha mai scelto vede Notte; chi aveva "Come il telefono" lo cambia in
+Impostazioni, Tema, Scuro. Nelle sedute a fasi, in alto c'e' il passo dei
+soli tratti di lavoro.
+
+5) LA PAUSA NON REGALA PIU' RECORD
 ----------------------------------
-
-Dopo 250 metri e almeno 45 secondi, una volta sola, la voce dice qualcosa
-come:
-
-  "Primi metri. Non partire forte: il tempo si guadagna alla fine."
-  "Tieni il freno adesso. Le gambe fresche ingannano."
-  "Parti piano. Oggi i conti si fanno all'ultimo chilometro."
-
-Perche' li' e non altrove: e' l'errore piu' comune di chi corre da solo, ed e'
-anche l'unico che nessuno gli fa notare. In gruppo qualcuno te lo dice; da
-soli i primi cinquecento metri si corrono sempre troppo forte, perche' le
-gambe sono fresche e il fiato non si e' ancora fatto sentire. Il conto arriva
-al settimo chilometro, quando sembra una giornata storta e invece era solo una
-partenza sbagliata.
-
-A un chilometro sarebbe tardi: il danno e' fatto, e dirlo allora e' solo una
-critica.
-
-I 45 secondi servono contro il GPS: nei primissimi istanti puo' regalare
-duecento metri in un colpo mentre cerca il segnale, e senza quella condizione
-il richiamo usciva da fermi, prima di muovere un piede.
-
-Vale anche sulla corsa libera: non partire forte non dipende dall'avere un
-programma, dipende dall'avere le gambe fresche.
+Correndo col cronometro in pausa, i metri fatti in pausa entravano nei
+record "a tempo zero" (1 km in 2:27). Ora il primo punto dopo la pausa e'
+segnato e non conta, e sulle corse vecchie un tratto oltre 43 km/h viene
+scartato. I record si ricalcolano da soli.
 
 
-2) LA FRASE DI FINE ALLENAMENTO
--------------------------------
-
-Prima era una riga sola: "Allenamento completato." Sempre quella, per sempre.
-
-Adesso e' fatta di due pezzi: il complimento, che dipende dal carattere del
-coach, e una coda che cambia ogni volta. Meta' delle code sono promemoria
-pratici, meta' sono mestiere - come avevi chiesto:
-
-  "Allenamento completato. Ricorda di bere: la sete arriva dopo, la
-   disidratazione prima."
-
-  "Fatto. Il lento serve a costruire il motore, non a stancarti: quando e'
-   lento, corrilo piano davvero."
-
-  "Seduta finita. Quando sei stanco la cadenza cede prima del passo: e' il
-   segnale piu' onesto che hai."
-
-Fanno 132 frasi diverse da due elenchi corti, invece di doverne scrivere 132.
-
-Le code non sono frasi a effetto: il lento piano, il recupero che vale quanto
-il carico, piano quasi sempre e forte ogni tanto, la cadenza che cede prima
-del passo sono le stesse quattro cose su cui e' costruito il motore di
-allenamento di questa app. Il coach dice a voce quello che il piano fa in
-silenzio.
-
-
-3) PIU' VARIANTI DOVE C'ERA UNA RIGA SOLA
------------------------------------------
-
-Partenza, corsa libera, fine allenamento: tutti e tre avevano un elenco di una
-o due frasi per ciascun carattere. Adesso tre o quattro ciascuno, e il nome
-resta solo alla partenza - un coach che ti chiama per nome a ogni annuncio
-diventa insopportabile dopo dieci minuti.
-
-
-IL TEST CHE MANCAVA
--------------------
-
-"Partenza." era una frase corretta, pronunciabile e sensata. Era solo sempre
-quella, e nessun controllo automatico poteva accorgersene.
-
-Adesso c'e': in test/voce_test.dart un test estrae trenta volte ogni frase,
-per tutti e tre i caratteri, e pretende che escano almeno due testi diversi.
-Se qualcuno riducesse un elenco a una riga sola, diventa rosso.
-
-Controlla anche la forma di tutte e 132 le frasi finali: niente doppi spazi,
-tutte finiscono con un punto, e il nome non compare mai alla fine.
-
-
-FILE NEL PACCHETTO (18)
+FILE NEL PACCHETTO (40)
 -----------------------
 
-  pubspec.yaml                              2.8.6 -> 2.9.3+41
-  README.md / .gitignore
-  .github/workflows/android.yml             i due pacchetti aab (2.9.2)
-  lib/app/app.dart / routes.dart
-  lib/models/license.dart                   la protezione (2.9.1)
-  lib/models/running_activity.dart          tapis roulant (2.9.0)
-  lib/providers/running_provider.dart       il richiamo dopo 250 m
-  lib/services/coach_phrases.dart           le frasi nuove
-  lib/screens/manual_run_screen.dart        inserimento a mano (2.9.0)
-  lib/screens/activity_history_screen.dart
+  .github/workflows/android.yml
+  android/app/src/main/kotlin/com/runcoachapp/run_coach_app/MainActivity.kt
+  assets/fonts/BarlowCondensed-Medium.ttf
+  assets/fonts/BarlowCondensed-SemiBold.ttf
+  assets/fonts/OFL-BarlowCondensed.txt
+  lib/app/app.dart
+  lib/app/routes.dart
+  lib/app/theme.dart
+  lib/app/tokens.dart
+  lib/main.dart
+  lib/models/coach_week.dart
+  lib/models/effort.dart
+  lib/models/running_activity.dart
+  lib/models/user_settings.dart
+  lib/providers/daily_steps_provider.dart
+  lib/providers/plan_provider.dart
+  lib/providers/running_provider.dart
   lib/screens/activity_detail_screen.dart
-  lib/services/run_index_engine.dart
+  lib/screens/coach_import_screen.dart
+  lib/screens/coach_screen.dart
+  lib/screens/home_screen.dart
+  lib/screens/import_screen.dart
+  lib/screens/plan_screen.dart
+  lib/screens/records_screen.dart
+  lib/screens/run_screen.dart
+  lib/screens/settings_screen.dart
+  lib/services/coach_export.dart
+  lib/services/coach_import.dart
+  lib/services/daily_steps.dart
+  lib/services/native_bridge.dart
   lib/services/records_service.dart
-  test/tapis_roulant_test.dart
-  test/licenza_test.dart
-  test/voce_test.dart                       + il test sulle ripetizioni
+  lib/services/route_gaps.dart
+  lib/services/route_windows.dart
+  lib/services/storage_service.dart
+  lib/widgets/app_card.dart
+  lib/widgets/effort_sheet.dart
+  pubspec.yaml
+  test/coach_export_test.dart
+  test/coach_import_test.dart
+  test/pausa_test.dart

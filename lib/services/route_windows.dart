@@ -1,6 +1,7 @@
 import '../models/running_activity.dart';
 import 'cadence.dart';
 import 'gps_filter.dart';
+import 'route_gaps.dart';
 
 /// Il tracciato di una corsa, diviso in finestre di tempo con i metri fatti.
 ///
@@ -89,7 +90,8 @@ class RouteWindows {
         adesso.latitude,
         adesso.longitude,
       );
-      if (passo.isFinite) metriDaPosizione += passo;
+      // Il tratto a cavallo di una pausa non e' corsa. Vedi [RouteGaps].
+      if (!RouteGaps.skip(prima, adesso, passo)) metriDaPosizione += passo;
 
       // La velocita' del punto vale per il tratto che lo precede.
       final double? v = adesso.speed;

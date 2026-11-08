@@ -92,7 +92,8 @@ extension ThemeChoiceLabel on ThemeChoice {
     for (final ThemeChoice t in ThemeChoice.values) {
       if (t.name == value) return t;
     }
-    return ThemeChoice.sistema;
+    // Chi non ha mai scelto vede il tema Notte, che e' il disegno principale.
+    return ThemeChoice.scuro;
   }
 }
 
@@ -169,7 +170,7 @@ class UserSettings {
     this.ttsVoice = '',
     this.ttsEngine = '',
     this.spokenDetail = SpokenDetail.completo,
-    this.theme = ThemeChoice.sistema,
+    this.theme = ThemeChoice.scuro,
     this.weeklyAvailability,
   });
 

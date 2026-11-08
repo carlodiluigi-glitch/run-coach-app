@@ -5,6 +5,8 @@ import '../screens/backup_screen.dart';
 import '../screens/battery_screen.dart';
 import '../screens/voice_screen.dart';
 import '../screens/checkin_screen.dart';
+import '../screens/coach_import_screen.dart';
+import '../screens/coach_screen.dart';
 import '../screens/activity_detail_screen.dart';
 import '../screens/activity_history_screen.dart';
 import '../screens/manual_run_screen.dart';
@@ -87,6 +89,12 @@ class AppRoutes {
 
   /// Quale voce usa il coach, e quanto deve dire.
   static const String voce = '/voce';
+
+  /// Il testo per discutere la settimana con un'AI.
+  static const String coach = '/coach';
+
+  /// Incollare la settimana proposta dall'AI.
+  static const String coachImport = '/coach/incolla';
 
   /// Generatore delle rotte con gestione degli argomenti.
   static Route<dynamic> onGenerateRoute(RouteSettings routeSettings) {
@@ -239,6 +247,18 @@ class AppRoutes {
       case unlock:
         return MaterialPageRoute<void>(
           builder: (_) => const UnlockScreen(),
+          settings: routeSettings,
+        );
+
+      case coach:
+        return MaterialPageRoute<void>(
+          builder: (_) => const CoachScreen(),
+          settings: routeSettings,
+        );
+
+      case coachImport:
+        return MaterialPageRoute<void>(
+          builder: (_) => const CoachImportScreen(),
           settings: routeSettings,
         );
 

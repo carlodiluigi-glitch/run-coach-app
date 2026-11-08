@@ -105,6 +105,7 @@ class RoutePoint {
     this.altitude,
     this.speed,
     this.steps,
+    this.resumed = false,
   });
 
   final double latitude;
@@ -153,6 +154,18 @@ class RoutePoint {
   /// sensore di passo, e quando il permesso e' stato negato.
   final int? steps;
 
+  /// Il primo punto dopo una pausa.
+  ///
+  /// Durante la pausa il cronometro e' fermo ma le gambe no: si puo'
+  /// continuare a camminare, o a correre chiacchierando. Fra l'ultimo punto
+  /// prima della pausa e questo ci sono quindi dei metri fatti "a tempo zero",
+  /// e chi rilegge il tracciato non deve contarli. E' successo davvero: un
+  /// riscaldamento corso parlando con un amico, il cronometro in pausa, e i
+  /// record sono diventati 1 km in 2:27 e 5 km in 21:32.
+  ///
+  /// Vedi [RouteGaps], dove tutti i conti sulle posizioni lo rispettano.
+  final bool resumed;
+
   Map<String, dynamic> toJson() => <String, dynamic>{
         'lat': latitude,
         'lon': longitude,
@@ -160,6 +173,7 @@ class RoutePoint {
         'alt': altitude,
         if (speed != null) 'v': speed,
         if (steps != null) 'p': steps,
+        if (resumed) 'r': true,
       };
 
   factory RoutePoint.fromJson(Map<String, dynamic> json) => RoutePoint(
@@ -169,6 +183,7 @@ class RoutePoint {
         altitude: (json['alt'] as num?)?.toDouble(),
         speed: (json['v'] as num?)?.toDouble(),
         steps: (json['p'] as num?)?.toInt(),
+        resumed: json['r'] == true,
       );
 }
 
@@ -186,6 +201,8 @@ class RunningActivity {
     this.shoeId,
     this.workoutId,
     this.note,
+    this.temperature,
+    this.coachSummary,
     this.feedback,
     this.plannedSessionKey,
     this.declared,
@@ -219,7 +236,17 @@ class RunningActivity {
   /// Id dell'allenamento programmato eseguito, se presente.
   final String? workoutId;
 
+  /// Le note libere di chi ha corso: cosa e' andato, cosa no, perche'.
+  /// Arrivano intere nel testo per il coach.
   final String? note;
+
+  /// Il tempo che faceva, come l'ha sentito chi correva. `null` = non detto.
+  final FeltTemperature? temperature;
+
+  /// Il riassunto scritto dal coach (un'AI) dopo averne parlato. E' una sua
+  /// interpretazione, non parole dell'atleta: per questo sta separato dalle
+  /// note, e il testo per il coach lo marca come tale.
+  final String? coachSummary;
 
   /// Come e' andata secondo chi l'ha corsa: fatica percepita, gambe, dolori.
   ///
@@ -273,6 +300,10 @@ class RunningActivity {
     String? shoeId,
     bool clearShoe = false,
     String? note,
+    bool clearNote = false,
+    FeltTemperature? temperature,
+    bool clearTemperature = false,
+    String? coachSummary,
     SessionFeedback? feedback,
     String? plannedSessionKey,
     EffortKind? declared,
@@ -289,7 +320,10 @@ class RunningActivity {
         route: route,
         shoeId: clearShoe ? null : (shoeId ?? this.shoeId),
         workoutId: workoutId,
-        note: note ?? this.note,
+        note: clearNote ? null : (note ?? this.note),
+        temperature:
+            clearTemperature ? null : (temperature ?? this.temperature),
+        coachSummary: coachSummary ?? this.coachSummary,
         feedback: feedback ?? this.feedback,
         plannedSessionKey: plannedSessionKey ?? this.plannedSessionKey,
         declared: clearDeclared ? null : (declared ?? this.declared),
@@ -313,6 +347,8 @@ class RunningActivity {
         'shoeId': shoeId,
         'workoutId': workoutId,
         'note': note,
+        if (temperature != null) 'temp': temperature!.storageKey,
+        if (coachSummary != null) 'coach': coachSummary,
         'feedback': feedback?.toJson(),
         'plannedSessionKey': plannedSessionKey,
         'declared': declared?.storageKey,
@@ -358,6 +394,8 @@ class RunningActivity {
       shoeId: json['shoeId'] as String?,
       workoutId: json['workoutId'] as String?,
       note: json['note'] as String?,
+      temperature: FeltTemperatureInfo.fromStorage(json['temp'] as String?),
+      coachSummary: json['coach'] as String?,
       feedback:
           rawFeedback == null ? null : SessionFeedback.fromJson(rawFeedback),
       plannedSessionKey: json['plannedSessionKey'] as String?,

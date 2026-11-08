@@ -87,7 +87,7 @@ jobs:
       - name: flutter test (ora italiana)
         env:
           TZ: Europe/Rome
-        run: flutter test test/ora_legale_test.dart test/calorie_cadenza_soglia_test.dart test/stats_service_test.dart
+        run: flutter test test/ora_legale_test.dart test/calorie_cadenza_soglia_test.dart test/stats_service_test.dart test/coach_export_test.dart test/coach_import_test.dart
 
       # 7) APK release (firmata con la chiave di debug: nessun secret richiesto)
       - name: Build APK release
