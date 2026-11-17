@@ -9,6 +9,7 @@ import '../providers/daily_steps_provider.dart';
 import '../providers/plan_provider.dart';
 import '../services/coach_export.dart';
 import '../widgets/app_card.dart';
+import '../widgets/fumetto.dart';
 
 /// "Parla col coach": prepara il testo da incollare in una chat con un'AI.
 ///
@@ -83,26 +84,36 @@ class _CoachScreenState extends State<CoachScreen> {
               style: AppText.body.copyWith(color: p.inkSoft),
             ),
             const SizedBox(height: 20),
-            SizedBox(
-              height: 52,
-              child: FilledButton.icon(
-                onPressed: () => _copia(context, testo),
-                style: FilledButton.styleFrom(
-                  backgroundColor: p.accent,
-                  foregroundColor: p.onAccent,
-                ),
-                icon: const Icon(Icons.copy_rounded, size: 19),
-                label: const Text('Copia per il coach'),
-              ),
-            ),
-            const SizedBox(height: 10),
-            SizedBox(
-              height: 52,
-              child: OutlinedButton.icon(
-                onPressed: () =>
-                    Navigator.of(context).pushNamed(AppRoutes.coachImport),
-                icon: const Icon(Icons.content_paste_rounded, size: 19),
-                label: const Text('Incolla la risposta del coach'),
+            // La prima volta, il fumetto che spiega i due pulsanti insieme.
+            FumettoAllApertura(
+              fumetto: Fumetti.coach,
+              builder: (BuildContext _, GlobalKey bersaglio) => Column(
+                key: bersaglio,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  SizedBox(
+                    height: 52,
+                    child: FilledButton.icon(
+                      onPressed: () => _copia(context, testo),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: p.accent,
+                        foregroundColor: p.onAccent,
+                      ),
+                      icon: const Icon(Icons.copy_rounded, size: 19),
+                      label: const Text('Copia per il coach'),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    height: 52,
+                    child: OutlinedButton.icon(
+                      onPressed: () =>
+                          Navigator.of(context).pushNamed(AppRoutes.coachImport),
+                      icon: const Icon(Icons.content_paste_rounded, size: 19),
+                      label: const Text('Incolla la risposta del coach'),
+                    ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 20),

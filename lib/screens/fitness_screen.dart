@@ -11,6 +11,7 @@ import '../services/run_index_engine.dart';
 import '../services/training_load_engine.dart';
 import '../utils/formatters.dart';
 import '../widgets/app_card.dart';
+import '../widgets/fumetto.dart';
 import '../widgets/inset_list.dart';
 import '../widgets/load_chart.dart';
 
@@ -68,7 +69,14 @@ class FitnessScreen extends StatelessWidget {
     return _shell(
       context,
       children: <Widget>[
-        _IndexCard(result: result, index: index),
+        // La prima volta, il fumetto che spiega da dove viene il numero.
+        FumettoAllApertura(
+          fumetto: Fumetti.forma,
+          builder: (BuildContext _, GlobalKey bersaglio) => KeyedSubtree(
+            key: bersaglio,
+            child: _IndexCard(result: result, index: index),
+          ),
+        ),
 
         const SectionTitle('Zone di allenamento'),
         InsetList(

@@ -172,6 +172,8 @@ class UserSettings {
     this.spokenDetail = SpokenDetail.completo,
     this.theme = ThemeChoice.scuro,
     this.weeklyAvailability,
+    this.guideDone = false,
+    this.tipsSeen = const <String>[],
   });
 
   /// Nome mostrato nella Home ("Ciao <nome>"). Vuoto = saluto generico.
@@ -236,6 +238,22 @@ class UserSettings {
   /// non metterlo non deve ritrovarsi la domanda a ogni avvio.
   final bool welcomeDone;
 
+  /// `true` dopo che la guida a vignette e' stata vista fino in fondo o
+  /// saltata.
+  ///
+  /// E' separato da [welcomeDone] perche' la guida e' arrivata dopo: chi aveva
+  /// gia' l'app ha fatto il vecchio benvenuto ma la guida non l'ha mai vista,
+  /// e la deve vedere una volta sola, con i suoi dati gia' scritti dentro.
+  final bool guideDone;
+
+  /// I fumetti di spiegazione gia' chiusi con "Capito", per nome.
+  ///
+  /// Una lista e non un campo per fumetto: aggiungerne uno nuovo domani non
+  /// deve toccare il formato del file delle impostazioni.
+  final List<String> tipsSeen;
+
+  bool tipSeen(String key) => tipsSeen.contains(key);
+
   /// Mostra la mappa vera sotto al percorso delle corse.
   ///
   /// PERCHE' NASCE SPENTA
@@ -291,6 +309,8 @@ class UserSettings {
     SpokenDetail? spokenDetail,
     ThemeChoice? theme,
     WeeklyAvailability? weeklyAvailability,
+    bool? guideDone,
+    List<String>? tipsSeen,
   }) =>
       UserSettings(
         userName: userName ?? this.userName,
@@ -315,6 +335,8 @@ class UserSettings {
         spokenDetail: spokenDetail ?? this.spokenDetail,
         theme: theme ?? this.theme,
         weeklyAvailability: weeklyAvailability ?? this.weeklyAvailability,
+        guideDone: guideDone ?? this.guideDone,
+        tipsSeen: tipsSeen ?? this.tipsSeen,
       );
 
   Map<String, dynamic> toJson() => <String, dynamic>{
@@ -338,6 +360,8 @@ class UserSettings {
         'theme': theme.name,
         if (weeklyAvailability != null)
           'weeklyAvailability': weeklyAvailability!.toJson(),
+        'guideDone': guideDone,
+        'tipsSeen': tipsSeen,
       };
 
   factory UserSettings.fromJson(Map<String, dynamic> json) => UserSettings(
@@ -368,5 +392,9 @@ class UserSettings {
             SpokenDetailLabel.fromStorage(json['spokenDetail'] as String?),
         theme: ThemeChoiceLabel.fromStorage(json['theme'] as String?),
         weeklyAvailability: _availabilityFromJson(json['weeklyAvailability']),
+        guideDone: json['guideDone'] as bool? ?? false,
+        tipsSeen: (json['tipsSeen'] as List<dynamic>? ?? const <dynamic>[])
+            .whereType<String>()
+            .toList(growable: false),
       );
 }

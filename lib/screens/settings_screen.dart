@@ -335,6 +335,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       Navigator.of(context).pushNamed(AppRoutes.coach),
                 ),
                 AppListRow(
+                  title: 'Rivedi la guida',
+                  subtitle: 'Le vignette del primo avvio. Anche i fumetti '
+                      'sulle schermate tornano a comparire, una volta.',
+                  onTap: () async {
+                    await context.read<SettingsProvider>().resetTips();
+                    if (!context.mounted) return;
+                    Navigator.of(context)
+                        .pushNamed(AppRoutes.guide, arguments: true);
+                  },
+                ),
+                AppListRow(
                   title: 'Copia di sicurezza',
                   subtitle: 'Le corse stanno solo in questo telefono. Se lo '
                       'cambi o lo perdi, senza una copia spariscono.',

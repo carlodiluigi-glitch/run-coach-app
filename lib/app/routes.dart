@@ -25,7 +25,7 @@ import '../screens/splash_screen.dart';
 import '../screens/stats_screen.dart';
 import '../screens/unlock_screen.dart';
 import '../screens/week_edit_screen.dart';
-import '../screens/welcome_screen.dart';
+import '../screens/guide_screen.dart';
 import '../screens/workout_builder_screen.dart';
 import '../screens/workout_library_screen.dart';
 
@@ -38,6 +38,11 @@ class AppRoutes {
 
   /// Benvenuto del primo avvio (chiede il nome). Mostrato una volta sola.
   static const String welcome = '/welcome';
+
+  /// La guida a vignette. Al primo avvio prende il posto del benvenuto; da
+  /// Impostazioni si riapre passando `true` come argomento (alla fine torna
+  /// indietro invece di andare alla Home).
+  static const String guide = '/guida';
 
   static const String home = '/home';
   static const String run = '/run';
@@ -105,9 +110,14 @@ class AppRoutes {
           settings: routeSettings,
         );
 
+      // Il vecchio benvenuto e' diventato l'ultima vignetta della guida: la
+      // rotta resta, per chi la chiama ancora, e porta alla guida.
       case welcome:
+      case guide:
         return MaterialPageRoute<void>(
-          builder: (_) => const WelcomeScreen(),
+          builder: (_) => GuideScreen(
+            fromSettings: routeSettings.arguments == true,
+          ),
           settings: routeSettings,
         );
 

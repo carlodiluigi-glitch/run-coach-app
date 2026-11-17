@@ -10,6 +10,7 @@ import '../providers/plan_provider.dart';
 import '../utils/formatters.dart';
 import '../widgets/app_card.dart';
 import '../widgets/empty_state.dart';
+import '../widgets/fumetto.dart';
 import '../widgets/inset_list.dart';
 import '../widgets/metric_display.dart';
 
@@ -58,10 +59,17 @@ class _PlanScreenState extends State<PlanScreen> {
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         actions: <Widget>[
-          IconButton(
-            tooltip: 'Parla col coach',
-            icon: Icon(Icons.forum_outlined, color: p.blue),
-            onPressed: () => Navigator.of(context).pushNamed(AppRoutes.coach),
+          // La prima volta un fumetto indica quest'icona: da soli non la
+          // trova quasi nessuno.
+          FumettoAllApertura(
+            fumetto: Fumetti.piano,
+            builder: (BuildContext _, GlobalKey bersaglio) => IconButton(
+              key: bersaglio,
+              tooltip: 'Parla col coach',
+              icon: Icon(Icons.forum_outlined, color: p.blue),
+              onPressed: () =>
+                  Navigator.of(context).pushNamed(AppRoutes.coach),
+            ),
           ),
           IconButton(
             tooltip: 'Aggiungi una gara',

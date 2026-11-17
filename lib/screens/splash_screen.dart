@@ -57,7 +57,11 @@ class _SplashScreenState extends State<SplashScreen> {
     _timer?.cancel();
     final SettingsProvider settings = context.read<SettingsProvider>();
     Navigator.of(context).pushReplacementNamed(
-      settings.settings.welcomeDone ? AppRoutes.home : AppRoutes.welcome,
+      // Chi aggiorna da una versione senza guida la vede una volta sola, con
+      // i suoi dati gia' scritti dentro.
+      settings.settings.welcomeDone && settings.settings.guideDone
+          ? AppRoutes.home
+          : AppRoutes.guide,
     );
   }
 

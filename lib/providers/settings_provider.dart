@@ -63,6 +63,34 @@ class SettingsProvider extends ChangeNotifier {
         welcomeDone: true,
       ));
 
+  /// Chiude la guida a vignette: salva nome e unita' (come il vecchio
+  /// benvenuto) e segna la guida come vista.
+  Future<void> completeGuide({
+    String name = '',
+    UnitSystem units = UnitSystem.metric,
+  }) =>
+      update(_settings.copyWith(
+        userName: name.trim(),
+        units: units,
+        welcomeDone: true,
+        guideDone: true,
+      ));
+
+  /// Segna un fumetto come letto: non ricompare piu'.
+  Future<void> markTipSeen(String key) {
+    if (_settings.tipSeen(key)) return Future<void>.value();
+    return update(_settings.copyWith(
+      tipsSeen: <String>[..._settings.tipsSeen, key],
+    ));
+  }
+
+  /// "Rivedi la guida": i fumetti tornano a comparire, una volta ciascuno.
+  ///
+  /// La guida invece resta segnata come vista: se la si chiude a meta' col
+  /// tasto indietro non deve ripartire al prossimo avvio.
+  Future<void> resetTips() =>
+      update(_settings.copyWith(tipsSeen: const <String>[]));
+
   Future<void> setAudioCoachEnabled(bool enabled) =>
       update(_settings.copyWith(audioCoachEnabled: enabled));
 

@@ -1,94 +1,51 @@
-2.11.0 - Coach, contapassi, note e tempo, tema Notte, correzione della pausa
-==========================================================================
+2.12.0 - Guida a vignette con l'omino e fumetti sulle schermate
+================================================================
 
-1) PARLA COL COACH: ANDATA E RITORNO
-------------------------------------
-Nel Piano (icona del fumetto) o in Impostazioni.
-  - "Copia per il coach": un testo con le ultime due settimane da incollare
-    in una chat con un'AI. Ogni dato dice se e' misurato, dichiarato o
-    calcolato; quello che manca e' "non noto".
-  - "Incolla la risposta del coach": l'AI chiude la conversazione con un
-    blocco ===FALCATA-SETTIMANA-1===. Falcata lo legge, lo controlla, mostra
-    la settimana nuova accanto a quella del piano e la applica solo se
-    confermi. Due sedute di qualita' attaccate o qualita' il giorno prima del
-    lungo vanno corrette prima; giorni non disponibili, sedute troppo lunghe,
-    carico che sale oltre il 30%, passi piu' veloci delle zone sono avvisi.
-  - La settimana del coach si appoggia sopra il piano senza cambiarlo:
-    "Torna alla settimana del piano" la toglie.
-  - I riepiloghi che l'AI scrive per ogni corsa finiscono nelle note della
-    corsa, marcati come scritti dal coach.
+1) LA GUIDA DEL PRIMO AVVIO
+---------------------------
+Cinque vignette con l'omino di Falcata, al posto del vecchio benvenuto:
+  1. Ciao, benvenuto in Falcata
+  2. Premi Via e corri (con l'avviso sulla batteria)
+  3. Forma e fatica: cosa vogliono dire le due linee
+  4. Un piano che segue i tuoi turni
+  5. Dimmi di te: nome, peso, un tempo recente (5, 10 o 21 km, in gara o
+     in allenamento), km o miglia. Tutto facoltativo.
+Il peso va nel profilo (serve alle calorie), il tempo va fra i personali e
+da li' l'indice di forma calcola subito i ritmi. Un tempo impossibile per
+la distanza viene segnalato prima di salvarlo.
+"Salta" in ogni vignetta; il tasto indietro torna alla vignetta prima.
+Chi aggiorna la vede una volta sola, con nome e peso gia' scritti.
 
-2) NOTE E TEMPO A FINE CORSA
+2) I FUMETTI SULLE SCHERMATE
 ----------------------------
-Dopo la fatica: il tempo percepito (freddo, fresco, mite, caldo, molto
-caldo) e una casella di note libere. Tutto facoltativo, anche senza il
-numero della fatica. Nella scheda della corsa c'e' la sezione Note, per
-aggiungerle o correggerle dopo. Arrivano intere al coach.
+La prima volta che si apre una schermata, lo sfondo si scurisce, la cosa
+giusta viene cerchiata di lime e l'omino la spiega:
+  - Forma: da dove viene l'indice di forma.
+  - Piano: l'icona per parlare col coach.
+  - Parla col coach: i due pulsanti, andata e ritorno.
+"Capito" lo chiude per sempre.
 
-3) CONTAPASSI DELLA GIORNATA
-----------------------------
-In Home, "Passi oggi". Il telefono conta i passi da solo anche ad app
-chiusa; Falcata legge il contatore quando la apri e fa la differenza. Se
-fra due aperture c'e' la mezzanotte, i passi si dividono in proporzione:
-aprirla al mattino (per il check-in) rende il conto quasi esatto. I passi
-di ogni giorno vanno anche nel testo per il coach.
-
-4) TEMA NOTTE
--------------
-Fondo quasi nero, accento giallo lime, numeri grandi in Barlow Condensed
-(licenza OFL). Il tema chiaro resta, con un verde oliva al posto del lime.
-Chi non ha mai scelto vede Notte; chi aveva "Come il telefono" lo cambia in
-Impostazioni, Tema, Scuro. Nelle sedute a fasi, in alto c'e' il passo dei
-soli tratti di lavoro.
-
-5) LA PAUSA NON REGALA PIU' RECORD
-----------------------------------
-Correndo col cronometro in pausa, i metri fatti in pausa entravano nei
-record "a tempo zero" (1 km in 2:27). Ora il primo punto dopo la pausa e'
-segnato e non conta, e sulle corse vecchie un tratto oltre 43 km/h viene
-scartato. I record si ricalcolano da soli.
+3) RIVEDI LA GUIDA
+------------------
+In Impostazioni, sotto "Parla col coach": riapre le vignette e fa tornare
+i fumetti, una volta ciascuno.
 
 
-FILE NEL PACCHETTO (40)
+FILE NEL PACCHETTO (15)
 -----------------------
 
-  .github/workflows/android.yml
-  android/app/src/main/kotlin/com/runcoachapp/run_coach_app/MainActivity.kt
-  assets/fonts/BarlowCondensed-Medium.ttf
-  assets/fonts/BarlowCondensed-SemiBold.ttf
-  assets/fonts/OFL-BarlowCondensed.txt
   lib/app/app.dart
   lib/app/routes.dart
-  lib/app/theme.dart
-  lib/app/tokens.dart
-  lib/main.dart
-  lib/models/coach_week.dart
-  lib/models/effort.dart
-  lib/models/running_activity.dart
   lib/models/user_settings.dart
-  lib/providers/daily_steps_provider.dart
-  lib/providers/plan_provider.dart
-  lib/providers/running_provider.dart
-  lib/screens/activity_detail_screen.dart
-  lib/screens/coach_import_screen.dart
+  lib/providers/settings_provider.dart
   lib/screens/coach_screen.dart
-  lib/screens/home_screen.dart
-  lib/screens/import_screen.dart
+  lib/screens/fitness_screen.dart
+  lib/screens/guide_screen.dart
   lib/screens/plan_screen.dart
-  lib/screens/records_screen.dart
-  lib/screens/run_screen.dart
   lib/screens/settings_screen.dart
-  lib/services/coach_export.dart
-  lib/services/coach_import.dart
-  lib/services/daily_steps.dart
-  lib/services/native_bridge.dart
-  lib/services/records_service.dart
-  lib/services/route_gaps.dart
-  lib/services/route_windows.dart
-  lib/services/storage_service.dart
-  lib/widgets/app_card.dart
-  lib/widgets/effort_sheet.dart
+  lib/screens/splash_screen.dart
+  lib/utils/tempo_digitato.dart
+  lib/widgets/fumetto.dart
+  lib/widgets/omino.dart
   pubspec.yaml
-  test/coach_export_test.dart
-  test/coach_import_test.dart
-  test/pausa_test.dart
+  test/guida_test.dart
