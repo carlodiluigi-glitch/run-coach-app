@@ -1,51 +1,46 @@
-2.12.0 - Guida a vignette con l'omino e fumetti sulle schermate
-================================================================
+2.13.0 - Faccine a fine corsa, "il lavoro non l'ho fatto", ideata da
+=====================================================================
 
-1) LA GUIDA DEL PRIMO AVVIO
----------------------------
-Cinque vignette con l'omino di Falcata, al posto del vecchio benvenuto:
-  1. Ciao, benvenuto in Falcata
-  2. Premi Via e corri (con l'avviso sulla batteria)
-  3. Forma e fatica: cosa vogliono dire le due linee
-  4. Un piano che segue i tuoi turni
-  5. Dimmi di te: nome, peso, un tempo recente (5, 10 o 21 km, in gara o
-     in allenamento), km o miglia. Tutto facoltativo.
-Il peso va nel profilo (serve alle calorie), il tempo va fra i personali e
-da li' l'indice di forma calcola subito i ritmi. Un tempo impossibile per
-la distanza viene segnalato prima di salvarlo.
-"Salta" in ogni vignetta; il tasto indietro torna alla vignetta prima.
-Chi aggiorna la vede una volta sola, con nome e peso gia' scritti.
+1) LE FACCINE
+-------------
+A fine corsa la prima domanda e' "Com'e' andata?": cinque faccine,
+Benissimo, Bene, Cosi' cosi', Male, Malissimo. Un tocco basta, anche senza
+il numero della fatica. Si vedono e si cambiano nel dettaglio della corsa
+(riquadro Note) e arrivano al coach.
 
-2) I FUMETTI SULLE SCHERMATE
-----------------------------
-La prima volta che si apre una schermata, lo sfondo si scurisce, la cosa
-giusta viene cerchiata di lime e l'omino la spiega:
-  - Forma: da dove viene l'indice di forma.
-  - Piano: l'icona per parlare col coach.
-  - Parla col coach: i due pulsanti, andata e ritorno.
-"Capito" lo chiude per sempre.
+2) IL LAVORO NON FATTO
+----------------------
+Il caso vero: avviato il 4 x 1000, a meta' non era giornata, finito piano.
+L'app lo segnava come 4 x 1000 e leggeva i mille corsi piano come
+ripetute vere, abbassando l'indice di forma per una seduta mai fatta.
+Adesso:
+  - a fine corsa, se era un allenamento a fasi: "L'ho fatto" / "Non l'ho
+    fatto";
+  - nel dettaglio, in Informazioni, la riga "Il lavoro previsto" per
+    cambiarlo anche dopo (e tornare indietro).
+Non fatto = corsa libera a tutti gli effetti: nome, icona, indice di forma
+e testo per il coach, che sa cosa era previsto. Il nome dell'allenamento
+resta salvato.
 
-3) RIVEDI LA GUIDA
-------------------
-In Impostazioni, sotto "Parla col coach": riapre le vignette e fa tornare
-i fumetti, una volta ciascuno.
+3) IDEATA DA
+------------
+"Ideata da Carlo Di Luigi" al posto di "Sviluppato da", nell'app e
+nell'informativa privacy.
 
 
-FILE NEL PACCHETTO (15)
+FILE NEL PACCHETTO (13)
 -----------------------
 
+  docs/privacy.html
   lib/app/app.dart
-  lib/app/routes.dart
-  lib/models/user_settings.dart
-  lib/providers/settings_provider.dart
-  lib/screens/coach_screen.dart
-  lib/screens/fitness_screen.dart
-  lib/screens/guide_screen.dart
-  lib/screens/plan_screen.dart
-  lib/screens/settings_screen.dart
-  lib/screens/splash_screen.dart
-  lib/utils/tempo_digitato.dart
-  lib/widgets/fumetto.dart
-  lib/widgets/omino.dart
+  lib/models/effort.dart
+  lib/models/running_activity.dart
+  lib/screens/activity_detail_screen.dart
+  lib/screens/activity_history_screen.dart
+  lib/screens/run_screen.dart
+  lib/services/coach_export.dart
+  lib/services/run_index_engine.dart
+  lib/widgets/effort_sheet.dart
+  lib/widgets/faccine.dart
   pubspec.yaml
-  test/guida_test.dart
+  test/lavoro_non_fatto_test.dart

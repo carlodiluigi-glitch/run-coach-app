@@ -1,0 +1,46 @@
+2.13.0 - Faccine a fine corsa, "il lavoro non l'ho fatto", ideata da
+=====================================================================
+
+1) LE FACCINE
+-------------
+A fine corsa la prima domanda e' "Com'e' andata?": cinque faccine,
+Benissimo, Bene, Cosi' cosi', Male, Malissimo. Un tocco basta, anche senza
+il numero della fatica. Si vedono e si cambiano nel dettaglio della corsa
+(riquadro Note) e arrivano al coach.
+
+2) IL LAVORO NON FATTO
+----------------------
+Il caso vero: avviato il 4 x 1000, a meta' non era giornata, finito piano.
+L'app lo segnava come 4 x 1000 e leggeva i mille corsi piano come
+ripetute vere, abbassando l'indice di forma per una seduta mai fatta.
+Adesso:
+  - a fine corsa, se era un allenamento a fasi: "L'ho fatto" / "Non l'ho
+    fatto";
+  - nel dettaglio, in Informazioni, la riga "Il lavoro previsto" per
+    cambiarlo anche dopo (e tornare indietro).
+Non fatto = corsa libera a tutti gli effetti: nome, icona, indice di forma
+e testo per il coach, che sa cosa era previsto. Il nome dell'allenamento
+resta salvato.
+
+3) IDEATA DA
+------------
+"Ideata da Carlo Di Luigi" al posto di "Sviluppato da", nell'app e
+nell'informativa privacy.
+
+
+FILE NEL PACCHETTO (13)
+-----------------------
+
+  docs/privacy.html
+  lib/app/app.dart
+  lib/models/effort.dart
+  lib/models/running_activity.dart
+  lib/screens/activity_detail_screen.dart
+  lib/screens/activity_history_screen.dart
+  lib/screens/run_screen.dart
+  lib/services/coach_export.dart
+  lib/services/run_index_engine.dart
+  lib/widgets/effort_sheet.dart
+  lib/widgets/faccine.dart
+  pubspec.yaml
+  test/lavoro_non_fatto_test.dart

@@ -85,7 +85,11 @@ class _ActivityTile extends StatelessWidget {
           Row(
             children: <Widget>[
               Icon(
-                _icona(activity.type),
+                // Un allenamento avviato e non fatto si mostra come una corsa
+                // libera: e' quello che e' stato.
+                _icona(activity.workoutSkipped
+                    ? ActivityType.free
+                    : activity.type),
                 color: scheme.primary,
               ),
               const SizedBox(width: 10),

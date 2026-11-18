@@ -246,11 +246,17 @@ class CoachExport {
   }
 
   void _corsa(StringBuffer b, RunningActivity x, TrainingZones? zones) {
-    final String tipo = switch (x.type) {
-      ActivityType.free => 'corsa libera',
-      ActivityType.workout => 'allenamento a fasi',
-      ActivityType.treadmill => 'tapis roulant (inserito a mano)',
-    };
+    final String tipo = x.workoutSkipped
+        // Avviato ma non fatto: per l'AI e' una corsa libera, e deve sapere
+        // cosa era previsto, se no propone di "recuperare" una seduta che
+        // magari era sbagliata per quel giorno.
+        ? 'corsa libera [dichiarato: era previsto "${x.skippedWorkoutName}", '
+            'il lavoro non e\' stato fatto]'
+        : switch (x.type) {
+            ActivityType.free => 'corsa libera',
+            ActivityType.workout => 'allenamento a fasi',
+            ActivityType.treadmill => 'tapis roulant (inserito a mano)',
+          };
     b.writeln('Corsa id ${x.id} - "${x.name}", $tipo, ore ${_ora(x.startTime)}.');
     b.writeln('  [misurato] ${_km(x.distanceMeters)} km in '
         '${_durata(x.durationSeconds)}, passo medio '
@@ -312,6 +318,11 @@ class CoachExport {
       b.writeln('  [dichiarato] tempo, come l\'ha sentito: '
           '${x.temperature!.label.toLowerCase()}.');
     }
+    if (x.satisfaction != null) {
+      b.writeln('  [dichiarato] com\'e\' andata, a sensazione: '
+          '${x.satisfaction!.label.toLowerCase()} '
+          '(${x.satisfaction!.score}/5).');
+    }
   }
 
   /// I giri o le fasi, separando il lavoro dai recuperi.
@@ -321,7 +332,10 @@ class CoachExport {
   /// recuperi, e non dice ne' l'uno ne' l'altro.
   void _fasi(StringBuffer b, RunningActivity x) {
     if (x.laps.isEmpty) return;
-    final bool aFasi = x.laps.any((Lap l) => l.stepKind != null);
+    // Un allenamento avviato e non fatto si legge come una corsa libera: i
+    // suoi tratti di "lavoro" sono stati corsi piano.
+    final bool aFasi =
+        !x.workoutSkipped && x.laps.any((Lap l) => l.stepKind != null);
 
     if (!aFasi) {
       final List<String> parziali = <String>[

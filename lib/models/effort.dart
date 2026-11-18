@@ -168,6 +168,46 @@ extension FeltTemperatureInfo on FeltTemperature {
   }
 }
 
+/// Com'e' andata, a sensazione: le faccine di fine corsa.
+///
+/// PERCHE' OLTRE ALLA FATICA
+/// -------------------------
+/// La fatica dice quanto e' costata, non se e' andata bene. Un lungo a
+/// fatica 7 puo' essere stato bellissimo o un calvario, e un 4 x 1000 a
+/// fatica 8 puo' essere la seduta migliore del mese. Sono due domande
+/// diverse, e la seconda si risponde con un tocco anche quando la prima non
+/// si ha voglia di pensarla.
+enum RunSatisfaction { benissimo, bene, cosiCosi, male, malissimo }
+
+extension RunSatisfactionInfo on RunSatisfaction {
+  String get label {
+    switch (this) {
+      case RunSatisfaction.benissimo:
+        return 'Benissimo';
+      case RunSatisfaction.bene:
+        return 'Bene';
+      case RunSatisfaction.cosiCosi:
+        return 'Così così';
+      case RunSatisfaction.male:
+        return 'Male';
+      case RunSatisfaction.malissimo:
+        return 'Malissimo';
+    }
+  }
+
+  /// Da 5 (benissimo) a 1 (malissimo): per il testo del coach.
+  int get score => 5 - index;
+
+  String get storageKey => name;
+
+  static RunSatisfaction? fromStorage(String? value) {
+    for (final RunSatisfaction s in RunSatisfaction.values) {
+      if (s.name == value) return s;
+    }
+    return null;
+  }
+}
+
 class SessionFeedback {
   const SessionFeedback({
     required this.rpe,

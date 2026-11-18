@@ -431,7 +431,9 @@ class RunIndexEngine {
         source = EstimateSource.race;
       } else if (declared == EffortKind.timeTrial) {
         source = EstimateSource.timeTrial;
-      } else if (activity.type == ActivityType.workout) {
+      } else if (activity.isStructuredWorkout) {
+        // Un allenamento avviato ma non fatto ("il lavoro non l'ho fatto")
+        // qui non entra: e' una corsa libera, e conta come tale.
         source = EstimateSource.workout;
       } else {
         source = EstimateSource.runSegment;
@@ -453,7 +455,7 @@ class RunIndexEngine {
       // si stava spremendo, e un test dei 3000 costruito come seduta
       // (riscaldamento, 3 km, defaticamento) deve contare.
       final bool sedutaAFasi =
-          activity.type == ActivityType.workout && declared == null;
+          activity.isStructuredWorkout && declared == null;
 
       for (final double meters in segmentDistances) {
         if (sedutaAFasi) break;
@@ -529,6 +531,10 @@ class RunIndexEngine {
   /// corsa normale, meno di una gara. In allenamento quasi nessuno arriva
   /// fino in fondo come in gara.
   PerformanceSample? _sampleFromReps(RunningActivity activity) {
+    // Il lavoro non e' stato fatto: i tratti marcati "ripetuta" sono stati
+    // corsi piano, e leggerli come ripetute farebbe scendere l'indice per
+    // una seduta che non c'e' stata.
+    if (activity.workoutSkipped) return null;
     final String repKind = StepType.interval.storageKey;
 
     double meters = 0;

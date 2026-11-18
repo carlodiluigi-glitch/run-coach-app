@@ -616,7 +616,15 @@ class _RunScreenState extends State<RunScreen> {
     // La fatica percepita si chiede subito dopo, finche' la sensazione e'
     // fresca: chiederla il giorno dopo darebbe un numero inventato.
     if (!mounted) return;
-    final EndOfRunAnswers? risposte = await askSessionFeedback(context);
+    final bool eraAFasi = appenaFinita.type == ActivityType.workout;
+    final EndOfRunAnswers? risposte = await askSessionFeedback(
+      context,
+      workoutName: eraAFasi ? appenaFinita.name : null,
+    );
+
+    // "Il lavoro non l'ho fatto": diventa una corsa libera, ma il nome
+    // dell'allenamento resta, per sapere cosa era previsto.
+    final bool lavoroSaltato = eraAFasi && (risposte?.workoutSkipped ?? false);
 
     if (shoeId != null || risposte != null) {
       await activities.update(appenaFinita.copyWith(
@@ -624,6 +632,9 @@ class _RunScreenState extends State<RunScreen> {
         feedback: risposte?.feedback,
         note: risposte?.note,
         temperature: risposte?.temperature,
+        satisfaction: risposte?.satisfaction,
+        name: lavoroSaltato ? 'Corsa libera' : null,
+        skippedWorkoutName: lavoroSaltato ? appenaFinita.name : null,
       ));
     }
     if (!mounted) return;

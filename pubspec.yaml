@@ -2,7 +2,7 @@ name: run_coach_app
 description: "Run Coach - app Android per la corsa: GPS, allenamenti a intervalli, coach vocale, storico e gestione scarpe."
 publish_to: 'none'
 
-version: 2.12.0+44
+version: 2.13.0+45
 
 environment:
   sdk: ">=3.4.0 <4.0.0"

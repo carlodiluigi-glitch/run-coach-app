@@ -14,9 +14,9 @@ class RunCoachApp extends StatelessWidget {
   static const String appName = 'Falcata';
 
   /// Riga di paternita', mostrata all'avvio e nelle impostazioni.
-  static const String credit = 'Sviluppato da Carlo Di Luigi';
+  static const String credit = 'Ideata da Carlo Di Luigi';
 
-  static const String version = '2.12.0';
+  static const String version = '2.13.0';
 
   /// Da quale scelta dell'utente dipende il tema.
   ///

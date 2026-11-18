@@ -20,6 +20,7 @@ import '../services/session_classifier.dart';
 import '../utils/formatters.dart';
 import '../widgets/app_card.dart';
 import '../widgets/empty_state.dart';
+import '../widgets/faccine.dart';
 import '../widgets/inset_list.dart';
 import '../widgets/lap_table.dart';
 import '../widgets/metric_card.dart';
@@ -54,7 +55,9 @@ class ActivityDetailScreen extends StatelessWidget {
     final RunningShoe? shoe = shoes.byId(activity.shoeId);
     final List<DistanceRecord> held = provider.recordsHeldBy(activity.id);
     final double? carico = provider.loadOf(activity);
-    final bool isWorkout = activity.type == ActivityType.workout;
+    // Un allenamento avviato e poi non fatto si legge come corsa libera: i
+    // suoi parziali non sono ripetute, e "solo lavoro" non vuol dire niente.
+    final bool isWorkout = activity.isStructuredWorkout;
 
     // Il passo dei soli tratti di lavoro. In una seduta a fasi e' il numero
     // che conta: il passo medio mescola ripetute e recuperi e non dice ne'
@@ -63,6 +66,7 @@ class ActivityDetailScreen extends StatelessWidget {
     double metriLavoro = 0;
     int secondiLavoro = 0;
     for (final Lap l in activity.laps) {
+      if (!isWorkout) break;
       if (l.stepKind != StepType.interval.storageKey) continue;
       metriLavoro += l.distanceMeters;
       secondiLavoro += l.durationSeconds;
@@ -136,6 +140,13 @@ class ActivityDetailScreen extends StatelessWidget {
               '${formatTimeShort(activity.startTime)}',
               style: AppText.caption.copyWith(color: p.inkFaint),
             ),
+            if (activity.workoutSkipped) ...<Widget>[
+              const SizedBox(height: 4),
+              Text(
+                'Era previsto: ${activity.skippedWorkoutName} - non fatto',
+                style: AppText.caption.copyWith(color: p.orange),
+              ),
+            ],
             const SizedBox(height: 16),
 
             // ------------------------------------------------- numeri chiave
@@ -392,6 +403,23 @@ class ActivityDetailScreen extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
+                        if (activity.satisfaction != null) ...<Widget>[
+                          Row(
+                            children: <Widget>[
+                              Icon(
+                                iconaFaccina(activity.satisfaction!),
+                                size: 22,
+                                color: coloreFaccina(activity.satisfaction!, p),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                activity.satisfaction!.label,
+                                style: AppText.row.copyWith(color: p.ink),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                        ],
                         if (activity.temperature != null) ...<Widget>[
                           Text(
                             'Tempo: ${activity.temperature!.label.toLowerCase()}',
@@ -435,9 +463,26 @@ class ActivityDetailScreen extends StatelessWidget {
               children: <Widget>[
                 AppListRow(
                   title: 'Tipo',
-                  value: activity.type.label,
+                  value: activity.workoutSkipped
+                      ? ActivityType.free.label
+                      : activity.type.label,
                   showChevron: false,
                 ),
+                // Il caso vero: avvii il 4 x 1000, a meta' capisci che non e'
+                // giornata e finisci piano. Si dice qui (o a fine corsa), e
+                // la corsa smette di contare come una seduta di ripetute.
+                if (activity.type == ActivityType.workout)
+                  AppListRow(
+                    title: 'Il lavoro previsto',
+                    subtitle: activity.workoutSkipped
+                        ? 'Contata come corsa libera. Tocca se invece '
+                            'l\'hai fatto.'
+                        : 'Tocca se non l\'hai fatto: la conto come corsa '
+                            'libera.',
+                    value: activity.workoutSkipped ? 'Non fatto' : 'Fatto',
+                    valueColor: activity.workoutSkipped ? p.orange : p.ink,
+                    onTap: () => _toggleWorkoutDone(context, provider, activity),
+                  ),
                 AppListRow(
                   title: 'Scarpa',
                   subtitle: shoe == null ? 'Tocca per assegnarla' : null,
@@ -714,6 +759,48 @@ String _testoNote(RunningActivity a) => <String>[
       if (a.note?.trim().isNotEmpty ?? false) a.note!.trim(),
     ].join('\n\n');
 
+/// "Il lavoro non l'ho fatto", o il contrario, dopo la corsa.
+///
+/// Non si butta via niente: il nome dell'allenamento resta nell'attivita',
+/// e un secondo tocco rimette tutto com'era.
+Future<void> _toggleWorkoutDone(
+  BuildContext context,
+  ActivityProvider provider,
+  RunningActivity activity,
+) async {
+  final bool saltato = activity.workoutSkipped;
+  final String previsto = activity.skippedWorkoutName ?? activity.name;
+  final bool? conferma = await showDialog<bool>(
+    context: context,
+    builder: (BuildContext ctx) => AlertDialog(
+      title: Text(saltato ? 'L\'hai fatto, invece?' : 'Non hai fatto "$previsto"?'),
+      content: Text(
+        saltato
+            ? 'Torna a essere "$previsto": i tratti di lavoro contano di nuovo '
+                'come ripetute, anche per l\'indice di forma.'
+            : 'La conto come corsa libera. I tratti di lavoro non vengono '
+                'letti come ripetute, quindi non abbassano l\'indice di forma, '
+                'e il coach sa che il lavoro previsto non c\'e\' stato. Si '
+                'puo\' sempre tornare indietro.',
+      ),
+      actions: <Widget>[
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(false),
+          child: const Text('Annulla'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(ctx).pop(true),
+          child: Text(saltato ? 'Si\', l\'ho fatto' : 'Non l\'ho fatto'),
+        ),
+      ],
+    ),
+  );
+  if (conferma != true) return;
+  await provider.update(saltato
+      ? activity.copyWith(name: previsto, clearSkippedWorkout: true)
+      : activity.copyWith(name: 'Corsa libera', skippedWorkoutName: previsto));
+}
+
 Future<void> _editNote(
   BuildContext context,
   ActivityProvider provider,
@@ -722,6 +809,7 @@ Future<void> _editNote(
   final TextEditingController testo =
       TextEditingController(text: activity.note ?? '');
   FeltTemperature? tempo = activity.temperature;
+  RunSatisfaction? faccina = activity.satisfaction;
   final AppPalette p = AppPalette.of(context);
 
   final bool? salva = await showModalBottomSheet<bool>(
@@ -745,6 +833,14 @@ Future<void> _editNote(
           children: <Widget>[
             Text('Note', style: AppText.title.copyWith(color: p.ink)),
             const SizedBox(height: 14),
+            Text('COM\'E\' ANDATA',
+                style: AppText.label.copyWith(color: p.inkFaint)),
+            const SizedBox(height: 4),
+            FaccineRow(
+              selected: faccina,
+              onChanged: (RunSatisfaction? s) => setSheet(() => faccina = s),
+            ),
+            const SizedBox(height: 12),
             Text('IL TEMPO', style: AppText.label.copyWith(color: p.inkFaint)),
             const SizedBox(height: 8),
             Wrap(
@@ -763,7 +859,6 @@ Future<void> _editNote(
             const SizedBox(height: 16),
             TextField(
               controller: testo,
-              autofocus: true,
               minLines: 3,
               maxLines: 8,
               maxLength: 600,
@@ -806,6 +901,8 @@ Future<void> _editNote(
     clearNote: pulito.isEmpty,
     temperature: tempo,
     clearTemperature: tempo == null,
+    satisfaction: faccina,
+    clearSatisfaction: faccina == null,
   ));
 }
 

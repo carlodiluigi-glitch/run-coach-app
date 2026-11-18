@@ -202,6 +202,8 @@ class RunningActivity {
     this.workoutId,
     this.note,
     this.temperature,
+    this.satisfaction,
+    this.skippedWorkoutName,
     this.coachSummary,
     this.feedback,
     this.plannedSessionKey,
@@ -242,6 +244,32 @@ class RunningActivity {
 
   /// Il tempo che faceva, come l'ha sentito chi correva. `null` = non detto.
   final FeltTemperature? temperature;
+
+  /// Com'e' andata, a sensazione (le faccine). `null` = non detto.
+  final RunSatisfaction? satisfaction;
+
+  /// Il nome dell'allenamento a fasi che era stato avviato ma NON fatto.
+  ///
+  /// IL CASO VERO
+  /// ------------
+  /// Avvii il 4 x 1000 del piano, a meta' ti accorgi che non e' giornata e
+  /// finisci correndo tranquillo. L'app registrava "4 x 1000" e trattava i
+  /// tratti di lavoro come ripetute vere: un mille corso piano letto come una
+  /// ripetuta, cioe' un indice di forma che scende per una seduta mai fatta.
+  ///
+  /// Con questo campo la corsa diventa una corsa libera a tutti gli effetti
+  /// (nome, indice di forma, testo per il coach), ma il nome dell'allenamento
+  /// resta qui: si sa cosa era previsto, e si puo' tornare indietro.
+  /// `null` = il lavoro e' stato fatto, o non c'era.
+  final String? skippedWorkoutName;
+
+  /// `true` se l'allenamento a fasi avviato non e' stato fatto.
+  bool get workoutSkipped => skippedWorkoutName != null;
+
+  /// `true` se e' una seduta a fasi fatta davvero: e' questo, e non [type],
+  /// che va guardato per decidere se i parziali sono ripetute.
+  bool get isStructuredWorkout =>
+      type == ActivityType.workout && !workoutSkipped;
 
   /// Il riassunto scritto dal coach (un'AI) dopo averne parlato. E' una sua
   /// interpretazione, non parole dell'atleta: per questo sta separato dalle
@@ -303,6 +331,10 @@ class RunningActivity {
     bool clearNote = false,
     FeltTemperature? temperature,
     bool clearTemperature = false,
+    RunSatisfaction? satisfaction,
+    bool clearSatisfaction = false,
+    String? skippedWorkoutName,
+    bool clearSkippedWorkout = false,
     String? coachSummary,
     SessionFeedback? feedback,
     String? plannedSessionKey,
@@ -323,6 +355,11 @@ class RunningActivity {
         note: clearNote ? null : (note ?? this.note),
         temperature:
             clearTemperature ? null : (temperature ?? this.temperature),
+        satisfaction:
+            clearSatisfaction ? null : (satisfaction ?? this.satisfaction),
+        skippedWorkoutName: clearSkippedWorkout
+            ? null
+            : (skippedWorkoutName ?? this.skippedWorkoutName),
         coachSummary: coachSummary ?? this.coachSummary,
         feedback: feedback ?? this.feedback,
         plannedSessionKey: plannedSessionKey ?? this.plannedSessionKey,
@@ -348,6 +385,8 @@ class RunningActivity {
         'workoutId': workoutId,
         'note': note,
         if (temperature != null) 'temp': temperature!.storageKey,
+        if (satisfaction != null) 'umore': satisfaction!.storageKey,
+        if (skippedWorkoutName != null) 'lavoroNonFatto': skippedWorkoutName,
         if (coachSummary != null) 'coach': coachSummary,
         'feedback': feedback?.toJson(),
         'plannedSessionKey': plannedSessionKey,
@@ -395,6 +434,9 @@ class RunningActivity {
       workoutId: json['workoutId'] as String?,
       note: json['note'] as String?,
       temperature: FeltTemperatureInfo.fromStorage(json['temp'] as String?),
+      satisfaction:
+          RunSatisfactionInfo.fromStorage(json['umore'] as String?),
+      skippedWorkoutName: json['lavoroNonFatto'] as String?,
       coachSummary: json['coach'] as String?,
       feedback:
           rawFeedback == null ? null : SessionFeedback.fromJson(rawFeedback),
